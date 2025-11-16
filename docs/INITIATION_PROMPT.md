@@ -32,17 +32,18 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-- Currently on: Build Increment 9 (Settings & System Control)
-- Last completed: Build Increment 8 - Search Functionality
-  - Added route: GET /search with filename search (case-insensitive)
-  - Filtering by status, tags (AND logic), and date ranges (ISO-8601)
-  - Match highlighting with <mark> tags for UI rendering
-  - Pagination support (limit/offset), wildcard search with "*"
-  - All 16 tests passing; full backend suite: 115 passed
-  - Schemas: SearchMatch, SearchResultItem, SearchResponse
-  - MVP scope: filename-only search (transcript content deferred)
-- Next task: Implement Settings & System Control endpoints
-- Files being worked on: Ready to begin Increment 9
+- Currently on: Build Increment 10 (Frontend Foundation)
+- Last completed: Build Increment 9 - Settings & System Control
+  - Added routes: GET /settings, PUT /settings
+  - Settings model with defaults: medium model, auto language, 3 concurrent jobs
+  - Validates Whisper model names and language codes
+  - Partial updates supported, auto-creates defaults on first access
+  - Calculates storage usage from job file sizes
+  - All 14 tests passing; full backend suite: 129 passed
+  - Schemas: SettingsUpdate, SettingsResponse, SettingsUpdateResponse
+  - Backend complete! All 9 increments finished
+- Next task: Initialize frontend project with React, Vite, and Tailwind
+- Files being worked on: Ready to begin Increment 10
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -180,7 +181,7 @@ Keep track of completed increments here:
 - [x] Increment 6: Export Formats
 - [x] Increment 7: Tag System
 - [x] Increment 8: Search Functionality
-- [ ] Increment 9: Settings & System Control
+- [x] Increment 9: Settings & System Control ✨ BACKEND COMPLETE!
 
 ### Frontend Increments
 - [ ] Increment 10: Frontend Foundation

@@ -13,7 +13,8 @@ from app.services.transcription import process_transcription_job
 
 class TranscriptionJobQueue:
     def __init__(self, concurrency: int = 3):
-        self._queue: "asyncio.Queue[tuple[str, bool]]" = asyncio.Queue()
+        # Defer queue creation until start() to bind to the current event loop
+        self._queue: "asyncio.Queue[tuple[str, bool]] | None" = None
         self._workers: list[asyncio.Task] = []
         self._running_ids: Set[str] = set()
         self._concurrency = concurrency
@@ -23,19 +24,25 @@ class TranscriptionJobQueue:
         if self._started:
             return
         self._started = True
+        # Create a fresh queue bound to this loop
+        self._queue = asyncio.Queue()
         for _ in range(self._concurrency):
             self._workers.append(asyncio.create_task(self._worker()))
 
     async def stop(self):
         # Graceful stop: put sentinel values
-        for _ in self._workers:
-            await self._queue.put(("__STOP__", False))
+        if self._queue is not None:
+            for _ in self._workers:
+                await self._queue.put(("__STOP__", False))
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers.clear()
         self._started = False
+        # Drop the queue so a new one will be created on next start()
+        self._queue = None
 
     async def _worker(self):
         while True:
+            assert self._queue is not None
             job_id, should_fail = await self._queue.get()
             if job_id == "__STOP__":  # sentinel
                 break
@@ -61,6 +68,7 @@ class TranscriptionJobQueue:
         # Ensure workers are started even if startup event didn't run (e.g., tests)
         if not self._started:
             await self.start()
+        assert self._queue is not None
         await self._queue.put((job_id, should_fail))
 
 

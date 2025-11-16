@@ -6,10 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
+from app.routes import transcripts as transcripts_module
 from app.services.job_queue import queue
 
 auth_router = auth_module.router
 jobs_router = jobs_module.router
+transcripts_router = transcripts_module.router
 
 # Create FastAPI app
 app = FastAPI(
@@ -30,6 +32,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router)
 app.include_router(jobs_router)
+app.include_router(transcripts_router)
 
 
 @app.get("/health")

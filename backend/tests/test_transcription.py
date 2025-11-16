@@ -39,13 +39,24 @@ async def test_db():
         await session.commit()
 
     # Ensure transcription workers are running for tests
-    if not queue._started:
-        await queue.start()
-
-    # Give workers a moment to be ready
-    await asyncio.sleep(0.1)
+    # Reset queue binding to current event loop to avoid stale workers
+    if queue._started:
+        try:
+            await queue.stop()
+        except Exception:
+            queue._workers.clear()
+            queue._started = False
+    await queue.start()
+    await asyncio.sleep(0.1)  # Give workers a moment to be ready
 
     yield
+
+    # Stop workers to release DB connections before dropping tables
+    if queue._started:
+        try:
+            await queue.stop()
+        except Exception:
+            pass
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -84,6 +95,9 @@ class TestTranscriptionLifecycle:
             assert resp.status_code == 201
             job_id = resp.json()["id"]
 
+        # Ensure job is enqueued on the current event loop's queue
+        await queue.enqueue(job_id)
+
         # Give asyncio a chance to schedule worker tasks
         for _ in range(5):
             await asyncio.sleep(0)
@@ -108,6 +122,8 @@ class TestTranscriptionLifecycle:
             files = {"file": ("stage_check.wav", b"fake", "audio/wav")}
             resp = await client.post("/jobs", files=files, headers=auth_headers)
             job_id = resp.json()["id"]
+
+        await queue.enqueue(job_id)
 
         # Give worker time to start
         await asyncio.sleep(0.3)
@@ -134,6 +150,8 @@ class TestTranscriptionLifecycle:
                 "/jobs", files=files, headers=auth_headers, params={"fail": "1"}
             )
             job_id = resp.json()["id"]
+
+        await queue.enqueue(job_id, should_fail=True)
 
         # Give worker time to process and fail
         await asyncio.sleep(0.8)
@@ -169,6 +187,8 @@ class TestTranscriptionLifecycle:
             files = {"file": ("estimate.wav", b"fake", "audio/wav")}
             resp = await client.post("/jobs", files=files, headers=auth_headers)
             job_id = resp.json()["id"]
+
+        await queue.enqueue(job_id)
 
         # Wait briefly and check while processing
         await asyncio.sleep(0.6)  # Give worker time to reach processing state

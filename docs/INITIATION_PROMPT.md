@@ -32,16 +32,15 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-- Currently on: Build Increment 6 (Export Formats)
-- Last completed: Build Increment 5 - Real Transcription Engine (Simulated)
-  - In-memory async job queue with 3-worker concurrency limit
-  - Simulated transcription stages (loading_model → transcribing → finalizing → completed)
-  - Progress tracking (progress_percent, progress_stage, estimated_time_left)
-  - Failure handling and error_message persistence
-  - 2 integration tests passing (lifecycle + concurrency); 3 tests with known isolation issues
-  - Note: Full test suite refinement deferred to future increment due to pytest async fixture complexity
-- Next task: Implement transcript export formats (TXT, JSON, SRT, VTT, DOCX)
-- Files being worked on: Ready to begin Increment 6
+- Currently on: Build Increment 7 (Tag System)
+- Last completed: Build Increment 6 - Export Formats
+  - Added routes: GET /transcripts/{job_id}, GET /transcripts/{job_id}/export
+  - Implemented exporters: TXT, MD, SRT, VTT, JSON, DOCX (python-docx)
+  - Stabilized async job queue: loop-bound queue created at start(); per-test start/stop
+  - Tests updated for reliability; full backend suite: 73 passed
+  - Lightweight Python env using minimal requirements (heavy deps optional)
+- Next task: Implement Tag System (endpoints, model relations, tests)
+- Files being worked on: Ready to begin Increment 7
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -176,7 +175,7 @@ Keep track of completed increments here:
 - [x] Increment 3: Job Creation Without Transcription
 - [x] Increment 4: Job Listing & Retrieval
 - [x] Increment 5: Real Transcription Engine (Simulated)
-- [ ] Increment 6: Export Formats
+- [x] Increment 6: Export Formats
 - [ ] Increment 7: Tag System
 - [ ] Increment 8: Search Functionality
 - [ ] Increment 9: Settings & System Control

@@ -16,6 +16,7 @@ from app.models.user import User
 from app.routes.auth import get_current_user
 from app.schemas.job import JobCreatedResponse, JobListResponse, JobListItem, JobResponse
 from app.utils.file_handling import save_uploaded_file, generate_secure_filename
+from app.services.job_queue import queue
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -27,6 +28,7 @@ async def create_job(
     language: str = Form(default="auto"),
     enable_timestamps: bool = Form(default=True),
     enable_speaker_detection: bool = Form(default=True),
+    should_fail: bool = Query(False, alias="fail"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -75,8 +77,8 @@ async def create_job(
     await db.commit()
     await db.refresh(job)
 
-    # In Build Increment 5, we'll actually queue the transcription job
-    # For now, it just stays in "queued" status
+    # Enqueue job for background processing (Increment 5)
+    await queue.enqueue(job.id, should_fail=should_fail)
 
     return JobCreatedResponse(
         id=job.id,

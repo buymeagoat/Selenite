@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
+from app.services.job_queue import queue
 
 auth_router = auth_module.router
 jobs_router = jobs_module.router
@@ -38,3 +39,16 @@ async def health_check():
         "status": "healthy",
         "version": "0.1.0",
     }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize background workers for transcription queue."""
+    # Expose queue via app state to avoid import duplication issues
+    app.state.queue = queue
+    await queue.start()
+
+
+# Note: We intentionally do not stop the queue on app shutdown in tests,
+# because httpx's ASGITransport manages lifespan per client context. Stopping
+# here would terminate workers before background jobs complete.

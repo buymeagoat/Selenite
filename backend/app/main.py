@@ -7,11 +7,14 @@ from app.config import settings
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
 from app.routes import transcripts as transcripts_module
+from app.routes import tags as tags_module
 from app.services.job_queue import queue
 
 auth_router = auth_module.router
 jobs_router = jobs_module.router
 transcripts_router = transcripts_module.router
+tags_router = tags_module.router
+job_tags_router = tags_module.job_tags_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -33,6 +36,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(jobs_router)
 app.include_router(transcripts_router)
+app.include_router(tags_router)
+app.include_router(job_tags_router)
 
 
 @app.get("/health")

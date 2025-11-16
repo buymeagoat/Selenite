@@ -32,15 +32,16 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-- Currently on: Build Increment 7 (Tag System)
-- Last completed: Build Increment 6 - Export Formats
-  - Added routes: GET /transcripts/{job_id}, GET /transcripts/{job_id}/export
-  - Implemented exporters: TXT, MD, SRT, VTT, JSON, DOCX (python-docx)
-  - Stabilized async job queue: loop-bound queue created at start(); per-test start/stop
-  - Tests updated for reliability; full backend suite: 73 passed
-  - Lightweight Python env using minimal requirements (heavy deps optional)
-- Next task: Implement Tag System (endpoints, model relations, tests)
-- Files being worked on: Ready to begin Increment 7
+- Currently on: Build Increment 8 (Search Functionality)
+- Last completed: Build Increment 7 - Tag System
+  - Added routes: GET /tags, POST /tags, PUT /tags/{id}, DELETE /tags/{id}
+  - Added job-tag routes: POST /jobs/{job_id}/tags, DELETE /jobs/{job_id}/tags/{tag_id}
+  - Full CRUD for tags with duplicate name validation, color support
+  - Tag-job associations: assign/remove tags, cascade deletion, job counts
+  - All 26 tests passing; full backend suite: 99 passed
+  - Schemas: TagCreate, TagUpdate, TagResponse, TagListResponse, job tag responses
+- Next task: Implement Search Functionality (text search, tag filtering)
+- Files being worked on: Ready to begin Increment 8
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -176,7 +177,7 @@ Keep track of completed increments here:
 - [x] Increment 4: Job Listing & Retrieval
 - [x] Increment 5: Real Transcription Engine (Simulated)
 - [x] Increment 6: Export Formats
-- [ ] Increment 7: Tag System
+- [x] Increment 7: Tag System
 - [ ] Increment 8: Search Functionality
 - [ ] Increment 9: Settings & System Control
 

@@ -1,8 +1,12 @@
 """Job management routes."""
 
 from datetime import datetime
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -10,7 +14,7 @@ from app.database import get_db
 from app.models.job import Job
 from app.models.user import User
 from app.routes.auth import get_current_user
-from app.schemas.job import JobCreatedResponse
+from app.schemas.job import JobCreatedResponse, JobListResponse, JobListItem, JobResponse
 from app.utils.file_handling import save_uploaded_file, generate_secure_filename
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -80,3 +84,107 @@ async def create_job(
         status=job.status,
         created_at=job.created_at,
     )
+
+
+@router.get("", response_model=JobListResponse)
+async def list_jobs(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    tags: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List all jobs with optional filtering and pagination.
+
+    Args:
+        status_filter: Filter by job status (queued, processing, completed, failed)
+        date_from: Filter jobs created on or after this date
+        date_to: Filter jobs created on or before this date
+        tags: Comma-separated tag IDs to filter by
+        search: Search term for filename or transcript content
+        limit: Maximum number of results to return
+        offset: Number of results to skip for pagination
+        current_user: Authenticated user from dependency
+        db: Database session
+
+    Returns:
+        JobListResponse with total count and paginated list of jobs
+    """
+    # Build base query for user's jobs
+    query = select(Job).where(Job.user_id == current_user.id).options(selectinload(Job.tags))
+
+    # Apply status filter
+    if status_filter:
+        query = query.where(Job.status == status_filter)
+
+    # Apply date range filters
+    if date_from:
+        query = query.where(Job.created_at >= date_from)
+    if date_to:
+        query = query.where(Job.created_at <= date_to)
+
+    # Apply search filter (filename only for now, transcript search in later increment)
+    if search:
+        query = query.where(Job.original_filename.ilike(f"%{search}%"))
+
+    # TODO: Tag filtering will be implemented when tag relationships are added
+
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    result = await db.execute(count_query)
+    total = result.scalar_one()
+
+    # Apply ordering (newest first)
+    query = query.order_by(Job.created_at.desc())
+
+    # Apply pagination
+    query = query.limit(limit).offset(offset)
+
+    # Execute query
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+
+    # Convert to response models
+    items = [JobListItem.model_validate(job) for job in jobs]
+
+    return JobListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+@router.get("/{job_id}", response_model=JobResponse)
+async def get_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get detailed information about a specific job.
+
+    Args:
+        job_id: UUID of the job to retrieve
+        current_user: Authenticated user from dependency
+        db: Database session
+
+    Returns:
+        JobResponse with complete job information
+
+    Raises:
+        HTTPException: 404 if job not found
+    """
+    # Query for the job
+    query = (
+        select(Job)
+        .where(Job.id == str(job_id), Job.user_id == current_user.id)
+        .options(selectinload(Job.tags))
+    )
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    return JobResponse.model_validate(job)

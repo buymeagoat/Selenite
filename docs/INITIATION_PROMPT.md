@@ -32,11 +32,14 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-[Update this section based on where you are in the build]
-- Currently on: Build Increment [NUMBER]
-- Last completed: [Description]
-- Next task: [Description]
-- Files being worked on: [List]
+- Currently on: Build Increment 4 (Job Listing & Retrieval)
+- Last completed: Build Increment 3 - Job Creation Without Transcription
+  - POST /jobs endpoint with file upload
+  - File handling utilities (9 formats, 2GB max)
+  - Job schemas and stub transcription service
+  - 30 tests passing (21 file handling + 9 job routes)
+- Next task: Implement GET /jobs and GET /jobs/{job_id} endpoints
+- Files being worked on: Ready to begin Increment 4
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -168,7 +171,7 @@ Keep track of completed increments here:
 ### Backend Increments
 - [x] Increment 1: Project Scaffolding & Database
 - [x] Increment 2: Authentication System
-- [ ] Increment 3: Job Creation Without Transcription
+- [x] Increment 3: Job Creation Without Transcription
 - [ ] Increment 4: Job Listing & Retrieval
 - [ ] Increment 5: Real Transcription Engine
 - [ ] Increment 6: Export Formats

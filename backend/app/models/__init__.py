@@ -4,5 +4,6 @@ from app.models.user import User
 from app.models.job import Job
 from app.models.tag import Tag, job_tags
 from app.models.transcript import Transcript
+from app.models.settings import Settings
 
-__all__ = ["User", "Job", "Tag", "Transcript", "job_tags"]
+__all__ = ["User", "Job", "Tag", "Transcript", "Settings", "job_tags"]

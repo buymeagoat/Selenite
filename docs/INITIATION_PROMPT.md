@@ -166,8 +166,8 @@ When completing an increment:
 Keep track of completed increments here:
 
 ### Backend Increments
-- [ ] Increment 1: Project Scaffolding & Database
-- [ ] Increment 2: Authentication System
+- [x] Increment 1: Project Scaffolding & Database
+- [x] Increment 2: Authentication System
 - [ ] Increment 3: Job Creation Without Transcription
 - [ ] Increment 4: Job Listing & Retrieval
 - [ ] Increment 5: Real Transcription Engine

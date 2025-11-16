@@ -32,16 +32,17 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-- Currently on: Build Increment 8 (Search Functionality)
-- Last completed: Build Increment 7 - Tag System
-  - Added routes: GET /tags, POST /tags, PUT /tags/{id}, DELETE /tags/{id}
-  - Added job-tag routes: POST /jobs/{job_id}/tags, DELETE /jobs/{job_id}/tags/{tag_id}
-  - Full CRUD for tags with duplicate name validation, color support
-  - Tag-job associations: assign/remove tags, cascade deletion, job counts
-  - All 26 tests passing; full backend suite: 99 passed
-  - Schemas: TagCreate, TagUpdate, TagResponse, TagListResponse, job tag responses
-- Next task: Implement Search Functionality (text search, tag filtering)
-- Files being worked on: Ready to begin Increment 8
+- Currently on: Build Increment 9 (Settings & System Control)
+- Last completed: Build Increment 8 - Search Functionality
+  - Added route: GET /search with filename search (case-insensitive)
+  - Filtering by status, tags (AND logic), and date ranges (ISO-8601)
+  - Match highlighting with <mark> tags for UI rendering
+  - Pagination support (limit/offset), wildcard search with "*"
+  - All 16 tests passing; full backend suite: 115 passed
+  - Schemas: SearchMatch, SearchResultItem, SearchResponse
+  - MVP scope: filename-only search (transcript content deferred)
+- Next task: Implement Settings & System Control endpoints
+- Files being worked on: Ready to begin Increment 9
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -178,7 +179,7 @@ Keep track of completed increments here:
 - [x] Increment 5: Real Transcription Engine (Simulated)
 - [x] Increment 6: Export Formats
 - [x] Increment 7: Tag System
-- [ ] Increment 8: Search Functionality
+- [x] Increment 8: Search Functionality
 - [ ] Increment 9: Settings & System Control
 
 ### Frontend Increments

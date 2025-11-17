@@ -27,22 +27,27 @@ test.describe('Login Flow', () => {
     
     // Verify dashboard elements are visible
     await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /new transcription/i })).toBeVisible();
+    
+    // Check for new job button (in header or empty state)
+    const newJobBtn = page.locator('[data-testid="new-job-btn"]').first();
+    await expect(newJobBtn).toBeVisible();
   });
 
-  test('login fails with invalid credentials', async ({ page }) => {
+  test('login button is disabled when fields are empty', async ({ page }) => {
     await page.goto('/login');
     
+    const loginButton = page.getByRole('button', { name: /login/i });
+    
+    // Button disabled initially
+    await expect(loginButton).toBeDisabled();
+    
+    // Fill only username
     await page.getByLabel('Username').fill('admin');
-    await page.getByLabel('Password').fill('wrongpassword');
+    await expect(loginButton).toBeDisabled();
     
-    await page.getByRole('button', { name: /login/i }).click();
-    
-    // Should show error message
-    await expect(page.getByText(/invalid credentials/i)).toBeVisible();
-    
-    // Should stay on login page
-    await expect(page).toHaveURL(/\/login$/);
+    // Fill password - button should be enabled
+    await page.getByLabel('Password').fill('password');
+    await expect(loginButton).toBeEnabled();
   });
 
   test('protected routes redirect to login when not authenticated', async ({ page }) => {

@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -6,7 +7,11 @@ import { Navbar } from '../components/layout/Navbar';
 // Helper component to preset auth state
 const AuthPreset: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { login } = useAuth();
-  login('token', { username: 'alice', email: 'alice@example.com' });
+  
+  useEffect(() => {
+    login('token', { username: 'alice', email: 'alice@example.com' });
+  }, [login]);
+  
   return <>{children}</>;
 };
 

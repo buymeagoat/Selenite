@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { JobCard } from '../components/jobs/JobCard';
 import { NewJobModal } from '../components/modals/NewJobModal';
+import { JobDetailModal } from '../components/modals/JobDetailModal';
 
 interface Job {
   id: string;
@@ -12,12 +13,18 @@ interface Job {
   progress_stage?: string;
   estimated_time_left?: number;
   tags: Array<{ id: number; name: string; color: string }>;
+  file_size?: number;
+  model_used?: string;
+  language_detected?: string;
+  speaker_count?: number;
+  completed_at?: string;
 }
 
 export const Dashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   useEffect(() => {
     // Placeholder: Replace with actual API call
@@ -31,8 +38,19 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   const handleJobClick = (jobId: string) => {
-    console.log('Job clicked:', jobId);
-    // TODO: Open job detail modal
+    // TODO: Fetch full job details from API
+    const job = jobs.find(j => j.id === jobId);
+    if (job) {
+      setSelectedJob({
+        ...job,
+        file_size: job.file_size || 15728640,
+        duration: job.duration || 1834,
+        model_used: job.model_used || 'medium',
+        language_detected: job.language_detected || 'English',
+        speaker_count: job.speaker_count || 1,
+        completed_at: job.completed_at || job.created_at
+      });
+    }
   };
 
   const handleNewJob = async (jobData: {
@@ -50,6 +68,32 @@ export const Dashboard: React.FC = () => {
     
     // TODO: Add new job to jobs array and refresh list
     alert('Job created successfully! (API integration pending)');
+
+    const handlePlay = (jobId: string) => {
+      console.log('Play job:', jobId);
+      // TODO: Implement media playback
+    };
+
+    const handleDownload = (jobId: string, format: string) => {
+      console.log('Download job:', jobId, 'format:', format);
+      // TODO: Implement download
+    };
+
+    const handleRestart = (jobId: string) => {
+      console.log('Restart job:', jobId);
+      // TODO: Implement restart
+    };
+
+    const handleDelete = (jobId: string) => {
+      console.log('Delete job:', jobId);
+      // TODO: Implement delete
+      setJobs(jobs.filter(j => j.id !== jobId));
+    };
+
+    const handleUpdateTags = (jobId: string, tagIds: number[]) => {
+      console.log('Update tags for job:', jobId, 'tags:', tagIds);
+      // TODO: Implement tag update
+    };
   };
 
   if (isLoading) {
@@ -118,6 +162,19 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {jobs.map((job) => (
             <JobCard key={job.id} job={job} onClick={handleJobClick} />
+      
+                {selectedJob && (
+                  <JobDetailModal
+                    isOpen={!!selectedJob}
+                    onClose={() => setSelectedJob(null)}
+                    job={selectedJob as any}
+                    onPlay={handlePlay}
+                    onDownload={handleDownload}
+                    onRestart={handleRestart}
+                    onDelete={handleDelete}
+                    onUpdateTags={handleUpdateTags}
+                  />
+                )}
           ))}
         </div>
       </div>

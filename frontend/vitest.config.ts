@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/tests/setupMocks.ts'],
     globals: true,
-    reporters: 'default'
+    reporters: 'default',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**', '**/.{idea,git,cache,output,temp}/**'],
   },
 });

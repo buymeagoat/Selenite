@@ -40,6 +40,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
 
   return (
     <div
+      data-testid="job-card"
       className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
       onClick={() => onClick(job.id)}
     >

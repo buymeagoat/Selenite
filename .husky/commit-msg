@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# Selenite QA Gateway - Commit Message Hook
+# Enforces commit message format: [Component] Description (min 10 chars)
+
+MSG_FILE="$1"
+if [ ! -f "$MSG_FILE" ]; then
+  # If file not found, skip to avoid false negatives
+  exit 0
+fi
+
+MSG_CONTENT=$(head -n 1 "$MSG_FILE")
+
+# Allow merge commits and version bumps
+if echo "$MSG_CONTENT" | grep -qE '^(Merge|Revert|Release|chore\(release\))'; then
+  exit 0
+fi
+
+if ! echo "$MSG_CONTENT" | grep -qE '^\[.+\] .{10,}'; then
+  echo "❌ Commit message invalid. Use: [Component] Description (min 10 chars)"
+  echo "   Example: [Frontend/Dashboard] Add job filtering by status"
+  echo "   Got: $MSG_CONTENT"
+  exit 1
+fi
+
+# Disallow temporary markers
+if echo "$MSG_CONTENT" | grep -qiE '\b(wip|fixup!?|squash!|temp|todo)\b'; then
+  echo "❌ Commit message contains temporary markers (WIP, fixup, squash, temp, TODO)"
+  exit 1
+fi
+
+exit 0

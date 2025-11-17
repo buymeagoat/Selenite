@@ -17,21 +17,9 @@ fi
 # Stage 1: Commit Message Validation
 echo ""
 echo "📝 Stage 1: Commit Message Format"
-COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
-if [ -f "$COMMIT_MSG_FILE" ]; then
-  COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
-  if ! echo "$COMMIT_MSG" | grep -qE '^\[.+\] .{10,}'; then
-    echo "❌ FAILED: Commit message must follow format: [Component] Description (min 10 chars)"
-    echo "   Example: [Frontend/Dashboard] Add job filtering by status"
-    exit 1
-  fi
-  if echo "$COMMIT_MSG" | grep -qiE '\b(wip|fixup|temp|test|todo)\b'; then
-    echo "❌ FAILED: Commit message contains temporary markers (WIP, fixup, temp, test, TODO)"
-    echo "   Please use meaningful commit messages"
-    exit 1
-  fi
-  echo "✅ Commit message format valid"
-fi
+# Note: Commit message validation should be in commit-msg hook, not pre-commit
+# Skipping Stage 1 for now (will be validated by commit-msg hook if configured)
+echo "⏭️  Commit message validation skipped (use commit-msg hook for this check)"
 
 # Stage 2: Backend Quality Checks
 if git diff --cached --name-only | grep -qE '^backend/'; then

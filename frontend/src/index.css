@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-sage-light text-pine-deep font-sans;
+}
+
+a {
+  @apply text-pine-mid hover:text-forest-green font-medium;
+}

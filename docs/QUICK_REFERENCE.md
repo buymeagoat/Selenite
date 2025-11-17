@@ -491,20 +491,20 @@ All tiers follow "shift-left" philosophy: catch defects early when fixes are che
 
 ### Installation
 
-#### First-time Setup (Frontend)
+#### Automated Setup (Recommended)
 ```powershell
-cd frontend
-npm install --save-dev husky
-npx husky install
+# Run from repository root
+.\scripts\install-hooks.ps1
 ```
 
-The `prepare` script in `package.json` will auto-install hooks for team members after `npm install`.
+This installs both `pre-commit` and `commit-msg` hooks automatically. Run this after cloning the repo or when hooks are updated.
 
 #### Verify Hook Installation
 ```powershell
-# Check that pre-commit hook exists
-Test-Path .husky/pre-commit
-# Should return: True
+# Check that hooks are installed
+Test-Path .git\hooks\pre-commit
+Test-Path .git\hooks\commit-msg
+# Both should return: True
 ```
 
 ### Commands

@@ -139,6 +139,94 @@ This document enumerates functional, technical, operational, and quality gaps re
 - Horizontal scaling design doc (P3)
 - CONTRIBUTING.md (P3)
 
+## 11.A Remediation Checklist
+
+### Root Cause Legend
+- **RC1**: Test execution failure (frontend runner hang, unexecuted validation)
+- **RC2**: Deferred integration (API wiring postponed until end)
+- **RC3**: Skipped E2E increment (Increment 19 deferred)
+- **RC4**: Missing automation (no CI, no pre-commit hooks, quality gates unenforced)
+- **RC5**: Security gaps (rate limiting, password policy, lockout, audit logging absent)
+- **RC6**: Observability absence (no metrics, minimal structured logging)
+- **RC7**: Migration gap (SQLite without Alembic workflow, PostgreSQL path undefined)
+- **RC8**: Integration debt tracking (placeholders unmarked, no systematic paydown)
+- **RC9**: Unclear readiness criteria (production-ready undefined upfront, gate ambiguity)
+- **RC10**: Accessibility & error handling (missing aria-labels, no error boundary, silent failures)
+
+### Status Definitions
+- **Pending**: Not yet started
+- **In Progress**: Active work underway
+- **Blocked**: Waiting on dependency or external factor
+- **Done**: Completed and validated
+- **Deferred**: Postponed to later sprint or out of scope
+
+### Remediation Task Table
+
+| ID | Category | Description | Priority | Sprint | Root Cause | Status | Owner | Notes |
+|----|----------|-------------|----------|--------|------------|--------|-------|-------|
+| **TEST-001** | Testing | Fix frontend test runner hang | P0 | 0 | RC1 | Pending | Senior Dev | Investigate Vitest/jsdom config; verify dependency versions; document resolution |
+| **TEST-002** | Testing | Run all backend tests and verify pass | P0 | 0 | RC1 | Pending | Senior Dev | Execute pytest suite; confirm 129 tests pass; capture coverage baseline |
+| **TEST-003** | Testing | Run all frontend tests after hang fixed | P0 | 0 | RC1 | Pending | Senior Dev | Execute vitest suite; confirm 104 tests pass or triage failures |
+| **TEST-004** | Testing | Fix any test failures discovered | P0 | 0 | RC1 | Pending | Senior Dev | Address broken tests; update stale mocks; ensure green baseline |
+| **FUNC-001** | Functional | Wire Dashboard to GET /jobs endpoint | P0 | 0 | RC2 | Pending | Senior Dev | Replace simulated job data with real API fetch; handle errors with toast |
+| **FUNC-002** | Functional | Wire NewJobModal to POST /jobs | P0 | 0 | RC2 | Pending | Senior Dev | Implement file upload with FormData; wire to backend; show progress feedback |
+| **FUNC-003** | Functional | Validate vertical slice: upload → process → download | P0 | 0 | RC2, RC9 | Pending | Senior Dev | Manual test full workflow; document steps; confirm transcript retrieval works |
+| **CI-001** | DevEx | Add GitHub Actions CI pipeline | P0 | 0 | RC4 | Pending | Senior Dev | Workflows for backend tests, frontend tests, lint, type-check; fail on errors |
+| **FUNC-004** | Functional | Wire job actions (restart, delete, download) | P0 | 1 | RC2 | Pending | Senior Dev | Connect JobDetailModal buttons to backend endpoints; add confirmation dialogs |
+| **FUNC-005** | Functional | Wire tag CRUD operations | P1 | 1 | RC2 | Pending | Senior Dev | Implement POST/PATCH/DELETE /tags in TagInput/TagList |
+| **FUNC-006** | Functional | Wire settings persistence | P1 | 1 | RC2 | Pending | Senior Dev | Connect Settings to GET/PATCH /settings endpoints |
+| **E2E-001** | Testing | Scaffold Playwright E2E suite | P0 | 1 | RC3 | Pending | Senior Dev | Install Playwright; add smoke test (login page loads) |
+| **E2E-002** | Testing | E2E test: login → upload → view job | P0 | 1 | RC3 | Pending | Senior Dev | Critical path test with file upload and job list verification |
+| **E2E-003** | Testing | E2E test: job completion → download | P0 | 2 | RC3 | Pending | Senior Dev | Verify transcript download and content accuracy |
+| **SEC-001** | Security | Add rate limiting middleware | P0 | 1 | RC5 | Pending | Senior Dev | slowapi for auth endpoints; 10 req/min limit |
+| **SEC-002** | Security | Enforce password complexity policy | P1 | 1 | RC5 | Pending | Senior Dev | Min 12 chars, upper/lower/number; validation on registration |
+| **SEC-003** | Security | Implement account lockout on failed logins | P1 | 2 | RC5 | Pending | Senior Dev | Track attempts; temporary lock after N failures |
+| **SEC-004** | Security | Add structured audit logging | P1 | 3 | RC5 | Pending | Senior Dev | Log user actions (create/update/delete) with timestamps and user context |
+| **SEC-005** | Security | JWT refresh token implementation | P2 | 4 | RC5 | Pending | Senior Dev | Short-lived access + long-lived refresh token pair |
+| **DATA-001** | Data | Migrate to PostgreSQL with Alembic | P0 | 2 | RC7 | Pending | Senior Dev | Initialize Alembic; generate initial migration; test upgrade/downgrade |
+| **DATA-002** | Data | Add automated backup strategy | P1 | 3 | RC7 | Pending | Senior Dev | Scheduled backup script; offsite storage configuration |
+| **DATA-003** | Data | Implement storage cleanup policy | P1 | 3 | RC7 | Pending | Senior Dev | Scheduled job to purge old media/transcripts; configurable retention |
+| **OBS-001** | Observability | Add Prometheus metrics instrumentation | P1 | 3 | RC6 | Pending | Senior Dev | prometheus-fastapi-instrumentator; expose /metrics endpoint |
+| **OBS-002** | Observability | Implement structured JSON logging | P1 | 3 | RC6 | Pending | Senior Dev | Replace print statements; add request IDs; log rotation config |
+| **OBS-003** | Observability | Define alerting thresholds | P2 | 3 | RC6 | Pending | Senior Dev | Document error rate, latency, queue depth alert criteria |
+| **ERR-001** | Error Handling | Add React ErrorBoundary | P1 | 3 | RC10 | Pending | Senior Dev | Global boundary with fallback UI and error reporting |
+| **ERR-002** | Error Handling | Centralized fetch error → toast handler | P1 | 3 | RC10 | Pending | Senior Dev | Wrap API calls with error dispatcher; consistent user feedback |
+| **A11Y-001** | Accessibility | Add aria-labels to interactive icons | P1 | 3 | RC10 | Pending | Senior Dev | Settings, Clear, Filter buttons; semantic roles |
+| **A11Y-002** | Accessibility | Validate keyboard navigation | P1 | 3 | RC10 | Pending | Senior Dev | Tab order, ESC close modals, arrow navigation in dropdowns |
+| **A11Y-003** | Accessibility | Color contrast audit and fixes | P2 | 4 | RC10 | Pending | Senior Dev | Run Lighthouse/axe; adjust palette for WCAG AA compliance |
+| **PERF-001** | Performance | Implement adaptive concurrency | P2 | 4 | - | Pending | Senior Dev | Dynamic MAX_CONCURRENT_JOBS based on CPU/queue depth |
+| **PERF-002** | Performance | Add GPU detection and support | P2 | 4 | - | Pending | Senior Dev | CUDA device detection; optional torch GPU path |
+| **PERF-003** | Performance | Add timing metrics and benchmark report | P2 | 4 | - | Pending | Senior Dev | Instrument transcription; publish model performance baselines |
+| **DEV-001** | DevEx | Add pre-commit hooks | P1 | 1 | RC4 | Pending | Senior Dev | Husky (frontend) + pre-commit (backend); lint/test/type-check gates |
+| **DEV-002** | DevEx | Add architectural diagrams | P2 | 5 | RC9 | Pending | Senior Dev | Sequence diagrams; component dependency map |
+| **DEV-003** | DevEx | Create ADR folder and initial records | P3 | 5 | RC9 | Pending | Senior Dev | Document key architectural decisions (DB choice, auth strategy) |
+| **DOC-001** | Documentation | Create SECURITY.md | P1 | 4 | RC5 | Pending | Senior Dev | Security hardening checklist; deployment best practices |
+| **DOC-002** | Documentation | Create MIGRATION_GUIDE.md | P2 | 4 | RC7 | Pending | Senior Dev | DB schema changes; model update procedures |
+| **DOC-003** | Documentation | Extend API_CONTRACTS with error codes | P2 | 4 | RC10 | Pending | Senior Dev | Document status codes and error response bodies |
+| **DOC-004** | Documentation | Add CONTRIBUTING.md | P3 | 5 | RC9 | Pending | Senior Dev | Contribution workflow; coding standards; PR process |
+
+### Sprint 0 Success Metrics
+Sprint 0 is **complete** when all of the following criteria are met:
+
+- ✅ **TEST-001 through TEST-004**: Status = Done
+- ✅ **FUNC-001 through FUNC-003**: Status = Done
+- ✅ **CI-001**: Status = Done
+- ✅ **Backend test suite**: 100% pass rate (129 tests green)
+- ✅ **Frontend test suite**: Executes to completion without hangs; ≥95% pass rate
+- ✅ **CI pipeline**: Green build on main branch
+- ✅ **Vertical slice validated**: Manual test completes Login → Upload file → Wait for processing → View job detail → Download transcript (all steps succeed)
+- ✅ **Integration debt visible**: All remaining placeholder stubs tagged with `// TODO(API):` markers
+
+**Estimated Effort**: 1 day focused work
+
+**Critical Dependencies**: None (Sprint 0 unblocks all subsequent work)
+
+**Exit Criteria Verification**:
+1. Run `cd backend && pytest` → All tests pass
+2. Run `cd frontend && npm test` → Suite completes, failures < 5%
+3. Git push triggers CI workflow → All jobs green
+4. Manual smoke test documented in `docs/SMOKE_TEST.md`
+
 ## 12. Success Metrics for Remediation
 | Metric | Target |
 |--------|--------|

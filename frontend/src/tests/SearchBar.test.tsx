@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { vi } from 'vitest';
 import { SearchBar } from '../components/common/SearchBar';
 
@@ -11,7 +11,8 @@ describe('SearchBar', () => {
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
+    cleanup();
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 

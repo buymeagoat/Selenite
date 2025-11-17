@@ -6,6 +6,17 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',
-    globals: true
+    globals: true,
+    testTimeout: 5000,
+    hookTimeout: 5000,
+    teardownTimeout: 1000,
+    bail: 1,
+    isolate: true,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true
+      }
+    }
   }
 });

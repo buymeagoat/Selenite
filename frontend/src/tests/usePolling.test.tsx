@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { vi } from 'vitest';
 import { usePolling } from '../hooks/usePolling';
 
@@ -8,34 +9,53 @@ describe('usePolling', () => {
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 
   it('calls function immediately on mount', async () => {
     const mockFn = vi.fn().mockResolvedValue(null);
     renderHook(() => usePolling(mockFn, { enabled: true }));
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    
+    // Flush promises
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    expect(mockFn).toHaveBeenCalledTimes(1);
   });
 
   it('calls function repeatedly at interval', async () => {
     const mockFn = vi.fn().mockResolvedValue(null);
     renderHook(() => usePolling(mockFn, { interval: 1000 }));
     
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(1);
     
-    vi.advanceTimersByTime(1000);
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(2);
     
-    vi.advanceTimersByTime(1000);
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(3);
   });
 
   it('does not call function when enabled is false', async () => {
     const mockFn = vi.fn().mockResolvedValue(null);
     renderHook(() => usePolling(mockFn, { enabled: false }));
     
-    vi.advanceTimersByTime(5000);
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+    
     expect(mockFn).not.toHaveBeenCalled();
   });
 
@@ -43,11 +63,18 @@ describe('usePolling', () => {
     const mockFn = vi.fn().mockResolvedValue(null);
     const { unmount } = renderHook(() => usePolling(mockFn));
     
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(1);
     
     unmount();
     
-    vi.advanceTimersByTime(5000);
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+    
     expect(mockFn).toHaveBeenCalledTimes(1);
   });
 
@@ -58,7 +85,11 @@ describe('usePolling', () => {
     
     renderHook(() => usePolling(mockFn, { onError: handleError }));
     
-    await waitFor(() => expect(handleError).toHaveBeenCalledWith(error));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    expect(handleError).toHaveBeenCalledWith(error);
   });
 
   it('continues polling after error', async () => {
@@ -71,10 +102,16 @@ describe('usePolling', () => {
     
     renderHook(() => usePolling(mockFn, { interval: 500, onError: vi.fn() }));
     
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(1);
     
-    vi.advanceTimersByTime(500);
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(2);
   });
 
   it('updates when function reference changes', async () => {
@@ -86,12 +123,21 @@ describe('usePolling', () => {
       { initialProps: { fn: mockFn1 } }
     );
     
-    await waitFor(() => expect(mockFn1).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFn1).toHaveBeenCalled();
     
+    // Rerender updates the ref but doesn't restart the poll cycle immediately
     rerender({ fn: mockFn2 });
-    vi.advanceTimersByTime(1000);
     
-    await waitFor(() => expect(mockFn2).toHaveBeenCalled());
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+    
+    // mockFn2 should be called on the next interval
+    expect(mockFn2).toHaveBeenCalled();
   });
 
   it('updates when enabled changes from false to true', async () => {
@@ -102,11 +148,17 @@ describe('usePolling', () => {
       { initialProps: { enabled: false } }
     );
     
-    vi.advanceTimersByTime(3000);
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
     expect(mockFn).not.toHaveBeenCalled();
     
-    rerender({ enabled: true });
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      rerender({ enabled: true });
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(1);
   });
 
   it('stops polling when enabled changes from true to false', async () => {
@@ -117,11 +169,20 @@ describe('usePolling', () => {
       { initialProps: { enabled: true } }
     );
     
-    await waitFor(() => expect(mockFn).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFn).toHaveBeenCalledTimes(1);
     
+    // Disable polling
     rerender({ enabled: false });
-    vi.advanceTimersByTime(5000);
     
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+    
+    // Should still only have been called once (no new calls after disabling)
     expect(mockFn).toHaveBeenCalledTimes(1);
   });
 });

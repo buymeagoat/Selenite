@@ -1660,6 +1660,7 @@ npm run test:e2e
 ```
 
 **Commit**: `[Testing] Add end-to-end test suite with Playwright`
+**Status (Nov 17 2025)**: Framework established (Playwright multi-browser); smoke tests (login, new job modal, tags placeholder) passing locally & CI; standardized selectors; artifacts on failure enabled. Pending: transcription lifecycle, job detail actions, tag assign/filter flow, search validation, settings password change, cancel & restart scenarios.
 
 ---
 
@@ -1784,6 +1785,57 @@ npm run lint
 - No commented-out code
 - No debug print statements
 - No unnecessary files
+
+---
+
+## QA GATEWAY SYSTEM
+
+Selenite enforces quality standards through a **three-tier QA gateway** that validates code at multiple stages before it reaches production:
+
+### Tier 1: Pre-Commit Hooks (Local, <30s)
+Runs automatically on `git commit` via Husky hooks:
+- **Commit Message Validation**: Enforces `[Component] Description` format; rejects temp markers (WIP, TODO)
+- **Code Formatting**: Black (backend), ESLint auto-fix (frontend)
+- **Linting**: Ruff (backend), ESLint (frontend)
+- **Type Checking**: TypeScript strict mode
+- **Fast Unit Tests**: Only tests for changed files
+- **Documentation Warnings**: Alerts if API/component changes lack doc updates (non-blocking)
+
+**Emergency Bypass**: `git commit --no-verify` or `SKIP_QA=1` environment variable (use sparingly; CI still validates)
+
+### Tier 2: Push CI (GitHub Actions, ~5min)
+Runs on every push to `main`/`develop` via `.github/workflows/qa.yml`:
+- **Full Test Suites**: Backend (pytest), Frontend (Vitest)
+- **Coverage Enforcement**: Backend ≥80%, Frontend ≥70% (fails build if below)
+- **E2E Smoke Tests**: Critical flows (login, job creation) on Chromium
+- **Security Audits**: pip-audit (backend), npm audit (frontend, moderate+ severity)
+- **Artifact Collection**: Test reports, traces, and videos uploaded on failure
+
+### Tier 3: PR CI (GitHub Actions, ~15min)
+Runs on pull requests targeting `main`:
+- **Multi-Browser E2E**: Chromium, Firefox, WebKit (full test suite)
+- **Performance Regression**: Checks for significant slowdowns
+- **Coverage Ratcheting**: Ensures coverage never decreases from base branch
+- **Branch Protection**: PRs cannot merge until all checks pass
+
+### Quality Metrics Tracked
+- **Test Coverage**: Codecov integration with badges in README
+- **Build Status**: GitHub Actions badges showing CI health
+- **Security Vulnerabilities**: Automated dependency scanning
+- **Code Quality**: Ruff/ESLint issue counts tracked over time
+
+### Bypass Guidelines
+**When to Bypass** (rare):
+- Critical production hotfix needed immediately
+- Temporary tooling breakage blocking development
+- Experimental branch that won't be merged
+
+**After Bypassing**:
+1. Document reason in commit message or PR description
+2. Create follow-up task to fix quality issues
+3. Ensure fixes applied before merging to main
+
+**Philosophy**: Shift-left testing—catch defects early when fixes are cheapest. Fast feedback loops (pre-commit <30s) prevent interrupting flow, while comprehensive CI validation ensures nothing slips through.
 
 ---
 

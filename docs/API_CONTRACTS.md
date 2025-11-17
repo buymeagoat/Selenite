@@ -859,3 +859,7 @@ X-RateLimit-Reset: 1700050800
 ---
 
 **These contracts are the source of truth for API implementation. Backend routes must match these specifications exactly.**
+
+---
+### E2E Testing Phase Note (Nov 17 2025)
+Active smoke tests exercise `/auth/login`, `/jobs` (listing + creation). Upcoming E2E coverage will incorporate `/jobs/{job_id}/status`, tag endpoints (`/tags`, `/jobs/{job_id}/tags`), settings endpoints (`/settings`, `/auth/change-password`), and job control endpoints (`/jobs/{job_id}/cancel`, `/jobs/{job_id}/restart`). No contract changes have been introduced; this serves as a confirmation of spec stability entering broader end-to-end validation.

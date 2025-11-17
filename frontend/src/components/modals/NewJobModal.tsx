@@ -112,7 +112,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       {/* Modal */}
       <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200" data-testid="new-job-modal-header">
           <h2 className="text-2xl font-semibold text-pine-deep">New Transcription Job</h2>
           <button
             type="button"
@@ -126,9 +126,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-6" data-testid="new-job-form">
           {/* File Upload */}
-          <div className="mb-6">
+          <div className="mb-6" data-testid="file-input-section">
             <label className="block text-sm font-medium text-pine-deep mb-2">
               Audio/Video File
             </label>
@@ -152,6 +152,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               onChange={(e) => setModel(e.target.value)}
               disabled={isSubmitting}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+              data-testid="model-select"
             >
               <option value="tiny">Tiny - Fastest, lowest accuracy (75MB)</option>
               <option value="base">Base - Fast, moderate accuracy (142MB)</option>
@@ -172,6 +173,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               onChange={(e) => setLanguage(e.target.value)}
               disabled={isSubmitting}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+              data-testid="language-select"
             >
               <option value="auto">Auto-detect</option>
               <option value="en">English</option>
@@ -197,6 +199,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 onChange={(e) => setEnableTimestamps(e.target.checked)}
                 disabled={isSubmitting}
                 className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                data-testid="timestamps-checkbox"
               />
               <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
             </label>
@@ -208,6 +211,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
                 disabled={isSubmitting}
                 className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                data-testid="speakers-checkbox"
               />
               <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
             </label>
@@ -227,6 +231,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               onClick={handleClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-pine-deep bg-sage-light hover:bg-sage-mid rounded-lg transition-colors disabled:opacity-50"
+              data-testid="cancel-new-job-btn"
             >
               Cancel
             </button>
@@ -234,6 +239,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               type="submit"
               disabled={!selectedFile || isSubmitting}
               className="px-6 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              data-testid="start-transcription-btn"
             >
               {isSubmitting ? (
                 <>

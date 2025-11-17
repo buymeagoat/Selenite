@@ -6,23 +6,9 @@ import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
 import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
-
-interface Job {
-  id: string;
-  original_filename: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  created_at: string;
-  duration?: number;
-  progress_percent?: number;
-  progress_stage?: string;
-  estimated_time_left?: number;
-  tags: Array<{ id: number; name: string; color: string }>;
-  file_size?: number;
-  model_used?: string;
-  language_detected?: string;
-  speaker_count?: number;
-  completed_at?: string;
-}
+import { fetchJobs, createJob, type Job } from '../services/jobs';
+import { ApiError } from '../lib/api';
+import { useToast } from '../context/ToastContext';
 
 export const Dashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -31,80 +17,44 @@ export const Dashboard: React.FC = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
+  const { showError, showSuccess } = useToast();
 
   useEffect(() => {
-    // Placeholder: Replace with actual API call
-    // For now, set empty array after simulated load
-    const timer = setTimeout(() => {
-      // Seed with sample jobs (remove when API wired)
-      setJobs([
-        {
-          id: '1',
-          original_filename: 'marketing_plan_q4.mp3',
-          status: 'completed',
-          created_at: new Date().toISOString(),
-          tags: [{ id: 2, name: 'marketing', color: '#B5543A' }],
-          duration: 534,
-        },
-        {
-          id: '2',
-          original_filename: 'customer_interview_alpha.wav',
-          status: 'processing',
-          created_at: new Date(Date.now() - 3600_000).toISOString(),
-          tags: [{ id: 1, name: 'interviews', color: '#0F3D2E' }],
-          progress_percent: 42,
-          progress_stage: 'transcribing',
-          estimated_time_left: 780,
-          duration: 1800,
-        },
-        {
-          id: '3',
-          original_filename: 'research_brainstorm.mov',
-          status: 'failed',
-          created_at: new Date(Date.now() - 86400_000).toISOString(),
-          tags: [{ id: 3, name: 'research', color: '#C9A227' }],
-          duration: 1200,
-        },
-      ]);
-      setIsLoading(false);
-    }, 500);
+    // Load jobs from API
+    const loadJobs = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetchJobs();
+        setJobs(response.items);
+      } catch (error) {
+        console.error('Failed to load jobs:', error);
+        if (error instanceof ApiError) {
+          showError(`Failed to load jobs: ${error.message}`);
+        } else {
+          showError('Failed to load jobs. Please check your connection.');
+        }
+        // Set empty array on error to show empty state
+        setJobs([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, []);
+    loadJobs();
+  }, [showError]);
 
   // Poll for job updates (processing jobs only)
   const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued');
   
   const fetchJobUpdates = async () => {
-    // TODO: Replace with actual API call to GET /jobs
-    // For now, simulate progress update
-    console.log('Polling for job updates...');
-    setJobs(prevJobs => 
-      prevJobs.map(job => {
-        if (job.status === 'processing' && job.progress_percent !== undefined) {
-          const newPercent = Math.min(100, job.progress_percent + Math.random() * 15);
-          const newTimeLeft = job.estimated_time_left ? Math.max(0, job.estimated_time_left - 30) : undefined;
-          
-          // Complete job when reaching 100%
-          if (newPercent >= 100) {
-            return {
-              ...job,
-              status: 'completed' as const,
-              progress_percent: 100,
-              progress_stage: undefined,
-              estimated_time_left: undefined
-            };
-          }
-          
-          return {
-            ...job,
-            progress_percent: newPercent,
-            estimated_time_left: newTimeLeft
-          };
-        }
-        return job;
-      })
-    );
+    // Fetch latest job data from API
+    try {
+      const response = await fetchJobs();
+      setJobs(response.items);
+    } catch (error) {
+      console.error('Failed to poll job updates:', error);
+      // Continue polling on error (don't stop polling for temporary failures)
+    }
   };
 
   usePolling(fetchJobUpdates, {
@@ -135,9 +85,29 @@ export const Dashboard: React.FC = () => {
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
   }) => {
-    console.log('Creating new job (placeholder):', jobData);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    alert('Job created successfully! (API integration pending)');
+    try {
+      const response = await createJob({
+        file: jobData.file,
+        model: jobData.model,
+        language: jobData.language,
+        enable_timestamps: jobData.enableTimestamps,
+        enable_speaker_detection: jobData.enableSpeakerDetection,
+      });
+      
+      showSuccess(`Job created successfully: ${response.original_filename}`);
+      
+      // Refresh job list to show new job
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+    } catch (error) {
+      console.error('Failed to create job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to create job: ${error.message}`);
+      } else {
+        showError('Failed to create job. Please try again.');
+      }
+      throw error; // Re-throw so modal can handle the error state
+    }
   };
 
   const handlePlay = (jobId: string) => {
@@ -231,6 +201,7 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
             <button
+              data-testid="new-job-btn"
               onClick={() => setIsNewJobModalOpen(true)}
               className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
             >
@@ -242,6 +213,7 @@ export const Dashboard: React.FC = () => {
             <h2 className="text-xl font-medium text-pine-deep mb-2">No transcriptions yet</h2>
             <p className="text-pine-mid mb-6">Get started by creating your first transcription job</p>
             <button
+              data-testid="create-first-job-btn"
               onClick={() => setIsNewJobModalOpen(true)}
               className="px-6 py-3 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
             >
@@ -266,6 +238,7 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
             <button
+              data-testid="new-job-btn"
               onClick={() => setIsNewJobModalOpen(true)}
               className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
             >

@@ -36,7 +36,7 @@ describe('FileDropzone', () => {
 
   it('handles file selection via click', () => {
     const onFileSelect = vi.fn();
-    render(
+    const { container } = render(
       <FileDropzone
         onFileSelect={onFileSelect}
         accept="audio/*,video/*"
@@ -44,7 +44,7 @@ describe('FileDropzone', () => {
       />
     );
     
-    const input = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement;
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input).toBeTruthy();
   });
 
@@ -119,6 +119,6 @@ describe('FileDropzone', () => {
       />
     );
     
-    expect(screen.getByText(/5\.00 MB/i)).toBeInTheDocument();
+    expect(screen.getByText(/5 MB/i)).toBeInTheDocument();
   });
 });

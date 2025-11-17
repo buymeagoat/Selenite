@@ -368,3 +368,40 @@ The project is ready to move from planning to implementation. Begin with Build I
 **Date**: November 15, 2025  
 **Status**: APPROVED ✅  
 **Ready to build**: YES ✅
+
+---
+## Addendum – Active Execution (Nov 17 2025)
+Progress advanced through Increment 18 (frontend features, progress updates, responsive polish). Increment 19 (End-to-End Testing) initiated: Playwright multi-browser configuration in place; smoke tests (login, new job modal, tags placeholder) passing locally & CI; standardized selector strategy (`data-testid` where necessary); failure artifacts (HTML report, traces, videos) enabled. Upcoming E2E expansion will cover transcription lifecycle, job detail actions (export/view), tag create/assign/filter flow, search validation, settings password change, cancel & restart operations. Architecture and API/component contracts remain unchanged—no spec drift detected.
+
+### QA Gateway Implementation
+A comprehensive three-tier quality assurance system has been established to enforce code quality, testing, and documentation standards before code reaches production:
+
+**Pre-Commit Hooks** (`.husky/pre-commit`): Local validation (<30s) running on every `git commit`:
+- Commit message format enforcement: `[Component] Description` with minimum 10 characters
+- Rejection of temporary markers (WIP, fixup, temp, test, TODO)
+- Backend checks: black formatting, ruff linting, pytest for changed files
+- Frontend checks: TypeScript type-checking, ESLint linting, Vitest for changed files
+- Documentation drift warnings (non-blocking): alerts when API routes or components change without corresponding doc updates
+- Emergency bypass via `--no-verify` flag or `SKIP_QA` environment variable (CI still validates)
+
+**CI Push Validation** (`.github/workflows/qa.yml`): GitHub Actions workflow (~5min) triggered on pushes to `main`/`develop`:
+- Backend job: black/ruff checks, full pytest suite with coverage reporting, 80% coverage threshold enforcement
+- Frontend job: TypeScript/ESLint checks, full Vitest suite with coverage reporting, 70% coverage threshold enforcement
+- E2E smoke job: Playwright smoke tests (`@smoke` tag) on Chromium after unit tests pass
+- Security audit job: pip-audit (backend), npm audit (frontend, moderate+ severity)
+- Codecov integration for coverage tracking and badges
+- Artifact upload on failure (test reports, HTML reports, traces, videos)
+
+**Backend Makefile Targets**: Convenience commands for QA workflows:
+- `make qa`: Full suite (format + lint + test)
+- `make qa-quick`: Fast checks (format + lint, skip tests)
+- `make format`, `make lint`, `make test`, `make coverage`
+
+**Frontend Package Scripts**: NPM commands for QA workflows:
+- `npm run qa`: Full suite (type-check + lint + test)
+- `npm run qa:quick`: Fast checks (type-check + lint, skip tests)
+- `npm run format`: ESLint auto-fix
+- `npm run test:coverage`: Vitest with coverage report
+
+**Philosophy**: Shift-left testing approach—catch defects at earliest, cheapest point. Pre-commit hooks provide fast feedback (<30s) without interrupting flow. CI validation ensures comprehensive checks before merge. Coverage ratcheting prevents quality regression. Emergency bypass available but discouraged; CI always validates bypassed commits. Documentation updated in `QUICK_REFERENCE.md` (QA Gateway Automation section) and `DEVELOPMENT_PLAN.md` (QA Gateway System section) with full command reference, troubleshooting, and bypass guidelines.
+

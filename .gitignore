@@ -29,6 +29,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Linters cache
+.ruff_cache/
+
 # Testing
 .pytest_cache/
 .coverage
@@ -57,6 +60,9 @@ backend/storage/media/*
 backend/storage/transcripts/*
 !backend/storage/media/.gitkeep
 !backend/storage/transcripts/.gitkeep
+
+# Stray nested folder created accidentally
+backend/backend/
 
 # Logs
 *.log

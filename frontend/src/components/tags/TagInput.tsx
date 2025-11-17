@@ -105,7 +105,7 @@ export const TagInput: React.FC<TagInputProps> = ({
         </div>
 
         {showDropdown && (filteredTags.length > 0 || showCreateOption) && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-sage-mid rounded-lg shadow-lg max-h-48 overflow-auto">
+          <div data-testid="tag-dropdown" className="absolute z-20 w-full mt-1 bg-white border border-sage-mid rounded-lg shadow-lg max-h-48 overflow-auto">
             {filteredTags.map(tag => (
               <button
                 key={tag.id}

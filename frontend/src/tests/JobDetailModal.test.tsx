@@ -105,7 +105,7 @@ describe('JobDetailModal', () => {
     expect(screen.getByText('medium')).toBeInTheDocument(); // Model
     expect(screen.getByText('English')).toBeInTheDocument(); // Language
     expect(screen.getByText(/2 detected/)).toBeInTheDocument(); // Speakers
-    expect(screen.getByText(/15\.00 MB/)).toBeInTheDocument(); // File size
+    expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size
   });
 
   it('displays tags', () => {

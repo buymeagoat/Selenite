@@ -3,6 +3,12 @@
 Complete specifications for all React components in Selenite. These define props, behavior, and visual states before implementation.
 
 ---
+## Implementation Status (Nov 17 2025)
+Implemented (Increments 10–18): Navbar, Sidebar, MobileNav, NewJobModal, JobDetailModal, ConfirmDialog, JobCard, JobList, JobFilters, ProgressBar, StatusBadge, FileDropzone, UploadOptions, TagInput, TagList, TagBadge, Button, Input, SearchBar, AudioPlayer (baseline), Login, Dashboard, Settings, responsive polish, progress polling integration.
+
+E2E Focus Remaining: JobDetailModal export/action menus, TagInput create+assign flow validations, Settings password change interactions, cancel & restart job controls via JobCard/JobDetailModal, transcription progress visual consistency, transcript view/export navigation.
+
+---
 
 ## Layout Components
 

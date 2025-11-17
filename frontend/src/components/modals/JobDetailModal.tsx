@@ -25,7 +25,6 @@ interface JobDetailModalProps {
   onDownload: (jobId: string, format: string) => void;
   onRestart: (jobId: string) => void;
   onDelete: (jobId: string) => void;
-  onUpdateTags: (jobId: string, tagIds: number[]) => void;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -35,8 +34,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onPlay,
   onDownload,
   onRestart,
-  onDelete,
-  onUpdateTags
+  onDelete
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);

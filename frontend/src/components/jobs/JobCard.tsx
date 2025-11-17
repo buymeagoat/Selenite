@@ -8,9 +8,9 @@ interface Job {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   created_at: string;
   duration?: number;
-  progress_percent?: number;
-  progress_stage?: string;
-  estimated_time_left?: number;
+  progress_percent?: number | null;
+  progress_stage?: string | null;
+  estimated_time_left?: number | null;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 
@@ -64,12 +64,12 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
       </div>
 
       {/* Progress Bar for Processing */}
-      {job.status === 'processing' && job.progress_percent !== undefined && (
+      {job.status === 'processing' && job.progress_percent != null && (
         <div className="mb-3">
           <ProgressBar
             percent={job.progress_percent}
-            stage={job.progress_stage}
-            estimatedTimeLeft={job.estimated_time_left}
+            stage={job.progress_stage || undefined}
+            estimatedTimeLeft={job.estimated_time_left || undefined}
           />
         </div>
       )}

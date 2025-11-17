@@ -11,7 +11,7 @@ export const Settings: React.FC = () => {
   const [enableTimestamps, setEnableTimestamps] = useState(true);
   const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
-  const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [tagsExpanded, setTagsExpanded] = useState(true);
 
   // Mock tags - replace with API
   const [tags, setTags] = useState([

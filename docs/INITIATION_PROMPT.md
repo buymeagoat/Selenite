@@ -32,19 +32,16 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-  - Created SearchBar component with debounced input (300ms)
-  - Search icon, clear button, loading spinner support
-  - Created JobFilters component with status, date range, tag multi-select
-  - Filter dropdowns with "All", "In Progress", "Completed", "Failed"
-  - Date filters: All Time, Today, This Week, This Month, Custom Range
-  - Tag checkboxes with clear all functionality
-  - Reset filters button (appears only when filters active)
-  - Integrated search & filters into Dashboard with sample jobs
-  - Client-side filtering logic (filename search, status, date, tags)
-  - 21 tests created (11 SearchBar + 10 JobFilters)
-  - Search & filter UI complete, ready for API integration
- Currently on: Build Increment 15 (Tag Management UI)
- Last completed: Build Increment 14 - Search & Filters
+  - Frontend increments 10–18 completed (foundation, dashboard, modals, search & filters, tags UI, settings page, real-time progress, polish/responsive design)
+  - Tag Management UI (creation & selection components) operational
+  - Settings page implemented with default transcription options and controls
+  - Progress polling integrated (status + percent updates)
+  - Initial Playwright E2E setup completed (multi-browser config, auto dev server)
+  - Smoke E2E tests passing: Login flow; New Job Modal open & file attach; Tags placeholder
+  - Selector attributes standardized to data-testid; trace-on-first-retry enabled
+  - Multi-browser GitHub Actions E2E workflow active (Chromium, Firefox, WebKit) with artifact capture (report, traces, videos on failure)
+ Currently on: Build Increment 19 (End-to-End Testing)
+ Last completed: Build Increment 18 - Polish & Responsive Design
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -55,8 +52,8 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
- Next task: Create tag management UI with creation and assignment
- Files being worked on: SearchBar, JobFilters, Dashboard complete
+ Next task: Expand E2E coverage (transcription lifecycle, job detail actions, tag assign/filter, search accuracy, settings password change, cancel & restart job flows).
+ Files being worked on: `playwright.config.ts`, `e2e/login.spec.ts`, `e2e/new-job.spec.ts`, `e2e/tags.spec.ts`
 IMMEDIATE REQUEST:
 [State what you need help with - implementing a specific increment, debugging a test, refactoring code, etc.]
 
@@ -192,10 +189,10 @@ Keep track of completed increments here:
 - [x] Increment 12: New Job Modal
 - [x] Increment 13: Job Detail Modal
 - [x] Increment 14: Search & Filters
-- [ ] Increment 15: Tag Management UI
-- [ ] Increment 16: Settings Page
-- [ ] Increment 17: Real-time Progress Updates
-- [ ] Increment 18: Polish & Responsive Design
+- [x] Increment 15: Tag Management UI
+- [x] Increment 16: Settings Page
+- [x] Increment 17: Real-time Progress Updates
+- [x] Increment 18: Polish & Responsive Design
 
 ### Testing & Deployment
 - [ ] Increment 19: End-to-End Testing

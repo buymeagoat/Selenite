@@ -80,6 +80,7 @@ export const FileDropzone: React.FC<FileDropzoneProps> = ({
           ? 'border-red-300 bg-red-50'
           : 'border-gray-300 bg-white hover:border-gray-400'
       }`}
+      data-testid="file-dropzone"
     >
       <input {...getInputProps()} />
       

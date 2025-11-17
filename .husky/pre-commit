@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Selenite QA Gateway - Pre-Commit Hook
 # Enforces code quality standards before allowing commits
 

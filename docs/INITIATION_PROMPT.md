@@ -32,8 +32,6 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-- Currently on: Build Increment 13 (Job Detail Modal)
-- Last completed: Build Increment 12 - New Job Modal
   - Created FileDropzone component with drag-and-drop (react-dropzone)
   - File validation (audio/video types, 2GB max size)
   - File preview with icon, size, and type display
@@ -45,8 +43,8 @@ CURRENT STATUS:
   - Connected modal to Dashboard '+ New Job' buttons
   - 24 tests created (7 FileDropzone + 17 NewJobModal)
   - Upload UI complete, ready for POST /jobs API integration
-- Next task: Build JobDetailModal with media playback and job actions
-- Files being worked on: Ready to begin Increment 13
+ Currently on: Build Increment 14 (Search & Filters)
+ Last completed: Build Increment 13 - Job Detail Modal
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -57,6 +55,8 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
+ Next task: Add search bar and filters to Dashboard
+ Files being worked on: Ready to begin Increment 14
 IMMEDIATE REQUEST:
 [State what you need help with - implementing a specific increment, debugging a test, refactoring code, etc.]
 
@@ -191,7 +191,9 @@ Keep track of completed increments here:
 - [x] Increment 11: Dashboard Layout & Job Cards
 - [x] Increment 12: New Job Modal
 - [ ] Increment 13: Job Detail Modal
+ [x] Increment 13: Job Detail Modal
 - [ ] Increment 14: Search & Filters
+ [ ] Increment 14: Search & Filters
 - [ ] Increment 15: Tag Management UI
 - [ ] Increment 16: Settings Page
 - [ ] Increment 17: Real-time Progress Updates

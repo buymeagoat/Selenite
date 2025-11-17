@@ -36,12 +36,15 @@ CURRENT STATUS:
   - Tag Management UI (creation & selection components) operational
   - Settings page implemented with default transcription options and controls
   - Progress polling integrated (status + percent updates)
-  - Initial Playwright E2E setup completed (multi-browser config, auto dev server)
-  - Smoke E2E tests passing: Login flow; New Job Modal open & file attach; Tags placeholder
-  - Selector attributes standardized to data-testid; trace-on-first-retry enabled
-  - Multi-browser GitHub Actions E2E workflow active (Chromium, Firefox, WebKit) with artifact capture (report, traces, videos on failure)
- Currently on: Build Increment 19 (End-to-End Testing)
- Last completed: Build Increment 18 - Polish & Responsive Design
+  - Playwright E2E framework established with auth fixture (setup project pattern, storageState reuse)
+  - Test data helpers created (API wrappers for jobs, tags, assignments, cleanup)
+  - Comprehensive E2E test suite (7 specs, 27+ tests): Login (4 passing), Transcription workflow, Job detail, Search/filters, Tag management, Settings
+  - Login tests fully operational across all browsers (Chromium, Firefox, WebKit)
+  - Remaining tests need selector adjustments and test data seeding (many expect existing jobs in database)
+  - Multi-browser GitHub Actions E2E workflow active with artifact capture (report, traces, videos on failure)
+  - QA Gateway system operational (pre-commit hooks, CI validation, 80%/70% coverage thresholds)
+ Currently on: Build Increment 19 (End-to-End Testing) - Iterating on test reliability
+ Last completed: E2E test infrastructure and comprehensive test suite creation
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -52,8 +55,8 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
- Next task: Expand E2E coverage (transcription lifecycle, job detail actions, tag assign/filter, search accuracy, settings password change, cancel & restart job flows).
- Files being worked on: `playwright.config.ts`, `e2e/login.spec.ts`, `e2e/new-job.spec.ts`, `e2e/tags.spec.ts`
+ Next task: Continue E2E test refinement - adjust selectors for remaining tests to match actual UI implementation; seed test database with sample jobs/tags for integration tests; verify full suite passes locally
+ Files being worked on: `e2e/login.spec.ts` (fixed), `e2e/transcription.spec.ts`, `e2e/jobDetail.spec.ts`, `e2e/search.spec.ts`, `e2e/tagManagement.spec.ts`, `e2e/settings.spec.ts`, `e2e/new-job.spec.ts`
 IMMEDIATE REQUEST:
 [State what you need help with - implementing a specific increment, debugging a test, refactoring code, etc.]
 

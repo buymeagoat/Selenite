@@ -4,6 +4,7 @@ import { NewJobModal } from '../components/modals/NewJobModal';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
 import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
+import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
 
 interface Job {
@@ -215,14 +216,10 @@ export const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-40 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
         </div>
+        <SkeletonGrid />
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, X } from 'lucide-react';
 
 interface NavbarProps {
   onNavigate?: (page: 'dashboard' | 'settings') => void;
@@ -9,17 +9,23 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const initials = user ? user.username.slice(0, 2).toUpperCase() : '?';
 
   return (
     <header className="bg-white border-b border-sage-mid px-4 py-3 flex items-center justify-between">
       <button
-        onClick={() => onNavigate?.('dashboard')}
+        onClick={() => {
+          onNavigate?.('dashboard');
+          setMobileMenuOpen(false);
+        }}
         className="text-forest-green text-xl font-semibold hover:opacity-80 transition"
       >
         Selenite
       </button>
-      <div className="flex items-center gap-3">
+      
+      {/* Desktop Navigation */}
+      <div className="hidden md:flex items-center gap-3">
         {onNavigate && (
           <button
             onClick={() => onNavigate('settings')}
@@ -51,6 +57,64 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
           )}
         </div>
       </div>
+
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        className="md:hidden p-2 text-pine-mid hover:text-forest-green transition"
+        aria-label="Toggle menu"
+      >
+        {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden absolute top-14 left-0 right-0 bg-white border-b border-sage-mid shadow-lg z-20 animate-fade-in">
+          <div className="flex flex-col p-4">
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-sage-mid">
+              <div className="w-10 h-10 rounded-full bg-pine-mid text-white flex items-center justify-center font-medium">
+                {initials}
+              </div>
+              <div>
+                <div className="text-sm font-medium text-pine-deep">{user?.username}</div>
+                <div className="text-xs text-pine-mid">{user?.email}</div>
+              </div>
+            </div>
+            {onNavigate && (
+              <>
+                <button
+                  onClick={() => {
+                    onNavigate('dashboard');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded hover:bg-sage-light text-pine-deep text-left"
+                >
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onNavigate('settings');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded hover:bg-sage-light text-pine-deep text-left"
+                >
+                  <SettingsIcon className="w-5 h-5" />
+                  <span>Settings</span>
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                logout();
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded hover:bg-sage-light text-terracotta text-left mt-2 border-t border-sage-mid pt-4"
+            >
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

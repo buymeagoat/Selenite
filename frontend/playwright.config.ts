@@ -23,17 +23,34 @@ export default defineConfig({
     video: 'retain-on-failure'
   },
   projects: [
+    // Setup project to generate authenticated state
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/
+    },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      use: { 
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/admin.json'
+      },
+      dependencies: ['setup']
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] }
+      use: { 
+        ...devices['Desktop Firefox'],
+        storageState: '.auth/admin.json'
+      },
+      dependencies: ['setup']
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] }
+      use: { 
+        ...devices['Desktop Safari'],
+        storageState: '.auth/admin.json'
+      },
+      dependencies: ['setup']
     }
   ],
   outputDir: 'test-results'

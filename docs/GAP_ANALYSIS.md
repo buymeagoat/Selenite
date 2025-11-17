@@ -14,8 +14,13 @@ This document enumerates functional, technical, operational, and quality gaps re
 |-----|--------|----------|-------------|
 | Frontend actions use placeholders (upload, restart, delete, tag CRUD, settings save) | User cannot persist real changes | P0 | Implement data layer with fetch wrappers; connect to API_CONTRACTS endpoints; add error handling & toast feedback |
 | Missing transcript download formats integration (UI triggers without backend verification) | Export may fail silently | P1 | Verify backend export endpoints and wire responses; add failure toasts |
+| No real-time job status updates from backend | UI polling simulates progress but doesn't reflect actual transcription state | P0 | Wire Dashboard polling to GET /jobs endpoint; remove simulated progress logic |
+| Settings persistence not implemented | User preferences reset on page reload | P1 | Wire Settings component to GET/PATCH /settings endpoints |
+| Tag CRUD operations stubbed | Cannot create/edit/delete tags from UI | P1 | Implement POST/PATCH/DELETE /tags API calls in TagInput and TagList |
+| Job restart creates new placeholder job (not real restart) | Restart button doesn't work | P2 | Wire restart action to POST /jobs/{id}/restart endpoint |
 | No transcript editing UX | User cannot correct transcription errors | P3 | Add editable transcript component with diff + save endpoint |
 | No batch upload | Slower workflow for multiple files | P3 | Extend upload modal for multi-file queueing |
+| Audio playback in JobDetailModal unimplemented | User cannot listen to original file | P2 | Add HTML5 audio player with GET /media/{job_id}/stream endpoint |
 
 ## 2. Testing Gaps
 | Gap | Impact | Priority | Remediation |
@@ -81,6 +86,10 @@ This document enumerates functional, technical, operational, and quality gaps re
 | No CI pipeline | Manual validation burden | P0 | GitHub Actions workflows for lint, test, build, Docker push |
 | No architectural diagram checked into repo | Hard onboarding | P2 | Add sequence diagrams & component dependency map |
 | Lack of ADRs (Architecture Decision Records) | Rationale loss over time | P3 | Introduce ADR folder documenting key choices |
+| Frontend test runner hangs unresolved | Cannot validate frontend changes | P0 | Debug Vitest configuration; likely jsdom or dependency version conflict |
+| No test execution in recent commits | Unknown regression risk | P0 | Run all backend + frontend tests; fix failures before proceeding |
+| Quality gates documented but not enforced | Leads to skipped validation | P0 | Implement pre-commit hooks enforcing gate checks |
+| No integration increment scheduling | API wiring deferred to end | P1 | Plan integration increments interleaved with UI work (every 3-4 increments) |
 
 ## 10. Documentation Gaps
 | Gap | Impact | Priority | Remediation |
@@ -92,28 +101,38 @@ This document enumerates functional, technical, operational, and quality gaps re
 
 ## 11. Prioritized Remediation Roadmap (Suggested Sprints)
 
-### Sprint 1 (Stabilization & Core Reliability)
+### Sprint 0 (Critical Blockers - MUST DO FIRST - 1 day)
+- **Fix frontend test runner hang** (P0) - blocking all validation
+- **Run all backend tests** to verify 129 tests still pass (P0)
+- **Run all frontend tests** after hang fixed (P0)
+- **Fix any test failures discovered** (P0)
+
+### Sprint 1 (Stabilization & Core Reliability - 2-3 days)
 - Implement real API wiring in frontend (P0)
-- Migrate to PostgreSQL + Alembic (P0)
-- Fix frontend test runner & execute test suite (P0)
-- Introduce CI pipeline (P0)
+- Add CI pipeline (P0) - prevents future regressions
+- Implement basic E2E smoke test suite (P0) - login, upload, view
 - Add rate limiting + password policy (P0/P1)
 
-### Sprint 2 (Quality & Observability)
-- Playwright E2E baseline (P0)
+### Sprint 2 (Integration & Validation - 2-3 days)
+- Wire all remaining frontend actions (P0/P1)
+- Complete E2E test coverage for critical paths (P0)
+- Migrate to PostgreSQL + Alembic (P0)
+- Validate full user workflow manually (P0)
+
+### Sprint 3 (Observability & Security - 2 days)
 - Structured logging + metrics instrumentation (P1)
-- Accessibility pass (labels, keyboard, contrast) (P1/P2)
 - Error boundary + centralized fetch error handling (P1)
+- Accessibility pass (labels, keyboard, contrast) (P1/P2)
 - Backup + storage cleanup automation (P1)
 
-### Sprint 3 (Performance & Security Hardening)
+### Sprint 4 (Performance & Hardening - 2 days)
 - Adaptive concurrency logic (P2)
 - GPU support detection (P2)
 - Benchmark & profiling instrumentation (P2)
 - JWT refresh + lockout strategy (P1/P2)
 - SECURITY.md + MIGRATION_GUIDE.md (P1/P2)
 
-### Sprint 4 (Enhancement & Extensibility)
+### Sprint 5 (Enhancement & Polish - 1-2 days)
 - Transcript editing + versioning (P3)
 - Batch upload feature (P3)
 - Architectural diagrams & ADRs (P2/P3)
@@ -143,7 +162,25 @@ This document enumerates functional, technical, operational, and quality gaps re
 - Assumes test hanging issue solvable via dependency/version adjustments.
 
 ## 15. Summary
-Immediate focus must shift from feature completeness to operational hardening and validation. Addressing P0/P1 gaps establishes a trustworthy baseline for wider adoption and future enhancements. The current codebase is a strong functional foundation; targeted remediation accelerates maturity.
+Immediate focus must shift from feature completeness to operational hardening and validation. Current state assessment:
+
+**Current Reality**: 
+- Application is a **functional prototype** with strong UI and documentation
+- Backend tested (129 tests), but frontend tests unverified (104 tests written but not run)
+- UI complete but disconnected from backend (placeholder stubs)
+- No integration testing, CI, or production validation
+- Security baseline present but incomplete
+- Observability absent (no metrics, minimal logging)
+
+**Gap to Production-Ready**:
+- **Sprint 0** (Critical blockers): Fix test runner, validate all tests pass - **1 day**
+- **Sprint 1-2** (Core functionality): API wiring, E2E tests, CI, DB migrations - **4-6 days**  
+- **Sprint 3-4** (Hardening): Security, observability, performance - **4 days**
+- **Total Estimated Effort**: **9-11 days** of focused work
+
+**Key Insight**: The development process produced high-quality *components* but failed to integrate them into a *system*. Quality gates existed on paper but weren't enforced programmatically (no pre-commit hooks, no CI). Test-driven development broke down when tests couldn't run (frontend hang unresolved). API integration deferred created illusion of completion.
+
+**Path Forward**: Addressing P0/P1 gaps establishes a trustworthy baseline for wider adoption and future enhancements. The current codebase is a strong functional foundation; targeted remediation accelerates maturity.
 
 ---
 Prepared as follow-up to POST_MORTEM.md to guide execution toward production-grade readiness.

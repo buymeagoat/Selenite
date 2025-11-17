@@ -13,7 +13,7 @@ test.describe('Transcription Workflow', () => {
     await page.goto('/');
     
     // Open New Job Modal
-    const newJobButton = page.getByRole('button', { name: /new transcription/i });
+    const newJobButton = page.locator('[data-testid="new-job-btn"]').first();
     await expect(newJobButton).toBeVisible();
     await newJobButton.click();
     
@@ -57,7 +57,7 @@ test.describe('Transcription Workflow', () => {
     await page.goto('/');
     
     // Create a job (reuse flow from previous test)
-    await page.getByRole('button', { name: /new transcription/i }).click();
+    await page.locator('[data-testid="new-job-btn"]').first().click();
     const fileInput = page.locator('input[type="file"]');
     const sampleFile = path.join(__dirname, 'fixtures', 'media', 'sample.wav');
     await fileInput.setInputFiles(sampleFile);
@@ -93,7 +93,7 @@ test.describe('Transcription Workflow', () => {
     await page.goto('/');
     
     // Create a job
-    await page.getByRole('button', { name: /new transcription/i }).click();
+    await page.locator('[data-testid="new-job-btn"]').first().click();
     const fileInput = page.locator('input[type="file"]');
     const sampleFile = path.join(__dirname, 'fixtures', 'media', 'sample.wav');
     await fileInput.setInputFiles(sampleFile);

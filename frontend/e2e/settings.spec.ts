@@ -11,20 +11,22 @@ test.describe('Settings Page', () => {
   test('navigate to settings page', async ({ page }) => {
     await page.goto('/');
     
-    // Find settings link/button (could be in nav, sidebar, or dropdown)
-    const settingsLink = page.getByRole('link', { name: /settings/i })
-      .or(page.getByRole('button', { name: /settings/i }));
+    // Find Settings icon button in navbar (has aria-label="Settings")
+    const settingsButton = page.getByLabel('Settings');
     
-    await expect(settingsLink).toBeVisible();
-    await settingsLink.click();
+    await expect(settingsButton).toBeVisible();
+    await settingsButton.click();
     
-    // Should navigate to settings page
-    await expect(page).toHaveURL(/\/settings$/);
-    await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
+    // Settings page should load (spa navigation, no URL change needed)
+    await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
   });
 
   test('change password successfully', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/');
+    
+    // Navigate to settings
+    await page.getByLabel('Settings').click();
+    await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
     
     // Find password change section
     const currentPasswordInput = page.getByLabel(/current password/i)
@@ -153,13 +155,11 @@ test.describe('Settings Page', () => {
 
   test('logout and login with new password', async ({ page }) => {
     // This test would change password, logout, and verify new password works
-    // Using storageState bypass for this specific test
-    test.use({ storageState: { cookies: [], origins: [] } });
-    
+    // NOTE: test.use() cannot be called inside a test - storageState is inherited from describe level
+    // For actual logout testing, create separate test file with no storageState
+
     // For now, just verify logout functionality exists
-    await page.goto('/settings');
-    
-    const logoutButton = page.getByRole('button', { name: /logout|sign out/i })
+    await page.goto('/settings');    const logoutButton = page.getByRole('button', { name: /logout|sign out/i })
       .or(page.getByRole('link', { name: /logout|sign out/i }));
     
     if (await logoutButton.isVisible()) {

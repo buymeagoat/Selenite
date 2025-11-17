@@ -14,8 +14,8 @@ test.describe('New Job Modal', () => {
     await uiLogin(page);
     // Navigate to dashboard if not already there (Navbar brand click)
     await page.getByRole('button', { name: 'Selenite' }).click();
-    // Wait for dashboard header
-    await expect(page.getByRole('heading', { name: 'Transcriptions' })).toBeVisible();
+    // Wait for dashboard header - use first() to avoid strict mode with multiple headings
+    await expect(page.getByRole('heading', { name: 'Transcriptions' }).first()).toBeVisible();
     await expect(page.getByTestId('new-job-btn')).toBeVisible();
     await page.getByTestId('new-job-btn').click();
     await expect(page.getByTestId('new-job-modal-header')).toBeVisible();

@@ -4,6 +4,7 @@ import { NewJobModal } from '../components/modals/NewJobModal';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
 import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
+import { usePolling } from '../hooks/usePolling';
 
 interface Job {
   id: string;
@@ -69,6 +70,46 @@ export const Dashboard: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Poll for job updates (processing jobs only)
+  const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued');
+  
+  const fetchJobUpdates = async () => {
+    // TODO: Replace with actual API call to GET /jobs
+    // For now, simulate progress update
+    console.log('Polling for job updates...');
+    setJobs(prevJobs => 
+      prevJobs.map(job => {
+        if (job.status === 'processing' && job.progress_percent !== undefined) {
+          const newPercent = Math.min(100, job.progress_percent + Math.random() * 15);
+          const newTimeLeft = job.estimated_time_left ? Math.max(0, job.estimated_time_left - 30) : undefined;
+          
+          // Complete job when reaching 100%
+          if (newPercent >= 100) {
+            return {
+              ...job,
+              status: 'completed' as const,
+              progress_percent: 100,
+              progress_stage: undefined,
+              estimated_time_left: undefined
+            };
+          }
+          
+          return {
+            ...job,
+            progress_percent: newPercent,
+            estimated_time_left: newTimeLeft
+          };
+        }
+        return job;
+      })
+    );
+  };
+
+  usePolling(fetchJobUpdates, {
+    enabled: hasProcessingJobs && !isLoading,
+    interval: 2000
+  });
 
   const handleJobClick = (jobId: string) => {
     // TODO: Fetch full job details from API

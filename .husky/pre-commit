@@ -1,0 +1,168 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Selenite QA Gateway - Pre-Commit Hook
+# Enforces code quality standards before allowing commits
+
+set -e
+
+echo "🔍 Selenite QA Gateway: Pre-Commit Validation"
+echo "=============================================="
+
+# Check if SKIP_QA is set (emergency bypass)
+if [ -n "$SKIP_QA" ]; then
+  echo "⚠️  WARNING: QA checks bypassed via SKIP_QA environment variable"
+  echo "   This should only be used in emergencies!"
+  exit 0
+fi
+
+# Stage 1: Commit Message Validation
+echo ""
+echo "📝 Stage 1: Commit Message Format"
+COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
+if [ -f "$COMMIT_MSG_FILE" ]; then
+  COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+  if ! echo "$COMMIT_MSG" | grep -qE '^\[.+\] .{10,}'; then
+    echo "❌ FAILED: Commit message must follow format: [Component] Description (min 10 chars)"
+    echo "   Example: [Frontend/Dashboard] Add job filtering by status"
+    exit 1
+  fi
+  if echo "$COMMIT_MSG" | grep -qiE '\b(wip|fixup|temp|test|todo)\b'; then
+    echo "❌ FAILED: Commit message contains temporary markers (WIP, fixup, temp, test, TODO)"
+    echo "   Please use meaningful commit messages"
+    exit 1
+  fi
+  echo "✅ Commit message format valid"
+fi
+
+# Stage 2: Backend Quality Checks
+if git diff --cached --name-only | grep -qE '^backend/'; then
+  echo ""
+  echo "🐍 Stage 2: Backend Quality Checks"
+  
+  cd backend
+  
+  # Check if virtual environment is activated
+  if [ -z "$VIRTUAL_ENV" ]; then
+    if [ -f ".venv/Scripts/activate" ]; then
+      . .venv/Scripts/activate
+    elif [ -f ".venv/bin/activate" ]; then
+      . .venv/bin/activate
+    else
+      echo "⚠️  Virtual environment not found or activated"
+      echo "   Run: python -m venv .venv && source .venv/bin/activate"
+      exit 1
+    fi
+  fi
+  
+  # Code formatting check
+  echo "  → Checking code formatting (black)..."
+  if ! python -m black app/ tests/ --check --quiet 2>/dev/null; then
+    echo "❌ FAILED: Code formatting issues detected"
+    echo "   Fix with: cd backend && black app/ tests/"
+    exit 1
+  fi
+  echo "  ✅ Code formatting OK"
+  
+  # Linting check
+  echo "  → Running linter (ruff)..."
+  if ! python -m ruff check app/ tests/ --quiet 2>/dev/null; then
+    echo "❌ FAILED: Linting issues detected"
+    echo "   Fix with: cd backend && ruff check app/ tests/ --fix"
+    exit 1
+  fi
+  echo "  ✅ Linting OK"
+  
+  # Run tests for changed files
+  echo "  → Running unit tests..."
+  CHANGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*\.py$' | sed 's/^backend\///' || true)
+  if [ -n "$CHANGED_PY_FILES" ]; then
+    if ! python -m pytest -x --tb=short -q 2>/dev/null; then
+      echo "❌ FAILED: Unit tests failed"
+      echo "   Fix tests before committing"
+      exit 1
+    fi
+    echo "  ✅ Unit tests passed"
+  else
+    echo "  ⏭️  No Python files changed, skipping tests"
+  fi
+  
+  cd ..
+fi
+
+# Stage 3: Frontend Quality Checks
+if git diff --cached --name-only | grep -qE '^frontend/'; then
+  echo ""
+  echo "⚛️  Stage 3: Frontend Quality Checks"
+  
+  cd frontend
+  
+  # Type checking
+  echo "  → Type checking (TypeScript)..."
+  if ! npm run type-check --silent 2>/dev/null; then
+    echo "❌ FAILED: TypeScript type errors detected"
+    echo "   Fix type errors before committing"
+    exit 1
+  fi
+  echo "  ✅ Type checking OK"
+  
+  # Linting check
+  echo "  → Running linter (ESLint)..."
+  if ! npm run lint --silent 2>/dev/null; then
+    echo "❌ FAILED: ESLint issues detected"
+    echo "   Fix with: cd frontend && npm run lint"
+    exit 1
+  fi
+  echo "  ✅ Linting OK"
+  
+  # Run unit tests
+  echo "  → Running unit tests..."
+  CHANGED_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/src/.*\.(ts|tsx)$' || true)
+  if [ -n "$CHANGED_TS_FILES" ]; then
+    if ! npm run test --silent 2>/dev/null; then
+      echo "❌ FAILED: Unit tests failed"
+      echo "   Fix tests before committing"
+      exit 1
+    fi
+    echo "  ✅ Unit tests passed"
+  else
+    echo "  ⏭️  No TypeScript files changed, skipping tests"
+  fi
+  
+  cd ..
+fi
+
+# Stage 4: Documentation Check
+echo ""
+echo "📚 Stage 4: Documentation Validation"
+CHANGED_FILES=$(git diff --cached --name-only)
+
+# Check if API contracts were modified
+if echo "$CHANGED_FILES" | grep -qE 'backend/app/routes/'; then
+  if ! echo "$CHANGED_FILES" | grep -qE 'docs/API_CONTRACTS.md'; then
+    echo "⚠️  WARNING: API routes modified but docs/API_CONTRACTS.md not updated"
+    echo "   Consider updating API documentation"
+    # Don't fail, just warn
+  fi
+fi
+
+# Check if components were modified
+if echo "$CHANGED_FILES" | grep -qE 'frontend/src/components/'; then
+  if ! echo "$CHANGED_FILES" | grep -qE 'docs/COMPONENT_SPECS.md'; then
+    echo "⚠️  WARNING: Components modified but docs/COMPONENT_SPECS.md not updated"
+    echo "   Consider updating component documentation"
+    # Don't fail, just warn
+  fi
+fi
+
+echo "  ✅ Documentation check complete"
+
+# Final Summary
+echo ""
+echo "=============================================="
+echo "✅ All QA checks passed! Proceeding with commit..."
+echo ""
+echo "💡 Tip: Run 'npm run qa' or 'make qa' to run full validation suite"
+echo ""
+
+exit 0

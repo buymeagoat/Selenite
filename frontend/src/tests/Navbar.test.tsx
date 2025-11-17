@@ -10,7 +10,8 @@ const AuthPreset: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
   useEffect(() => {
     login('token', { username: 'alice', email: 'alice@example.com' });
-  }, [login]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
   
   return <>{children}</>;
 };

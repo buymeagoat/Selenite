@@ -10,13 +10,6 @@ export default defineConfig({
     testTimeout: 5000,
     hookTimeout: 5000,
     teardownTimeout: 1000,
-    bail: 1,
-    isolate: true,
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true
-      }
-    }
+    isolate: true
   }
 });

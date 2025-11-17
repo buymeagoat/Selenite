@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: selenite-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage/media:/app/storage/media
+      - ./storage/transcripts:/app/storage/transcripts
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./storage/selenite.db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - MEDIA_STORAGE_PATH=/app/storage/media
+      - TRANSCRIPT_STORAGE_PATH=/app/storage/transcripts
+      - MODEL_STORAGE_PATH=/app/models
+      - MAX_CONCURRENT_JOBS=3
+      - DEFAULT_WHISPER_MODEL=medium
+      - DEFAULT_LANGUAGE=auto
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://localhost
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - selenite-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: selenite-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - selenite-network
+
+networks:
+  selenite-network:
+    driver: bridge
+
+volumes:
+  storage:
+  models:
+  logs:

@@ -32,19 +32,19 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-  - Created FileDropzone component with drag-and-drop (react-dropzone)
-  - File validation (audio/video types, 2GB max size)
-  - File preview with icon, size, and type display
-  - Created NewJobModal with complete job creation form
-  - Model selection dropdown (5 Whisper models with descriptions)
-  - Language selection dropdown (auto-detect + 11 languages)
-  - Options checkboxes (timestamps, speaker detection both default checked)
-  - Form validation, error handling, loading states
-  - Connected modal to Dashboard '+ New Job' buttons
-  - 24 tests created (7 FileDropzone + 17 NewJobModal)
-  - Upload UI complete, ready for POST /jobs API integration
- Currently on: Build Increment 14 (Search & Filters)
- Last completed: Build Increment 13 - Job Detail Modal
+  - Created SearchBar component with debounced input (300ms)
+  - Search icon, clear button, loading spinner support
+  - Created JobFilters component with status, date range, tag multi-select
+  - Filter dropdowns with "All", "In Progress", "Completed", "Failed"
+  - Date filters: All Time, Today, This Week, This Month, Custom Range
+  - Tag checkboxes with clear all functionality
+  - Reset filters button (appears only when filters active)
+  - Integrated search & filters into Dashboard with sample jobs
+  - Client-side filtering logic (filename search, status, date, tags)
+  - 21 tests created (11 SearchBar + 10 JobFilters)
+  - Search & filter UI complete, ready for API integration
+ Currently on: Build Increment 15 (Tag Management UI)
+ Last completed: Build Increment 14 - Search & Filters
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -55,8 +55,8 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
- Next task: Add search bar and filters to Dashboard
- Files being worked on: Ready to begin Increment 14
+ Next task: Create tag management UI with creation and assignment
+ Files being worked on: SearchBar, JobFilters, Dashboard complete
 IMMEDIATE REQUEST:
 [State what you need help with - implementing a specific increment, debugging a test, refactoring code, etc.]
 
@@ -190,10 +190,8 @@ Keep track of completed increments here:
 - [x] Increment 10: Frontend Foundation
 - [x] Increment 11: Dashboard Layout & Job Cards
 - [x] Increment 12: New Job Modal
-- [ ] Increment 13: Job Detail Modal
- [x] Increment 13: Job Detail Modal
-- [ ] Increment 14: Search & Filters
- [ ] Increment 14: Search & Filters
+- [x] Increment 13: Job Detail Modal
+- [x] Increment 14: Search & Filters
 - [ ] Increment 15: Tag Management UI
 - [ ] Increment 16: Settings Page
 - [ ] Increment 17: Real-time Progress Updates

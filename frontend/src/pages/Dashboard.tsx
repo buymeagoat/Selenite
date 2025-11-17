@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { JobCard } from '../components/jobs/JobCard';
 import { NewJobModal } from '../components/modals/NewJobModal';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
+import { SearchBar } from '../components/common/SearchBar';
+import { JobFilters } from '../components/jobs/JobFilters';
 
 interface Job {
   id: string;
@@ -25,12 +27,43 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
 
   useEffect(() => {
     // Placeholder: Replace with actual API call
     // For now, set empty array after simulated load
     const timer = setTimeout(() => {
-      setJobs([]);
+      // Seed with sample jobs (remove when API wired)
+      setJobs([
+        {
+          id: '1',
+          original_filename: 'marketing_plan_q4.mp3',
+          status: 'completed',
+          created_at: new Date().toISOString(),
+          tags: [{ id: 2, name: 'marketing', color: '#B5543A' }],
+          duration: 534,
+        },
+        {
+          id: '2',
+          original_filename: 'customer_interview_alpha.wav',
+          status: 'processing',
+          created_at: new Date(Date.now() - 3600_000).toISOString(),
+          tags: [{ id: 1, name: 'interviews', color: '#0F3D2E' }],
+          progress_percent: 42,
+          progress_stage: 'transcribing',
+          estimated_time_left: 780,
+          duration: 1800,
+        },
+        {
+          id: '3',
+          original_filename: 'research_brainstorm.mov',
+          status: 'failed',
+          created_at: new Date(Date.now() - 86400_000).toISOString(),
+          tags: [{ id: 3, name: 'research', color: '#C9A227' }],
+          duration: 1200,
+        },
+      ]);
       setIsLoading(false);
     }, 500);
 
@@ -60,40 +93,82 @@ export const Dashboard: React.FC = () => {
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
   }) => {
-    // TODO: Implement actual API call to POST /jobs
-    console.log('Creating new job:', jobData);
-    
-    // Placeholder: Simulate API call
+    console.log('Creating new job (placeholder):', jobData);
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // TODO: Add new job to jobs array and refresh list
     alert('Job created successfully! (API integration pending)');
+  };
 
-    const handlePlay = (jobId: string) => {
-      console.log('Play job:', jobId);
-      // TODO: Implement media playback
-    };
+  const handlePlay = (jobId: string) => {
+    console.log('Play job:', jobId);
+  };
 
-    const handleDownload = (jobId: string, format: string) => {
-      console.log('Download job:', jobId, 'format:', format);
-      // TODO: Implement download
-    };
+  const handleDownload = (jobId: string, format: string) => {
+    console.log('Download job:', jobId, 'format:', format);
+  };
 
-    const handleRestart = (jobId: string) => {
-      console.log('Restart job:', jobId);
-      // TODO: Implement restart
-    };
+  const handleRestart = (jobId: string) => {
+    console.log('Restart job:', jobId);
+  };
 
-    const handleDelete = (jobId: string) => {
-      console.log('Delete job:', jobId);
-      // TODO: Implement delete
-      setJobs(jobs.filter(j => j.id !== jobId));
-    };
+  const handleDelete = (jobId: string) => {
+    console.log('Delete job:', jobId);
+    setJobs(prev => prev.filter(j => j.id !== jobId));
+    setSelectedJob(null);
+  };
 
-    const handleUpdateTags = (jobId: string, tagIds: number[]) => {
-      console.log('Update tags for job:', jobId, 'tags:', tagIds);
-      // TODO: Implement tag update
-    };
+  const handleUpdateTags = (jobId: string, tagIds: number[]) => {
+    console.log('Update tags for job:', jobId, 'tags:', tagIds);
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, tags: j.tags.filter(t => tagIds.includes(t.id)) } : j));
+  };
+
+  const availableTags = useMemo(() => {
+    const tagMap: Record<number, {id:number; name:string; color:string}> = {};
+    jobs.forEach(j => j.tags.forEach(t => { tagMap[t.id] = t; }));
+    return Object.values(tagMap);
+  }, [jobs]);
+
+  const filteredJobs = useMemo(() => {
+    let data = [...jobs];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(j => j.original_filename.toLowerCase().includes(q));
+    }
+    if (filters.status) {
+      if (filters.status === 'in_progress') {
+        data = data.filter(j => j.status === 'queued' || j.status === 'processing');
+      } else {
+        data = data.filter(j => j.status === filters.status);
+      }
+    }
+    if (filters.dateRange) {
+      const now = Date.now();
+      const createdMs = (iso: string) => new Date(iso).getTime();
+      switch (filters.dateRange) {
+        case 'today':
+          data = data.filter(j => (now - createdMs(j.created_at)) < 86400_000);
+          break;
+        case 'this_week':
+          data = data.filter(j => (now - createdMs(j.created_at)) < 7 * 86400_000);
+          break;
+        case 'this_month':
+          data = data.filter(j => (now - createdMs(j.created_at)) < 30 * 86400_000);
+          break;
+        default:
+          break;
+      }
+    }
+    if (filters.tags && filters.tags.length) {
+      data = data.filter(j => j.tags.some(t => filters.tags!.includes(t.id)));
+    }
+    return data;
+  }, [jobs, searchQuery, filters]);
+
+  const handleFilterChange = (f: {status?: string; dateRange?: string; tags?: number[]}) => {
+    setFilters(f);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({});
   };
 
   if (isLoading) {
@@ -111,7 +186,7 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  if (jobs.length === 0) {
+  if (!isLoading && jobs.length === 0) {
     return (
       <>
         <div className="p-6">
@@ -149,36 +224,56 @@ export const Dashboard: React.FC = () => {
   return (
     <>
       <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
-          <button
-            onClick={() => setIsNewJobModalOpen(true)}
-            className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
-          >
-            + New Job
-          </button>
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
+            <button
+              onClick={() => setIsNewJobModalOpen(true)}
+              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
+            >
+              + New Job
+            </button>
+          </div>
+          <div className="flex flex-col md:flex-row gap-4 md:items-center">
+            <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search jobs" />
+            <JobFilters
+              currentFilters={filters}
+              availableTags={availableTags}
+              onFilterChange={handleFilterChange}
+              onReset={handleResetFilters}
+            />
+          </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {jobs.map((job) => (
-            <JobCard key={job.id} job={job} onClick={handleJobClick} />
-      
-                {selectedJob && (
-                  <JobDetailModal
-                    isOpen={!!selectedJob}
-                    onClose={() => setSelectedJob(null)}
-                    job={selectedJob as any}
-                    onPlay={handlePlay}
-                    onDownload={handleDownload}
-                    onRestart={handleRestart}
-                    onDelete={handleDelete}
-                    onUpdateTags={handleUpdateTags}
-                  />
-                )}
-          ))}
-        </div>
+        {filteredJobs.length === 0 ? (
+          <div className="text-center py-12 border border-sage-mid rounded-lg bg-white">
+            <p className="text-pine-mid mb-2">No jobs match your search or filters.</p>
+            <button
+              onClick={handleResetFilters}
+              className="text-sm text-forest-green hover:underline"
+            >
+              Reset Filters
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredJobs.map(job => (
+              <JobCard key={job.id} job={job} onClick={handleJobClick} />
+            ))}
+          </div>
+        )}
       </div>
-      
+      {selectedJob && (
+        <JobDetailModal
+          isOpen={!!selectedJob}
+          onClose={() => setSelectedJob(null)}
+          job={selectedJob as any}
+          onPlay={handlePlay}
+          onDownload={handleDownload}
+          onRestart={handleRestart}
+          onDelete={handleDelete}
+          onUpdateTags={handleUpdateTags}
+        />
+      )}
       <NewJobModal
         isOpen={isNewJobModalOpen}
         onClose={() => setIsNewJobModalOpen(false)}

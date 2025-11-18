@@ -61,12 +61,15 @@ backend/storage/media/*
 backend/storage/transcripts/*
 !backend/storage/media/.gitkeep
 !backend/storage/transcripts/.gitkeep
+storage/
 
 # Stray nested folder created accidentally
 backend/backend/
 
 # Logs
 *.log
+logs/
+backend/logs/
 
 # OS
 .DS_Store

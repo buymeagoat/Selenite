@@ -1,5 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+import type { Page } from '@playwright/test';
+
+async function waitForJobCards(page: Page) {
+  const jobCards = page.locator('[data-testid="job-card"]');
+  const maxMs = 20000;
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    const count = await jobCards.count();
+    if (count > 0) return { count, jobCards };
+    await page.waitForTimeout(400);
+  }
+  const html = await page.content();
+  throw new Error(`No job cards after ${maxMs}ms. HTML length=${html.length}`);
+}
+
 /**
  * Search and Filter Tests
  * 
@@ -9,68 +24,70 @@ import { test, expect } from '@playwright/test';
 test.describe('Search Functionality', () => {
   test('search jobs by filename', async ({ page }) => {
     await page.goto('/');
-    
-    // Wait for jobs to load
-    await expect(page.locator('[data-testid="job-card"]').first()).toBeVisible({ timeout: 10000 });
-    
-    // Get initial job count
-    const initialCount = await page.locator('[data-testid="job-card"]').count();
+
+    // Wait for dashboard heading to ensure we are past auth redirect
+    await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible({ timeout: 8000 });
+
+    // Robust wait for at least one job card: poll until found or timeout
+    const { count: initialCount, jobCards } = await waitForJobCards(page);
+    await expect(jobCards.first()).toBeVisible();
     expect(initialCount).toBeGreaterThan(0);
     
-    // Find search input
-    const searchInput = page.getByPlaceholder(/search/i).or(page.locator('[data-testid="search-input"]'));
+    // Find search input (placeholder="Search jobs" from Dashboard)
+    const searchInput = page.getByPlaceholder(/search/i);
     await expect(searchInput).toBeVisible();
     
-    // Get a filename from the first job
-    const firstJobCard = page.locator('[data-testid="job-card"]').first();
-    const filenameText = await firstJobCard.locator('[data-testid="job-filename"]')
-      .or(firstJobCard.getByText(/\.(mp3|wav|mp4|m4a)/i))
-      .first()
-      .textContent();
+    // Search for known seeded job filename pattern (e.g., "meeting")
+    const searchTerm = 'meeting';
+    await searchInput.fill(searchTerm);
     
-    if (filenameText) {
-      // Extract just a few characters from filename to search
-      const searchTerm = filenameText.slice(0, 5);
-      
-      await searchInput.fill(searchTerm);
-      
-      // Wait for search results to update
-      await page.waitForTimeout(500); // Debounce
-      
-      // All visible jobs should contain the search term
-      const visibleJobs = page.locator('[data-testid="job-card"]');
-      const count = await visibleJobs.count();
-      
-      for (let i = 0; i < count; i++) {
-        const jobText = await visibleJobs.nth(i).textContent();
-        expect(jobText?.toLowerCase()).toContain(searchTerm.toLowerCase());
-      }
+    // Wait for search results to update
+    await page.waitForTimeout(500); // Debounce
+    
+    // Should show filtered results
+    const visibleJobs = page.locator('[data-testid="job-card"]');
+    const count = await visibleJobs.count();
+    
+    expect(count).toBeGreaterThan(0);
+    expect(count).toBeLessThanOrEqual(initialCount);
+    
+    // All visible jobs should contain the search term
+    for (let i = 0; i < count; i++) {
+      const jobText = await visibleJobs.nth(i).textContent();
+      expect(jobText?.toLowerCase()).toContain(searchTerm.toLowerCase());
     }
   });
 
   test('search with no results shows empty state', async ({ page }) => {
     await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible({ timeout: 8000 });
+    const jobCards = page.locator('[data-testid="job-card"]');
+    await waitForJobCards(page);
     
-    const searchInput = page.getByPlaceholder(/search/i).or(page.locator('[data-testid="search-input"]'));
+    const searchInput = page.getByPlaceholder(/search/i);
     await expect(searchInput).toBeVisible();
     
     // Search for something that definitely doesn't exist
     await searchInput.fill('xyznonexistentfile123');
     await page.waitForTimeout(500);
     
-    // Should show empty state or "no results" message
+    // Should show empty state message ("No jobs match your search or filters.")
     await expect(
-      page.getByText(/no.*results|no.*jobs.*found|nothing.*found/i)
+      page.getByText(/no jobs match/i)
     ).toBeVisible({ timeout: 5000 });
   });
 
   test('clear search shows all jobs again', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible({ timeout: 8000 });
+    const jobCards = page.locator('[data-testid="job-card"]');
+    await waitForJobCards(page);
     
     const initialCount = await page.locator('[data-testid="job-card"]').count();
     
-    const searchInput = page.getByPlaceholder(/search/i).or(page.locator('[data-testid="search-input"]'));
-    await searchInput.fill('test');
+    const searchInput = page.getByPlaceholder(/search/i);
+    await searchInput.fill('meeting');
     await page.waitForTimeout(500);
     
     const filteredCount = await page.locator('[data-testid="job-card"]').count();
@@ -89,7 +106,8 @@ test.describe('Job Filters', () => {
   test('filter jobs by status', async ({ page }) => {
     await page.goto('/');
     
-    await expect(page.locator('[data-testid="job-card"]').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid="job-card"]').first()).toBeVisible({ timeout: 25000 });
     
     // Find status filter dropdown
     const statusFilter = page.locator('[data-testid="status-filter"]')
@@ -121,6 +139,9 @@ test.describe('Job Filters', () => {
   test('filter jobs by date range', async ({ page }) => {
     await page.goto('/');
     
+    // Wait for dashboard & initial cards
+    await expect(page.getByRole('heading', { name: /transcriptions/i })).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid="job-card"]').first()).toBeVisible({ timeout: 25000 });
     // Find date filter
     const dateFilter = page.locator('[data-testid="date-filter"]')
       .or(page.getByLabel(/filter.*date/i));

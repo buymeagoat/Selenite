@@ -3,6 +3,20 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Settings } from '../pages/Settings';
 
+// Mock async data fetches to prevent unhandled errors
+vi.mock('../services/settings', () => ({
+  fetchSettings: vi.fn().mockResolvedValue({
+    default_model: 'medium',
+    default_language: 'auto',
+    max_concurrent_jobs: 3
+  }),
+  updateSettings: vi.fn().mockResolvedValue({})
+}));
+vi.mock('../services/tags', () => ({
+  fetchTags: vi.fn().mockResolvedValue({ items: [] }),
+  deleteTag: vi.fn().mockResolvedValue({ jobs_affected: 0 })
+}));
+
 // Mock child components
 vi.mock('../components/tags/TagList', () => ({
   TagList: ({ tags, onEdit, onDelete }: any) => (
@@ -19,6 +33,9 @@ vi.mock('../components/tags/TagList', () => ({
 }));
 
 describe('Settings', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
   it('renders all settings sections', () => {
     render(<Settings />);
     expect(screen.getByText(/account/i)).toBeInTheDocument();

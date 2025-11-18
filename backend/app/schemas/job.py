@@ -14,7 +14,18 @@ class TagResponse(BaseModel):
 
     id: int
     name: str
-    color: str
+    color: Optional[str] = None
+
+
+class TagAssignRequest(BaseModel):
+    """Request schema for assigning/creating a tag on a job.
+
+    Either provide an existing tag id or a name (with optional color) to create/reuse.
+    """
+
+    tag_id: Optional[int] = Field(default=None, ge=1)
+    name: Optional[str] = Field(default=None, max_length=50)
+    color: Optional[str] = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
 
 
 class JobCreate(BaseModel):

@@ -6,6 +6,7 @@ set -e
 
 echo "🔍 Selenite QA Gateway: Pre-Commit Validation"
 echo "=============================================="
+echo "[LOG] Pre-commit hook started at $(date)"
 
 # Check if SKIP_QA is set (emergency bypass)
 if [ -n "$SKIP_QA" ]; then
@@ -23,6 +24,7 @@ echo "⏭️  Commit message validation skipped (use commit-msg hook for this ch
 
 # Stage 2: Backend Quality Checks
 if git diff --cached --name-only | grep -qE '^backend/'; then
+  echo "[LOG] Entering backend QA checks at $(date)"
   echo ""
   echo "🐍 Stage 2: Backend Quality Checks"
   
@@ -42,7 +44,7 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
   fi
   
   # Code formatting check
-  echo "  → Checking code formatting (black)..."
+  echo "[LOG] Checking code formatting (black) at $(date)"
   if ! python -m black app/ tests/ --check --quiet 2>/dev/null; then
     echo "❌ FAILED: Code formatting issues detected"
     echo "   Fix with: cd backend && black app/ tests/"
@@ -51,7 +53,7 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
   echo "  ✅ Code formatting OK"
   
   # Linting check
-  echo "  → Running linter (ruff)..."
+  echo "[LOG] Running linter (ruff) at $(date)"
   if ! python -m ruff check app/ tests/ --quiet 2>/dev/null; then
     echo "❌ FAILED: Linting issues detected"
     echo "   Fix with: cd backend && ruff check app/ tests/ --fix"
@@ -60,10 +62,10 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
   echo "  ✅ Linting OK"
   
   # Run tests for changed files
-  echo "  → Running unit tests..."
+  echo "[LOG] Running backend unit tests at $(date)"
   CHANGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*\.py$' | sed 's/^backend\///' || true)
   if [ -n "$CHANGED_PY_FILES" ]; then
-    if ! python -m pytest -x --tb=short -q 2>/dev/null; then
+    if ! timeout 120 python -m pytest -x --tb=short -q 2>/dev/null; then
       echo "❌ FAILED: Unit tests failed"
       echo "   Fix tests before committing"
       exit 1
@@ -73,18 +75,20 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
     echo "  ⏭️  No Python files changed, skipping tests"
   fi
   
+  echo "[LOG] Finished backend QA checks at $(date)"
   cd ..
 fi
 
 # Stage 3: Frontend Quality Checks
 if git diff --cached --name-only | grep -qE '^frontend/'; then
+  echo "[LOG] Entering frontend QA checks at $(date)"
   echo ""
   echo "⚛️  Stage 3: Frontend Quality Checks"
   
   cd frontend
   
   # Type checking
-  echo "  → Type checking (TypeScript)..."
+  echo "[LOG] Type checking (TypeScript) at $(date)"
   if ! npm run type-check --silent 2>/dev/null; then
     echo "❌ FAILED: TypeScript type errors detected"
     echo "   Fix type errors before committing"
@@ -93,7 +97,7 @@ if git diff --cached --name-only | grep -qE '^frontend/'; then
   echo "  ✅ Type checking OK"
   
   # Linting check
-  echo "  → Running linter (ESLint)..."
+  echo "[LOG] Running linter (ESLint) at $(date)"
   if ! npm run lint --silent 2>/dev/null; then
     echo "❌ FAILED: ESLint issues detected"
     echo "   Fix with: cd frontend && npm run lint"
@@ -102,10 +106,10 @@ if git diff --cached --name-only | grep -qE '^frontend/'; then
   echo "  ✅ Linting OK"
   
   # Run unit tests
-  echo "  → Running unit tests..."
+  echo "[LOG] Running frontend unit tests at $(date)"
   CHANGED_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/src/.*\.(ts|tsx)$' || true)
   if [ -n "$CHANGED_TS_FILES" ]; then
-    if ! npm run test --silent 2>/dev/null; then
+    if ! npx timeout-cli 120 npm run test --silent 2>/dev/null; then
       echo "❌ FAILED: Unit tests failed"
       echo "   Fix tests before committing"
       exit 1
@@ -115,12 +119,13 @@ if git diff --cached --name-only | grep -qE '^frontend/'; then
     echo "  ⏭️  No TypeScript files changed, skipping tests"
   fi
   
+  echo "[LOG] Finished frontend QA checks at $(date)"
   cd ..
 fi
 
 # Stage 4: Documentation Check
 echo ""
-echo "📚 Stage 4: Documentation Validation"
+echo "[LOG] Starting documentation validation at $(date)"
 CHANGED_FILES=$(git diff --cached --name-only)
 
 # Check if API contracts were modified
@@ -141,12 +146,12 @@ if echo "$CHANGED_FILES" | grep -qE 'frontend/src/components/'; then
   fi
 fi
 
-echo "  ✅ Documentation check complete"
+echo "[LOG] Documentation check complete at $(date)"
 
 # Final Summary
 echo ""
 echo "=============================================="
-echo "✅ All QA checks passed! Proceeding with commit..."
+echo "[LOG] All QA checks passed at $(date). Proceeding with commit..."
 echo ""
 echo "💡 Tip: Run 'npm run qa' or 'make qa' to run full validation suite"
 echo ""

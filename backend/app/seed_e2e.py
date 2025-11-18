@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import text
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
+from app.models.user_settings import UserSettings
 from app.models.job import Job
 from app.models.tag import Tag
 from app.models.transcript import Transcript
@@ -25,6 +26,8 @@ async def clear_test_data():
         await db.execute(delete(Job))
         # Delete tags
         await db.execute(delete(Tag))
+        # Delete users (force clean slate) and will recreate admin
+        await db.execute(delete(User))
         await db.commit()
     print("Test data cleared.")
 
@@ -52,6 +55,24 @@ async def seed_e2e_database():
             await db.commit()
             await db.refresh(admin_user)
             print("Created admin user")
+        else:
+            # Always reset admin password for deterministic E2E runs
+            setattr(admin_user, "hashed_password", hash_password("changeme"))
+            await db.commit()
+            await db.refresh(admin_user)
+            print("Reset admin user password to default for E2E")
+        print("Admin user present:", admin_user.username)
+
+        # Ensure admin has settings
+        settings_result = await db.execute(
+            select(UserSettings).where(UserSettings.user_id == admin_user.id)
+        )
+        admin_settings = settings_result.scalar_one_or_none()
+        if not admin_settings:
+            admin_settings = UserSettings(user_id=admin_user.id)
+            db.add(admin_settings)
+            await db.commit()
+            print("Created admin user settings")
 
         # Create sample tags
         tags = []
@@ -155,7 +176,7 @@ async def seed_e2e_database():
             status="queued",
             progress_percent=0,
             progress_stage=None,
-            model_used=None,
+            model_used="medium",
             has_timestamps=True,
             has_speaker_labels=True,
             created_at=now - timedelta(minutes=5),
@@ -178,6 +199,7 @@ async def seed_e2e_database():
             progress_percent=15,
             progress_stage="loading_model",
             error_message="Failed to decode audio stream: unsupported format",
+            model_used="medium",
             created_at=now - timedelta(hours=2),
             started_at=now - timedelta(hours=2, minutes=-2),
         )
@@ -213,7 +235,7 @@ async def seed_e2e_database():
         print(f"  - {sum(1 for j in jobs if j.status == 'queued')} queued")
         print(f"  - {sum(1 for j in jobs if j.status == 'failed')} failed")
 
-    print("\n✅ E2E database seeding complete!")
+    print("\nE2E database seeding complete.")
     print("\nTest data summary:")
     print("  User: admin / changeme")
     print(f"  Tags: {len(tag_data)} tags created")

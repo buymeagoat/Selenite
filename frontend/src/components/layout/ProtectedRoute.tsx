@@ -7,7 +7,13 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { token } = useAuth();
+  const { token, isLoading } = useAuth();
+  
+  // Wait for auth state to restore from localStorage
+  if (isLoading) {
+    return null; // or a loading spinner
+  }
+  
   if (!token) {
     return <Navigate to="/login" replace />;
   }

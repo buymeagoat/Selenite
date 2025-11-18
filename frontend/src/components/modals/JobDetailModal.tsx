@@ -38,6 +38,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [tagInputValue, setTagInputValue] = useState('');
+  const [editableTags, setEditableTags] = useState(job.tags);
 
   if (!isOpen) return null;
 
@@ -77,9 +79,29 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
     setShowDownloadMenu(false);
   };
 
+  const handleAddTag = (name: string) => {
+    if (!name.trim()) return;
+    // Avoid duplicates by name
+    if (editableTags.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+      setTagInputValue('');
+      return;
+    }
+    const newTag = {
+      id: Date.now(),
+      name,
+      color: '#0F3D2E'
+    };
+    setEditableTags([...editableTags, newTag]);
+    setTagInputValue('');
+  };
+
+  const handleRemoveTag = (id: number) => {
+    setEditableTags(editableTags.filter(t => t.id !== id));
+  };
+
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" data-testid="job-detail-modal">
         {/* Backdrop */}
         <div
           className="absolute inset-0 bg-black bg-opacity-50"
@@ -109,7 +131,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
           {/* Content */}
           <div className="p-6">
             {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6" data-testid="job-metadata">
               <div>
                 <div className="text-sm text-pine-mid">Duration</div>
                 <div className="text-base font-medium text-pine-deep">
@@ -148,26 +170,59 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Tags Section */}
-            {job.tags.length > 0 && (
-              <div className="mb-6">
-                <div className="text-sm text-pine-mid mb-2">Tags</div>
-                <div className="flex flex-wrap gap-2">
-                  {job.tags.map((tag) => (
-                    <span
-                      key={tag.id}
-                      className="text-sm px-3 py-1 rounded-full"
-                      style={{ backgroundColor: tag.color + '20', color: tag.color }}
+            {/* Tags Section (view & edit) */}
+            <div className="mb-6" data-testid="job-tags">
+              <div className="text-sm text-pine-mid mb-2">Tags</div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {editableTags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    data-testid="tag-chip"
+                    className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-sage-light text-pine-deep"
+                    style={{ backgroundColor: tag.color + '20', color: tag.color }}
+                  >
+                    <span>#{tag.name}</span>
+                    <button
+                      type="button"
+                      data-testid="remove-tag"
+                      aria-label={`Remove tag ${tag.name}`}
+                      onClick={() => handleRemoveTag(tag.id)}
+                      className="text-xs px-1 rounded hover:bg-red-100 hover:text-red-600 transition"
                     >
-                      #{tag.name}
-                    </span>
-                  ))}
-                </div>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {editableTags.length === 0 && (
+                  <span className="text-xs text-pine-mid">No tags</span>
+                )}
               </div>
-            )}
+              <div className="relative max-w-xs">
+                <input
+                  type="text"
+                  value={tagInputValue}
+                  onChange={(e) => setTagInputValue(e.target.value)}
+                  placeholder="Add tag"
+                  data-testid="tag-input"
+                  className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none text-sm"
+                />
+                {tagInputValue.trim() && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-sage-mid rounded-lg shadow z-10">
+                    <div
+                      role="option"
+                      data-testid="tag-option"
+                      onClick={() => handleAddTag(tagInputValue.trim())}
+                      className="px-3 py-2 text-sm cursor-pointer hover:bg-sage-light"
+                    >
+                      Add “{tagInputValue.trim()}”
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="job-actions">
               <button
                 onClick={() => onPlay(job.id)}
                 className="flex items-center justify-center gap-2 px-4 py-3 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
@@ -184,7 +239,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 <span>View Transcript</span>
               </button>
 
-              <div className="relative">
+              <div className="relative" data-testid="download-menu">
                 <button
                   onClick={() => setShowDownloadMenu(!showDownloadMenu)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
@@ -195,7 +250,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 </button>
                 
                 {showDownloadMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20" data-testid="download-options">
                     {['txt', 'md', 'srt', 'vtt', 'json', 'docx'].map((format) => (
                       <button
                         key={format}

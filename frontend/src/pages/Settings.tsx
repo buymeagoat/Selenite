@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TagList } from '../components/tags/TagList';
 import { Settings as SettingsIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { apiPut, ApiError } from '../lib/api';
+import { fetchSettings, updateSettings } from '../services/settings';
+import { fetchTags, deleteTag, type Tag } from '../services/tags';
+import { useToast } from '../context/ToastContext';
 
 export const Settings: React.FC = () => {
+  const { showError, showSuccess } = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -12,31 +17,111 @@ export const Settings: React.FC = () => {
   const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [tagsExpanded, setTagsExpanded] = useState(true);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
-  // Mock tags - replace with API
-  const [tags, setTags] = useState([
-    { id: 1, name: 'interviews', color: '#0F3D2E', job_count: 5 },
-    { id: 2, name: 'marketing', color: '#B5543A', job_count: 12 },
-    { id: 3, name: 'research', color: '#C9A227', job_count: 3 }
-  ]);
+  const [passwordMessage, setPasswordMessage] = useState<string>('');
+  const [passwordError, setPasswordError] = useState<string>('');
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  // Load settings and tags on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [settingsData, tagsData] = await Promise.all([
+          fetchSettings(),
+          fetchTags()
+        ]);
+        
+        setDefaultModel(settingsData.default_model);
+        setDefaultLanguage(settingsData.default_language);
+        setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
+        setTags(tagsData.items);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+        if (error instanceof ApiError) {
+          showError(`Failed to load settings: ${error.message}`);
+        } else {
+          showError('Failed to load settings. Please refresh the page.');
+        }
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+
+    loadData();
+  }, [showError]);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Change password (placeholder)');
-    // TODO: API call
-    alert('Password change not yet implemented');
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (!currentPassword.trim()) {
+      setPasswordError('Current password is required');
+      return;
+    }
+    if (newPassword.trim() === '' || confirmPassword.trim() === '') {
+      setPasswordError('Enter new password and confirmation');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+    try {
+      const data = await apiPut<{ detail: string }>('/auth/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword
+      });
+      
+      setPasswordMessage(data.detail || 'Password changed successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setPasswordError(err.message);
+      } else {
+        setPasswordError('Network error while changing password');
+      }
+    }
   };
 
-  const handleSaveDefaults = () => {
-    console.log('Save defaults:', { defaultModel, defaultLanguage, enableTimestamps, enableSpeakerDetection });
-    // TODO: API call
-    alert('Defaults saved (placeholder)');
+  const handleSaveDefaults = async () => {
+    try {
+      await updateSettings({
+        default_model: defaultModel,
+        default_language: defaultLanguage,
+        max_concurrent_jobs: maxConcurrentJobs
+      });
+      showSuccess('Default transcription settings saved');
+    } catch (error) {
+      console.error('Failed to save defaults:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to save settings: ${error.message}`);
+      } else {
+        showError('Failed to save settings. Please try again.');
+      }
+    }
   };
 
-  const handleSavePerformance = () => {
-    console.log('Save performance:', { maxConcurrentJobs });
-    // TODO: API call
-    alert('Performance settings saved (placeholder)');
+  const handleSavePerformance = async () => {
+    try {
+      await updateSettings({
+        default_model: defaultModel,
+        default_language: defaultLanguage,
+        max_concurrent_jobs: maxConcurrentJobs
+      });
+      showSuccess('Performance settings saved');
+    } catch (error) {
+      console.error('Failed to save performance:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to save settings: ${error.message}`);
+      } else {
+        showError('Failed to save settings. Please try again.');
+      }
+    }
   };
 
   const handleEditTag = (tagId: number) => {
@@ -45,11 +130,22 @@ export const Settings: React.FC = () => {
     alert(`Edit tag ${tagId} (not yet implemented)`);
   };
 
-  const handleDeleteTag = (tagId: number) => {
-    console.log('Delete tag:', tagId);
-    // TODO: Confirm dialog + API call
-    if (confirm('Delete this tag?')) {
+  const handleDeleteTag = async (tagId: number) => {
+    if (!confirm('Delete this tag? It will be removed from all jobs.')) {
+      return;
+    }
+    
+    try {
+      const result = await deleteTag(tagId);
       setTags(tags.filter(t => t.id !== tagId));
+      showSuccess(`Tag deleted (removed from ${result.jobs_affected} jobs)`);
+    } catch (error) {
+      console.error('Failed to delete tag:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to delete tag: ${error.message}`);
+      } else {
+        showError('Failed to delete tag. Please try again.');
+      }
     }
   };
 
@@ -90,6 +186,7 @@ export const Settings: React.FC = () => {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="current-password"
             />
           </div>
           <div>
@@ -102,6 +199,7 @@ export const Settings: React.FC = () => {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="new-password"
             />
           </div>
           <div>
@@ -114,11 +212,23 @@ export const Settings: React.FC = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="confirm-password"
             />
           </div>
+          {passwordError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-600" data-testid="password-error">
+              {passwordError}
+            </div>
+          )}
+          {passwordMessage && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700" data-testid="password-success">
+              {passwordMessage}
+            </div>
+          )}
           <button
             type="submit"
             className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
+            data-testid="password-save"
           >
             Save
           </button>
@@ -138,6 +248,7 @@ export const Settings: React.FC = () => {
               value={defaultModel}
               onChange={(e) => setDefaultModel(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="default-model"
             >
               <option value="tiny">Tiny (39M)</option>
               <option value="base">Base (74M)</option>
@@ -155,6 +266,7 @@ export const Settings: React.FC = () => {
               value={defaultLanguage}
               onChange={(e) => setDefaultLanguage(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="default-language"
             >
               <option value="auto">Auto-detect</option>
               <option value="en">English</option>
@@ -219,6 +331,7 @@ export const Settings: React.FC = () => {
               value={maxConcurrentJobs}
               onChange={(e) => setMaxConcurrentJobs(Number(e.target.value))}
               className="w-full h-2 bg-sage-mid rounded-lg appearance-none cursor-pointer"
+              data-testid="max-concurrent-jobs"
             />
             <div className="flex justify-between text-xs text-pine-mid mt-1">
               <span>1</span>

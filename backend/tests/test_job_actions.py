@@ -1,0 +1,133 @@
+"""Tests for job action endpoints: cancel, restart, tag assign/remove, settings get/update."""
+
+import io
+import pytest
+from httpx import AsyncClient, ASGITransport
+
+from app.main import app
+from app.database import AsyncSessionLocal, engine, Base
+from app.models.user import User
+from app.models.user_settings import UserSettings
+from app.models.job import Job
+from app.utils.security import hash_password, create_access_token
+
+
+@pytest.fixture
+async def test_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSessionLocal() as session:
+        user = User(
+            id=1,
+            username="jobactions",
+            email="jobactions@example.com",
+            hashed_password=hash_password("InitialPass123"),
+        )
+        session.add(user)
+        await session.commit()
+    yield
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture
+def auth_headers():
+    token = create_access_token(data={"user_id": 1, "username": "jobactions"})
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_job_via_api(client: AsyncClient, auth_headers) -> str:
+    file_content = b"fake audio content"
+    files = {"file": ("sample.wav", io.BytesIO(file_content), "audio/wav")}
+    resp = await client.post("/jobs", files=files, headers=auth_headers)
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_success(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        resp = await client.post(f"/jobs/{job_id}/cancel", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_invalid_status(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        # Mark job completed directly
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, job_id)
+            job.status = "completed"
+            await session.commit()
+        resp = await client.post(f"/jobs/{job_id}/cancel", headers=auth_headers)
+        assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_restart_job_from_completed(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, job_id)
+            job.status = "completed"
+            await session.commit()
+        resp = await client.post(f"/jobs/{job_id}/restart", headers=auth_headers)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["status"] == "queued"
+        assert data["id"] != job_id
+
+
+@pytest.mark.asyncio
+async def test_tag_assign_and_remove(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, job_id)
+            job.status = "completed"  # allow restart/tag operations
+            await session.commit()
+        assign_resp = await client.post(
+            f"/jobs/{job_id}/tags",
+            headers=auth_headers,
+            json={"name": "Urgent", "color": "#FF0000"},
+        )
+        assert assign_resp.status_code == 200
+        tags = assign_resp.json()
+        tag_id = next(t["id"] for t in tags if t["name"] == "Urgent")
+        remove_resp = await client.delete(f"/jobs/{job_id}/tags/{tag_id}", headers=auth_headers)
+        assert remove_resp.status_code == 200
+        remaining = remove_resp.json()
+        assert all(t["id"] != tag_id for t in remaining)
+
+
+@pytest.mark.asyncio
+async def test_settings_get_and_update(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        get_resp = await client.get("/settings", headers=auth_headers)
+        assert get_resp.status_code == 200
+        defaults = get_resp.json()
+        assert defaults["default_model"] == "medium"
+        assert defaults["default_language"] == "auto"
+        assert defaults["max_concurrent_jobs"] == 3
+        put_resp = await client.put(
+            "/settings",
+            headers=auth_headers,
+            json={
+                "default_model": "small",
+                "default_language": "en",
+                "max_concurrent_jobs": 2,
+            },
+        )
+        assert put_resp.status_code == 200
+        updated = put_resp.json()
+        assert updated["default_model"] == "small"
+        assert updated["default_language"] == "en"
+        assert updated["max_concurrent_jobs"] == 2
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                UserSettings.__table__.select().where(UserSettings.default_model == "small")
+            )
+            assert res.first() is not None

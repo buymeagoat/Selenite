@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "timeout-cli": "^0.3.2"
+  }
+}

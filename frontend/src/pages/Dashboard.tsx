@@ -6,8 +6,8 @@ import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
 import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
-import { fetchJobs, createJob, type Job } from '../services/jobs';
-import { ApiError } from '../lib/api';
+import { fetchJobs, createJob, restartJob, deleteJob, assignTag, removeTag, type Job } from '../services/jobs';
+import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 
 export const Dashboard: React.FC = () => {
@@ -115,22 +115,112 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleDownload = (jobId: string, format: string) => {
-    console.log('Download job:', jobId, 'format:', format);
+    // Trigger download via export endpoint
+    const token = localStorage.getItem('auth_token');
+    const url = `${API_BASE_URL}/jobs/${jobId}/export?format=${format}`;
+    
+    // Create temporary anchor element to trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', ''); // Let browser use Content-Disposition filename
+    
+    // Add auth header by opening in new window with fetch
+    fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Download failed');
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        // Extract filename from Content-Disposition or use default
+        const downloadUrl = window.URL.createObjectURL(blob);
+        link.href = downloadUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        showSuccess(`Transcript downloaded as ${format.toUpperCase()}`);
+      })
+      .catch(error => {
+        console.error('Download failed:', error);
+        showError(`Failed to download transcript: ${error.message}`);
+      });
   };
 
-  const handleRestart = (jobId: string) => {
-    console.log('Restart job:', jobId);
+  const handleRestart = async (jobId: string) => {
+    try {
+      const response = await restartJob(jobId);
+      showSuccess(`Job restarted: ${response.original_filename}`);
+      
+      // Refresh job list to show new job
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+    } catch (error) {
+      console.error('Failed to restart job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to restart job: ${error.message}`);
+      } else {
+        showError('Failed to restart job. Please try again.');
+      }
+    }
   };
 
-  const handleDelete = (jobId: string) => {
-    console.log('Delete job:', jobId);
-    setJobs(prev => prev.filter(j => j.id !== jobId));
-    setSelectedJob(null);
+  const handleDelete = async (jobId: string) => {
+    try {
+      await deleteJob(jobId);
+      showSuccess('Job deleted successfully');
+      
+      // Remove from local state
+      setJobs(prev => prev.filter(j => j.id !== jobId));
+      setSelectedJob(null);
+    } catch (error) {
+      console.error('Failed to delete job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to delete job: ${error.message}`);
+      } else {
+        showError('Failed to delete job. Please try again.');
+      }
+    }
   };
 
-  const handleUpdateTags = (jobId: string, tagIds: number[]) => {
-    console.log('Update tags for job:', jobId, 'tags:', tagIds);
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, tags: j.tags.filter(t => tagIds.includes(t.id)) } : j));
+  const handleUpdateTags = async (jobId: string, tagIds: number[]) => {
+    try {
+      // Find the job to determine which tags to add/remove
+      const job = jobs.find(j => j.id === jobId);
+      if (!job) return;
+      
+      const currentTagIds = job.tags.map(t => t.id);
+      const tagsToAdd = tagIds.filter(id => !currentTagIds.includes(id));
+      const tagsToRemove = currentTagIds.filter(id => !tagIds.includes(id));
+      
+      // Add new tags
+      for (const tagId of tagsToAdd) {
+        await assignTag(jobId, tagId);
+      }
+      
+      // Remove tags
+      for (const tagId of tagsToRemove) {
+        await removeTag(jobId, tagId);
+      }
+      
+      // Refresh job list to get updated tags
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      
+      showSuccess('Tags updated successfully');
+    } catch (error) {
+      console.error('Failed to update tags:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to update tags: ${error.message}`);
+      } else {
+        showError('Failed to update tags. Please try again.');
+      }
+    }
   };
 
   const availableTags = useMemo(() => {

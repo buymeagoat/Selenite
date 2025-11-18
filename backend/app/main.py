@@ -1,16 +1,26 @@
 """FastAPI application."""
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.logging_config import setup_logging
+from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
 from app.routes import transcripts as transcripts_module
 from app.routes import tags as tags_module
 from app.routes import search as search_module
 from app.routes import settings as settings_module
+from app.routes import exports as exports_module
 from app.services.job_queue import queue
+
+# Initialize logging
+setup_logging()
+logger = logging.getLogger("app.main")
 
 auth_router = auth_module.router
 jobs_router = jobs_module.router
@@ -19,12 +29,52 @@ tags_router = tags_module.router
 job_tags_router = tags_module.job_tags_router
 search_router = search_module.router
 settings_router = settings_module.router
+exports_router = exports_module.router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup and shutdown."""
+    # Startup
+    logger.info("Starting Selenite application")
+    logger.info(f"Environment: {settings.environment}")
+    logger.info(f"CORS origins: {settings.cors_origins_list}")
+
+    # Run startup validation checks
+    from app.startup_checks import run_startup_checks
+
+    await run_startup_checks()
+
+    # Initialize database and check migrations
+    from app.database import engine
+    from app.migrations_utils import check_migration_status
+
+    current_rev, head_rev = await check_migration_status(engine)
+    logger.info(f"Database migration status: {current_rev} (head: {head_rev})")
+
+    if current_rev != head_rev and settings.is_production:
+        logger.warning(
+            "Database migrations are not up to date. "
+            "Run 'alembic upgrade head' before starting in production."
+        )
+
+    # Expose queue via app state
+    app.state.queue = queue
+    await queue.start()
+    logger.info("Job queue started")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down Selenite application")
+
 
 # Create FastAPI app
 app = FastAPI(
     title="Selenite",
     description="Personal audio/video transcription application",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -36,6 +86,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add security middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add rate limiting middleware
+app.add_middleware(
+    RateLimitMiddleware, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"]
+)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(jobs_router)
@@ -44,25 +102,35 @@ app.include_router(tags_router)
 app.include_router(job_tags_router)
 app.include_router(search_router)
 app.include_router(settings_router)
+app.include_router(exports_router)
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint with system status."""
+    from app.database import engine
+    from sqlalchemy import text
+
+    # Check database connectivity
+    db_status = "unknown"
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = "unhealthy"
+
+    # Check model directory
+    from pathlib import Path
+
+    model_path = Path(settings.model_storage_path)
+    models_available = model_path.exists() and any(model_path.glob("*.pt"))
+
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "healthy" else "degraded",
         "version": "0.1.0",
+        "environment": settings.environment,
+        "database": db_status,
+        "models": "available" if models_available else "missing",
     }
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize background workers for transcription queue."""
-    # Expose queue via app state to avoid import duplication issues
-    app.state.queue = queue
-    await queue.start()
-
-
-# Note: We intentionally do not stop the queue on app shutdown in tests,
-# because httpx's ASGITransport manages lifespan per client context. Stopping
-# here would terminate workers before background jobs complete.

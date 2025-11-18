@@ -6,11 +6,18 @@ from fastapi.security.http import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from app.schemas.auth import (
+    LoginRequest,
+    TokenResponse,
+    UserResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+)
 from app.services.auth import authenticate_user, create_token_response
 from app.utils.security import decode_access_token
 from app.models.user import User
 from sqlalchemy import select
+from app.utils.security import verify_password, hash_password
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
@@ -100,3 +107,37 @@ async def get_me(current_user: User = Depends(get_current_user)):
         UserResponse with user information
     """
     return UserResponse.model_validate(current_user)
+
+
+@router.put("/password", response_model=PasswordChangeResponse)
+async def change_password(
+    payload: PasswordChangeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change current user's password after verifying current password and confirmation.
+
+    Raises:
+        HTTPException: 400 if confirmation mismatch
+        HTTPException: 401 if current password invalid
+    """
+    # Confirm match
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    # Verify current password
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    # Reject reuse
+    if verify_password(payload.new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=400, detail="New password must differ from current password"
+        )
+
+    # Update hash
+    current_user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+    await db.refresh(current_user)
+
+    return PasswordChangeResponse(detail="Password changed successfully")

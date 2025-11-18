@@ -4,7 +4,7 @@
  * Functions for interacting with job management endpoints.
  */
 
-import { apiGet, apiUpload } from '../lib/api';
+import { apiGet, apiUpload, apiPost, apiDelete } from '../lib/api';
 
 export interface Job {
   id: string;
@@ -101,4 +101,32 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobRespo
   }
   
   return apiUpload<CreateJobResponse>('/jobs', formData);
+}
+
+/**
+ * Restart a completed, failed, or cancelled job
+ */
+export async function restartJob(jobId: string): Promise<CreateJobResponse> {
+  return apiPost<CreateJobResponse>(`/jobs/${jobId}/restart`);
+}
+
+/**
+ * Delete a job and its associated files
+ */
+export async function deleteJob(jobId: string): Promise<void> {
+  return apiDelete<void>(`/jobs/${jobId}`);
+}
+
+/**
+ * Assign a tag to a job
+ */
+export async function assignTag(jobId: string, tagId: number): Promise<Job['tags']> {
+  return apiPost<Job['tags']>(`/jobs/${jobId}/tags`, { tag_id: tagId });
+}
+
+/**
+ * Remove a tag from a job
+ */
+export async function removeTag(jobId: string, tagId: number): Promise<Job['tags']> {
+  return apiDelete<Job['tags']>(`/jobs/${jobId}/tags/${tagId}`);
 }

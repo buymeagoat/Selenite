@@ -37,3 +37,14 @@ class PasswordChangeRequest(BaseModel):
 
     current_password: str = Field(..., min_length=8, max_length=128)
     new_password: str = Field(..., min_length=8, max_length=128)
+    confirm_password: str = Field(..., min_length=8, max_length=128)
+
+    def validate_match(self) -> None:
+        if self.new_password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+
+
+class PasswordChangeResponse(BaseModel):
+    """Response for successful password change."""
+
+    detail: str = Field(..., example="Password changed successfully")

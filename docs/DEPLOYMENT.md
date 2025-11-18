@@ -2,6 +2,70 @@
 
 This guide provides step-by-step instructions for deploying Selenite to a production environment.
 
+## 🚀 Quick Production Setup
+
+### 1. Generate Secure Credentials
+```bash
+# Generate a secure secret key (32+ characters)
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+### 2. Configure Environment
+
+Copy `.env.production.example` to `.env` in the backend directory:
+
+```bash
+cd backend
+cp .env.production.example .env
+```
+
+**CRITICAL**: Update these values in `.env`:
+- `ENVIRONMENT=production`
+- `SECRET_KEY=<paste-your-generated-key>`
+- `DATABASE_URL=postgresql+asyncpg://user:password@localhost/selenite`
+- `CORS_ORIGINS=https://yourdomain.com`
+- Storage paths to absolute paths (e.g., `/var/lib/selenite/media`)
+
+### 3. Validate Configuration
+
+```bash
+# Test that production config is valid
+cd backend
+python -c "from app.config import settings; print(f'Environment: {settings.environment}'); print(f'Valid: {settings.is_production}')"
+```
+
+**Expected**: Should complete without errors. If you see validation errors about SECRET_KEY or CORS_ORIGINS, fix them before proceeding.
+
+### 4. Setup Database
+
+```bash
+cd backend
+source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
+alembic upgrade head
+```
+
+### 5. Check Health
+
+```bash
+# Start the server
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# In another terminal, check health
+curl http://localhost:8000/health
+```
+
+**Expected Response**:
+```json
+{
+  "status": "healthy",
+  "environment": "production",
+  "database": "healthy",
+  "models": "available"
+}
+```
+
+---
+
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)

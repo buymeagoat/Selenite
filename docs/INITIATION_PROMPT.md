@@ -33,18 +33,18 @@ KEY DOCUMENTS:
 
 CURRENT STATUS:
   - Frontend increments 10–18 completed (foundation, dashboard, modals, search & filters, tags UI, settings page, real-time progress, polish/responsive design)
-  - Tag Management UI (creation & selection components) operational
-  - Settings page implemented with default transcription options and controls
-  - Progress polling integrated (status + percent updates)
-  - Playwright E2E framework established with auth fixture (setup project pattern, storageState reuse)
-  - Test data helpers created (API wrappers for jobs, tags, assignments, cleanup)
-  - Comprehensive E2E test suite (7 specs, 27+ tests): Login (4 passing), Transcription workflow, Job detail, Search/filters, Tag management, Settings
-  - Login tests fully operational across all browsers (Chromium, Firefox, WebKit)
-  - Remaining tests need selector adjustments and test data seeding (many expect existing jobs in database)
-  - Multi-browser GitHub Actions E2E workflow active with artifact capture (report, traces, videos on failure)
-  - QA Gateway system operational (pre-commit hooks, CI validation, 80%/70% coverage thresholds)
- Currently on: Build Increment 19 (End-to-End Testing) - Iterating on test reliability
- Last completed: E2E test infrastructure and comprehensive test suite creation
+  - Auth persistence upgraded: JWT stored in localStorage (`auth_token`), `ProtectedRoute` now waits for restoration
+  - Backend /jobs listing fixed (Pydantic validation errors resolved: `model_used` always set, tag color made optional)
+  - Database seeding script (`seed_e2e.py`) creates 9 jobs (completed/processing/queued/failed) + 5 tags; verified via test client
+  - Playwright auth setup generates storageState with localStorage tokens (cookies unused)
+  - Search tests still failing previously due to premature job load; improved polling logic added (robust wait for job cards)
+  - Login tests passing across Chromium/WebKit/Firefox; other specs pending re-run after backend stabilization
+  - Multi-browser GitHub Actions workflow present (not yet validated with new auth persistence)
+  - QA gateway intact (formatters + coverage thresholds) – backend & frontend unit test suites stable
+  - Current blocker: Need stable long‑running backend during Playwright invocation to prevent server shutdown
+  - Increment 19 nearing completion; final reliability adjustments in progress
+Currently on: Build Increment 19 (End-to-End Testing) – Reliability & data loading stabilization phase
+Last completed: Backend listing fix & auth persistence integration (resolved 500s + empty storageState issue)
 
 QUALITY GATE CHECKLIST:
 Before committing any increment, verify:
@@ -55,10 +55,10 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
- Next task: Continue E2E test refinement - adjust selectors for remaining tests to match actual UI implementation; seed test database with sample jobs/tags for integration tests; verify full suite passes locally
- Files being worked on: `e2e/login.spec.ts` (fixed), `e2e/transcription.spec.ts`, `e2e/jobDetail.spec.ts`, `e2e/search.spec.ts`, `e2e/tagManagement.spec.ts`, `e2e/settings.spec.ts`, `e2e/new-job.spec.ts`
+ Next task: Stabilize backend runtime during Playwright runs, finalize search/filter test reliability, then execute full multi-browser E2E suite and document pass/fail matrix prior to Increment 19 sign‑off.
+ Files being worked on: `backend/app/seed_e2e.py` (updated), `backend/app/schemas/job.py`, `frontend/src/context/AuthContext.tsx`, `frontend/src/lib/api.ts`, `frontend/src/pages/Login.tsx`, `frontend/e2e/search.spec.ts`, `frontend/e2e/auth.setup.ts`
 IMMEDIATE REQUEST:
-[State what you need help with - implementing a specific increment, debugging a test, refactoring code, etc.]
+Assist with: (1) ensuring backend stays alive during Playwright runs; (2) validating updated search tests load seeded jobs; (3) running full E2E suite to produce reliability report; (4) preparing Increment 19 completion checklist.
 
 Please help me with the current task, following the test-driven approach and quality standards defined in the project documents.
 ```

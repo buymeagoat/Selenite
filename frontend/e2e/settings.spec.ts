@@ -46,7 +46,7 @@ test.describe('Settings Page', () => {
     await confirmPasswordInput.fill('newpassword123');
     
     // Submit
-    const saveButton = page.getByRole('button', { name: /save|update|change password/i });
+    const saveButton = page.locator('[data-testid="password-save"]');
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
     
@@ -57,7 +57,9 @@ test.describe('Settings Page', () => {
   });
 
   test('password change requires current password', async ({ page }) => {
-    await page.goto('/settings');
+    // Navigate via dashboard to ensure SPA route loads
+    await page.goto('/');
+    await page.getByLabel('Settings').click();
     
     const currentPasswordInput = page.getByLabel(/current password/i)
       .or(page.locator('[data-testid="current-password"]'));
@@ -70,7 +72,7 @@ test.describe('Settings Page', () => {
     await newPasswordInput.fill('newpassword123');
     await confirmPasswordInput.fill('newpassword123');
     
-    const saveButton = page.getByRole('button', { name: /save|update|change password/i });
+    const saveButton = page.locator('[data-testid="password-save"]');
     await saveButton.click();
     
     // Should show error
@@ -80,7 +82,8 @@ test.describe('Settings Page', () => {
   });
 
   test('password change validates confirmation match', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/');
+    await page.getByLabel('Settings').click();
     
     const currentPasswordInput = page.getByLabel(/current password/i)
       .or(page.locator('[data-testid="current-password"]'));
@@ -93,7 +96,7 @@ test.describe('Settings Page', () => {
     await newPasswordInput.fill('newpassword123');
     await confirmPasswordInput.fill('differentpassword');
     
-    const saveButton = page.getByRole('button', { name: /save|update|change password/i });
+    const saveButton = page.locator('[data-testid="password-save"]');
     await saveButton.click();
     
     // Should show error

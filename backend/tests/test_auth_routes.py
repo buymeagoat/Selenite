@@ -133,5 +133,9 @@ async def test_health_check():
         response = await client.get("/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
-    assert response.json()["version"] == "0.1.0"
+    data = response.json()
+    assert data["status"] in ["healthy", "degraded"]
+    assert data["version"] == "0.1.0"
+    assert data["environment"] == "development"
+    assert data["database"] == "healthy"
+    assert "models" in data

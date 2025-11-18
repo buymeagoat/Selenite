@@ -7,7 +7,15 @@ from app.database import Base
 
 
 class Job(Base):
-    """Job table for transcription jobs."""
+    """Job table for transcription jobs.
+
+    Status values:
+    queued     - Waiting to be picked up by a worker
+    processing - Actively being transcribed
+    completed  - Finished successfully
+    failed     - Processing ended with an error
+    cancelled  - User requested cancellation while queued or processing
+    """
 
     __tablename__ = "jobs"
 
@@ -19,7 +27,9 @@ class Job(Base):
     file_size = Column(Integer, nullable=True)  # bytes
     mime_type = Column(String(100), nullable=True)
     duration = Column(Float, nullable=True)  # seconds
-    status = Column(String(20), nullable=False, index=True)  # queued, processing, completed, failed
+    status = Column(
+        String(20), nullable=False, index=True
+    )  # queued, processing, completed, failed, cancelled
     progress_percent = Column(Integer, default=0, nullable=False)
     progress_stage = Column(String(50), nullable=True)
     estimated_time_left = Column(Integer, nullable=True)  # seconds

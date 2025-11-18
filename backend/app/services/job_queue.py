@@ -71,6 +71,37 @@ class TranscriptionJobQueue:
         assert self._queue is not None
         await self._queue.put((job_id, should_fail))
 
+    async def set_concurrency(self, new_value: int) -> None:
+        """Dynamically adjust worker concurrency.
+
+        Gracefully stops existing workers then restarts with new count.
+        Pending jobs remain in queue. Running jobs are allowed to finish.
+        """
+        if new_value <= 0:
+            raise ValueError("Concurrency must be >= 1")
+        if new_value == self._concurrency:
+            return
+        # In test contexts the event loop may already be closing; be defensive.
+        try:
+            await self.stop()
+        except RuntimeError as e:  # e.g. 'Event loop is closed'
+            if "Event loop is closed" in str(e):
+                # Mark as stopped without awaiting worker shutdown
+                self._workers.clear()
+                self._started = False
+                self._queue = None
+            else:
+                raise
+        self._concurrency = new_value
+        # Restart only if a running loop is available
+        try:
+            loop = asyncio.get_running_loop()
+            if not loop.is_closed():
+                await self.start()
+        except RuntimeError:
+            # No running loop (e.g., during teardown); skip auto-start.
+            pass
+
 
 # Global singleton for app lifetime
 queue = TranscriptionJobQueue(concurrency=3)

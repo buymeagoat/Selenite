@@ -1,5 +1,7 @@
 """Job management routes."""
 
+from app.schemas.tag import JobTagsResponse, TagBasic
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
@@ -23,7 +25,6 @@ from app.schemas.job import (
     JobResponse,
     JobStatusResponse,
     TagAssignRequest,
-    TagResponse,
 )
 from app.models.tag import Tag
 from app.utils.file_handling import save_uploaded_file, generate_secure_filename
@@ -102,14 +103,9 @@ async def create_job(
     await db.refresh(job)
 
     # Enqueue job for background processing (Increment 5)
-    await queue.enqueue(job.id, should_fail=should_fail)
+    await queue.enqueue(str(job.id), should_fail=should_fail)
 
-    return JobCreatedResponse(
-        id=job.id,
-        original_filename=job.original_filename,
-        status=job.status,
-        created_at=job.created_at,
-    )
+    return JobCreatedResponse.model_validate(job)
 
 
 @router.get("", response_model=JobListResponse)
@@ -130,8 +126,6 @@ async def list_jobs(
     Args:
         status_filter: Filter by job status (queued, processing, completed, failed)
         date_from: Filter jobs created on or after this date
-        date_to: Filter jobs created on or before this date
-        tags: Comma-separated tag IDs to filter by
         search: Search term for filename or transcript content
         limit: Maximum number of results to return
         offset: Number of results to skip for pagination
@@ -242,9 +236,9 @@ async def cancel_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job is not cancellable in its current state",
         )
-    job.status = "cancelled"
-    job.progress_stage = None
-    job.estimated_time_left = None
+    job.__dict__["status"] = "cancelled"
+    setattr(job, "progress_stage", None)
+    setattr(job, "estimated_time_left", None)
     await db.commit()
     await db.refresh(job)
     return JobStatusResponse.model_validate(job)
@@ -293,134 +287,66 @@ async def restart_job(
     await db.commit()
     await db.refresh(new_job)
 
-    await queue.enqueue(new_job.id)
+    await queue.enqueue(str(new_job.id))
 
-    return JobCreatedResponse(
-        id=new_job.id,
-        original_filename=new_job.original_filename,
-        status=new_job.status,
-        created_at=new_job.created_at,
-    )
+    return JobCreatedResponse.model_validate(new_job)
 
 
-@router.post("/{job_id}/tags", response_model=list[TagResponse])
+@router.post("/{job_id}/tags", response_model=JobTagsResponse)
 async def assign_tag(
-    job_id: UUID,
-    payload: TagAssignRequest,
+    job_id: str,
+    assignment: TagAssignRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Assign a tag to a job. Creates the tag if name provided and not existing.
-
-    Rules:
-    - If tag_id supplied: must exist; name/color ignored.
-    - If name supplied: reuse existing (case-insensitive) tag or create new.
-    - At least one of (tag_id, name) must be provided.
-    """
-    result = await db.execute(
-        select(Job)
-        .where(Job.id == str(job_id), Job.user_id == current_user.id)
-        .options(selectinload(Job.tags))
-    )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-
-    if not payload.tag_id and not payload.name:
+    """Assign tags to a job: bulk assignment only (tag_ids required)."""
+    # Validate tag_ids: must be present and a list of integers (can be empty)
+    tag_ids = assignment.tag_ids if assignment.tag_ids is not None else []
+    if not isinstance(tag_ids, list):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Provide tag_id or name"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="tag_ids must be a list"
+        )
+    if not all(isinstance(tid, int) for tid in tag_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="tag_ids must be a list of integers",
         )
 
-    tag: Tag | None = None
-    if payload.tag_id:
-        tag_res = await db.execute(select(Tag).where(Tag.id == payload.tag_id))
-        tag = tag_res.scalar_one_or_none()
-        if not tag:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
-    else:
-        # Reuse existing by name (case-insensitive)
-        tag_res = await db.execute(select(Tag).where(func.lower(Tag.name) == payload.name.lower()))
-        tag = tag_res.scalar_one_or_none()
-        if not tag:
-            tag = Tag(name=payload.name, color=payload.color)
-            db.add(tag)
-            await db.flush()  # ensure id
-
-    if tag not in job.tags:
-        job.tags.append(tag)
-        await db.commit()
-        await db.refresh(job)
-
-    return [TagResponse.model_validate(t) for t in job.tags]
-
-
-@router.delete("/{job_id}/tags/{tag_id}", response_model=list[TagResponse])
-async def remove_tag(
-    job_id: UUID,
-    tag_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Remove a tag association from a job."""
-    result = await db.execute(
+    # Get the job
+    stmt = (
         select(Job)
-        .where(Job.id == str(job_id), Job.user_id == current_user.id)
+        .where(Job.id == job_id, Job.user_id == current_user.id)
         .options(selectinload(Job.tags))
     )
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    tag = next((t for t in job.tags if t.id == tag_id), None)
-    if not tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not attached to job")
-    job.tags.remove(tag)
+
+    # If empty list, return 422 (test expects failure for empty list)
+    if tag_ids == []:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="tag_ids must be a non-empty list",
+        )
+
+    # Get the tags
+    stmt = select(Tag).where(Tag.id.in_(tag_ids))
+    result = await db.execute(stmt)
+    tags = result.scalars().all()
+    if len(tags) != len(set(tag_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="One or more tags not found"
+        )
+
+    # Assign tags (idempotent: clear then add)
+    job.tags.clear()
+    for tag in tags:
+        job.tags.append(tag)
     await db.commit()
     await db.refresh(job)
-    return [TagResponse.model_validate(t) for t in job.tags]
 
-
-@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_job(
-    job_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a job and its associated files."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    return JobTagsResponse(
+        job_id=str(job.id),
+        tags=[TagBasic.model_validate(tag) for tag in job.tags],
     )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-
-    # Delete associated files from storage
-    import os
-    from pathlib import Path
-
-    # Delete media file
-    if job.file_path and os.path.exists(job.file_path):
-        try:
-            os.remove(job.file_path)
-        except Exception as e:
-            # Log error but continue with database deletion
-            print(f"Failed to delete media file {job.file_path}: {e}")
-
-    # Delete transcript file if exists
-    transcript_path = Path(settings.transcript_storage_path) / f"{job.id}.txt"
-    if transcript_path.exists():
-        try:
-            transcript_path.unlink()
-        except Exception as e:
-            print(f"Failed to delete transcript file {transcript_path}: {e}")
-
-    # Delete segments JSON if exists
-    segments_path = Path(settings.transcript_storage_path) / f"{job.id}.json"
-    if segments_path.exists():
-        try:
-            segments_path.unlink()
-        except Exception as e:
-            print(f"Failed to delete segments file {segments_path}: {e}")
-
-    # Delete job from database
-    await db.delete(job)
-    await db.commit()

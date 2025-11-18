@@ -50,7 +50,7 @@ class TagListResponse(BaseModel):
 class TagAssignment(BaseModel):
     """Schema for assigning tags to a job."""
 
-    tag_ids: list[int] = Field(..., min_length=1)
+    tag_ids: list[int] = []
 
 
 class TagBasic(BaseModel):

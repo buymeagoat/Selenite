@@ -23,15 +23,13 @@ class TagAssignRequest(BaseModel):
     Either provide an existing tag id or a name (with optional color) to create/reuse.
     """
 
-    tag_id: Optional[int] = Field(default=None, ge=1)
-    name: Optional[str] = Field(default=None, max_length=50)
-    color: Optional[str] = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
+    tag_ids: Optional[List[int]] = None
 
 
 class JobCreate(BaseModel):
     """Request schema for creating a new transcription job."""
 
-    model: str = Field(default="medium", pattern="^(tiny|base|small|medium|large)$")
+    model: str = Field(default="medium", pattern="^(tiny|base|small|medium|large|large-v3)$")
     language: str = Field(default="auto", max_length=10)
     enable_timestamps: bool = Field(default=True)
     enable_speaker_detection: bool = Field(default=True)

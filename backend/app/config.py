@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Storage
     media_storage_path: str = "./storage/media"
     transcript_storage_path: str = "./storage/transcripts"
-    model_storage_path: str = "../models"
+    model_storage_path: str = "models"
 
     # Transcription
     max_concurrent_jobs: int = 3

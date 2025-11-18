@@ -90,9 +90,10 @@ app.add_middleware(
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Add rate limiting middleware
-app.add_middleware(
-    RateLimitMiddleware, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"]
-)
+if not settings.is_testing:
+    app.add_middleware(
+        RateLimitMiddleware, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"]
+    )
 
 # Include routers
 app.include_router(auth_router)

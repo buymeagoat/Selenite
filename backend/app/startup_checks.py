@@ -58,7 +58,7 @@ def validate_configuration() -> list[str]:
     if not model_path.exists():
         errors.append(
             f"MODEL_STORAGE_PATH does not exist: {model_path}. "
-            "Download Whisper models or update path."
+            "Download Whisper models to 'backend/models' or update path."
         )
 
     return errors

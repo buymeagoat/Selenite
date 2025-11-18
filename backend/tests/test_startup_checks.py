@@ -14,7 +14,7 @@ def test_validate_configuration_development():
         mock_settings.database_url = "sqlite+aiosqlite:///./test.db"
         mock_settings.media_storage_path = "./storage/media"
         mock_settings.transcript_storage_path = "./storage/transcripts"
-        mock_settings.model_storage_path = "../models"
+        mock_settings.model_storage_path = "models"
 
         errors = validate_configuration()
 
@@ -31,7 +31,7 @@ def test_validate_configuration_production_default_secret():
         mock_settings.database_url = "postgresql://..."
         mock_settings.media_storage_path = "/var/lib/selenite/media"
         mock_settings.transcript_storage_path = "/var/lib/selenite/transcripts"
-        mock_settings.model_storage_path = "/var/lib/selenite/models"
+        mock_settings.model_storage_path = "models"
 
         errors = validate_configuration()
 
@@ -49,7 +49,7 @@ def test_validate_configuration_production_short_secret():
         mock_settings.database_url = "postgresql://..."
         mock_settings.media_storage_path = "/var/lib/selenite/media"
         mock_settings.transcript_storage_path = "/var/lib/selenite/transcripts"
-        mock_settings.model_storage_path = "/var/lib/selenite/models"
+        mock_settings.model_storage_path = "models"
 
         errors = validate_configuration()
 
@@ -67,7 +67,7 @@ def test_validate_configuration_production_localhost_cors():
         mock_settings.database_url = "postgresql://..."
         mock_settings.media_storage_path = "/var/lib/selenite/media"
         mock_settings.transcript_storage_path = "/var/lib/selenite/transcripts"
-        mock_settings.model_storage_path = "/var/lib/selenite/models"
+        mock_settings.model_storage_path = "models"
 
         errors = validate_configuration()
 

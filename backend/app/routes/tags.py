@@ -173,6 +173,13 @@ async def assign_tags_to_job(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Assign tags to a job."""
+    # Validate tag_ids
+    if not assignment.tag_ids or not isinstance(assignment.tag_ids, list):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="tag_ids must be a non-empty list",
+        )
+
     # Get the job
     stmt = (
         select(Job)
@@ -188,16 +195,16 @@ async def assign_tags_to_job(
     stmt = select(Tag).where(Tag.id.in_(assignment.tag_ids))
     result = await db.execute(stmt)
     tags = result.scalars().all()
-    if len(tags) != len(assignment.tag_ids):
+    if len(tags) != len(set(assignment.tag_ids)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="One or more tags not found"
         )
 
-    # Assign tags (SQLAlchemy handles deduplication)
+    # Assign tags (idempotent)
+    assigned_tag_ids = {tag.id for tag in job.tags}
     for tag in tags:
-        if tag not in job.tags:
+        if tag.id not in assigned_tag_ids:
             job.tags.append(tag)
-
     await db.commit()
     await db.refresh(job)
 

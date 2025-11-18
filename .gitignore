@@ -1,5 +1,6 @@
 # Exclude model files
 models/*.pt
+backend/models/*.pt
 
 # Python
 __pycache__/

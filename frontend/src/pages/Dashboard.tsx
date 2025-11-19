@@ -6,7 +6,7 @@ import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
 import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
-import { fetchJobs, createJob, restartJob, deleteJob, assignTag, removeTag, type Job } from '../services/jobs';
+import { fetchJobs, createJob, restartJob, cancelJob, deleteJob, assignTag, removeTag, type Job } from '../services/jobs';
 import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 
@@ -186,6 +186,44 @@ export const Dashboard: React.FC = () => {
         showError('Failed to delete job. Please try again.');
       }
     }
+  };
+
+  const handleStop = async (jobId: string) => {
+    try {
+      await cancelJob(jobId);
+      showSuccess('Job stopped successfully');
+      
+      // Refresh job list to show updated status
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      
+      // Update selected job if it's the one that was stopped
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJob = jobsResponse.items.find(j => j.id === jobId);
+        if (updatedJob) {
+          setSelectedJob({
+            ...updatedJob,
+            file_size: updatedJob.file_size || selectedJob.file_size,
+            duration: updatedJob.duration || selectedJob.duration,
+            model_used: updatedJob.model_used || selectedJob.model_used,
+            language_detected: updatedJob.language_detected || selectedJob.language_detected,
+            speaker_count: updatedJob.speaker_count || selectedJob.speaker_count,
+            completed_at: updatedJob.completed_at || selectedJob.completed_at
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to stop job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to stop job: ${error.message}`);
+      } else {
+        showError('Failed to stop job. Please try again.');
+      }
+    }
+  };
+
+  const handleViewTranscript = (jobId: string) => {
+    window.open(`/jobs/${jobId}/transcript`, '_blank');
   };
 
   const handleUpdateTags = async (jobId: string, tagIds: number[]) => {
@@ -372,6 +410,8 @@ export const Dashboard: React.FC = () => {
           onDownload={handleDownload}
           onRestart={handleRestart}
           onDelete={handleDelete}
+          onStop={handleStop}
+          onViewTranscript={handleViewTranscript}
           onUpdateTags={handleUpdateTags}
         />
       )}

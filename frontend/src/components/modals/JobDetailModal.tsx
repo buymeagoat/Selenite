@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown } from 'lucide-react';
+import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle } from 'lucide-react';
 import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -8,7 +8,7 @@ interface Job {
   original_filename: string;
   file_size: number;
   duration: number;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
   model_used: string;
   language_detected: string;
   speaker_count: number;
@@ -25,6 +25,8 @@ interface JobDetailModalProps {
   onDownload: (jobId: string, format: string) => void;
   onRestart: (jobId: string) => void;
   onDelete: (jobId: string) => void;
+  onStop: (jobId: string) => void;
+  onViewTranscript: (jobId: string) => void;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -34,7 +36,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onPlay,
   onDownload,
   onRestart,
-  onDelete
+  onDelete,
+  onStop,
+  onViewTranscript
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
@@ -42,6 +46,13 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [editableTags, setEditableTags] = useState(job.tags);
 
   if (!isOpen) return null;
+
+  // UI Logic: Determine what actions are available based on job status
+  const hasTranscript = job.status === 'completed';
+  const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
+  const canDelete = !['processing'].includes(job.status);
+  const canStop = job.status === 'processing';
+  const hasMedia = true; // Media always exists if job was created
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -223,33 +234,51 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="job-actions">
+              {/* Play Media - Always available if media exists */}
               <button
                 onClick={() => onPlay(job.id)}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
+                disabled={!hasMedia}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                  hasMedia
+                    ? 'bg-forest-green text-white hover:bg-pine-deep'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
               >
                 <Play className="w-5 h-5" />
                 <span>Play Media</span>
               </button>
 
+              {/* View Transcript - Only available if transcript exists */}
               <button
-                onClick={() => window.open(`/jobs/${job.id}/transcript`, '_blank')}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
+                onClick={() => hasTranscript && onViewTranscript(job.id)}
+                disabled={!hasTranscript}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                  hasTranscript
+                    ? 'bg-sage-light text-pine-deep hover:bg-sage-mid'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
               >
                 <FileText className="w-5 h-5" />
                 <span>View Transcript</span>
               </button>
 
+              {/* Download Transcript - Only available if transcript exists */}
               <div className="relative" data-testid="download-menu">
                 <button
-                  onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
+                  onClick={() => hasTranscript && setShowDownloadMenu(!showDownloadMenu)}
+                  disabled={!hasTranscript}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                    hasTranscript
+                      ? 'bg-sage-light text-pine-deep hover:bg-sage-mid'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Download className="w-5 h-5" />
                   <span>Download Transcript</span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 
-                {showDownloadMenu && (
+                {showDownloadMenu && hasTranscript && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20" data-testid="download-options">
                     {['txt', 'md', 'srt', 'vtt', 'json', 'docx'].map((format) => (
                       <button
@@ -264,17 +293,37 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 )}
               </div>
 
-              <button
-                onClick={() => onRestart(job.id)}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
-              >
-                <RotateCw className="w-5 h-5" />
-                <span>Restart Transcription</span>
-              </button>
+              {/* Restart Transcription - Only for completed/failed/cancelled jobs */}
+              {canRestart && (
+                <button
+                  onClick={() => onRestart(job.id)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
+                >
+                  <RotateCw className="w-5 h-5" />
+                  <span>Restart Transcription</span>
+                </button>
+              )}
 
+              {/* Stop Transcription - Only for processing jobs */}
+              {canStop && (
+                <button
+                  onClick={() => onStop(job.id)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors"
+                >
+                  <StopCircle className="w-5 h-5" />
+                  <span>Stop Transcription</span>
+                </button>
+              )}
+
+              {/* Delete Job - Disabled for processing jobs */}
               <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors col-span-2 md:col-span-1"
+                onClick={() => canDelete && setShowDeleteConfirm(true)}
+                disabled={!canDelete}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors col-span-2 md:col-span-1 ${
+                  canDelete
+                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
               >
                 <Trash2 className="w-5 h-5" />
                 <span>Delete Job</span>

@@ -89,18 +89,29 @@ async def test_tag_assign_and_remove(test_db, auth_headers):
             job = await session.get(Job, job_id)
             job.status = "completed"  # allow restart/tag operations
             await session.commit()
-        assign_resp = await client.post(
-            f"/jobs/{job_id}/tags",
+        # First create the tag
+        tag_resp = await client.post(
+            "/tags",
             headers=auth_headers,
             json={"name": "Urgent", "color": "#FF0000"},
         )
+        assert tag_resp.status_code == 201
+        tag_id = tag_resp.json()["id"]
+        # Then assign it to the job
+        assign_resp = await client.post(
+            f"/jobs/{job_id}/tags",
+            headers=auth_headers,
+            json={"tag_ids": [tag_id]},
+        )
         assert assign_resp.status_code == 200
-        tags = assign_resp.json()
-        tag_id = next(t["id"] for t in tags if t["name"] == "Urgent")
+        tags = assign_resp.json()["tags"]
+        assert any(t["id"] == tag_id and t["name"] == "Urgent" for t in tags)
+        # Remove the tag
         remove_resp = await client.delete(f"/jobs/{job_id}/tags/{tag_id}", headers=auth_headers)
         assert remove_resp.status_code == 200
-        remaining = remove_resp.json()
-        assert all(t["id"] != tag_id for t in remaining)
+        remove_data = remove_resp.json()
+        assert remove_data["message"] == "Tag removed from job"
+        assert remove_data["tag_id"] == tag_id
 
 
 @pytest.mark.asyncio

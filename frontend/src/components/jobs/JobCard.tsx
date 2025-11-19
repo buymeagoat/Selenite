@@ -5,7 +5,7 @@ import { ProgressBar } from './ProgressBar';
 interface Job {
   id: string;
   original_filename: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
   created_at: string;
   duration?: number;
   progress_percent?: number | null;

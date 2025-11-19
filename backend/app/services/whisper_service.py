@@ -39,8 +39,8 @@ class WhisperService:
         if Path(self.model_storage_path).is_absolute():
             self.models_dir = Path(self.model_storage_path)
         else:
-            # Make relative to backend directory (app's parent)
-            backend_dir = Path(__file__).parent.parent
+            # Make relative to backend directory (app's grandparent)
+            backend_dir = Path(__file__).parent.parent.parent
             self.models_dir = (backend_dir / self.model_storage_path).resolve()
 
     async def load_model(self, model_name: str) -> Any:

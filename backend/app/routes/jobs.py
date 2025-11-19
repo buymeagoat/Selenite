@@ -236,9 +236,9 @@ async def cancel_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job is not cancellable in its current state",
         )
-    job.__dict__["status"] = "cancelled"
-    setattr(job, "progress_stage", None)
-    setattr(job, "estimated_time_left", None)
+    job.status = "cancelled"
+    job.progress_stage = None
+    job.estimated_time_left = None
     await db.commit()
     await db.refresh(job)
     return JobStatusResponse.model_validate(job)
@@ -350,3 +350,88 @@ async def assign_tag(
         job_id=str(job.id),
         tags=[TagBasic.model_validate(tag) for tag in job.tags],
     )
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a job and its associated files.
+
+    Args:
+        job_id: UUID of the job to delete
+        current_user: Authenticated user from dependency
+        db: Database session
+
+    Raises:
+        HTTPException: 404 if job not found, 400 if job is currently processing
+    """
+    from pathlib import Path
+    import os
+
+    # Get the job
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    # Prevent deletion of actively processing jobs
+    if job.status in {"queued", "processing"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a job that is currently queued or processing. Cancel it first.",
+        )
+
+    # Delete associated files
+    files_to_delete = []
+
+    # Media file
+    if job.file_path:
+        media_path = Path(job.file_path)
+        if media_path.is_absolute():
+            files_to_delete.append(media_path)
+        else:
+            # Relative to backend directory
+            backend_dir = Path(__file__).parent.parent.parent
+            files_to_delete.append((backend_dir / media_path).resolve())
+
+    # Transcript file
+    if job.transcript_path:
+        transcript_path = Path(job.transcript_path)
+        if transcript_path.is_absolute():
+            files_to_delete.append(transcript_path)
+        else:
+            backend_dir = Path(__file__).parent.parent.parent
+            files_to_delete.append((backend_dir / transcript_path).resolve())
+
+    # Also check default transcript location
+    default_transcript = Path(settings.transcript_storage_path) / f"{job.id}.txt"
+    if default_transcript.is_absolute():
+        files_to_delete.append(default_transcript)
+    else:
+        backend_dir = Path(__file__).parent.parent.parent
+        files_to_delete.append((backend_dir / default_transcript).resolve())
+
+    # Delete files (silently ignore missing files)
+    for file_path in files_to_delete:
+        try:
+            if file_path.exists() and file_path.is_file():
+                os.remove(file_path)
+        except Exception:
+            # Log but don't fail deletion if file removal fails
+            pass
+
+    # Delete job from database
+    await db.delete(job)
+    await db.commit()
+
+    return None

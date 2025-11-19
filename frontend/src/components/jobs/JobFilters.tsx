@@ -63,7 +63,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ currentFilters, availabl
       </button>
       {openDropdown === 'status' && (
         <div className="absolute z-20 mt-1 bg-white border border-sage-mid rounded-lg shadow-md p-2 w-40">
-          {['All','In Progress','Completed','Failed'].map(label => (
+          {['All','In Progress','Completed','Failed','Cancelled'].map(label => (
             <button
               key={label}
               className="w-full text-left px-2 py-1 rounded text-sm hover:bg-sage-light"

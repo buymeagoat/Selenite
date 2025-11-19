@@ -1,0 +1,11 @@
+1
+00:00:00,000 --> 00:00:05,000
+Hello, this is a simulated transcript.
+
+2
+00:00:05,000 --> 00:00:12,500
+It demonstrates export formats for testing.
+
+3
+00:00:12,500 --> 00:00:18,000
+Thank you for trying Selenite.

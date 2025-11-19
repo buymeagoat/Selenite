@@ -19,6 +19,7 @@ class TranscriptionJobQueue:
         self._running_ids: Set[str] = set()
         self._concurrency = concurrency
         self._started = False
+        self._slot_lock: asyncio.Semaphore | None = None
 
     async def start(self):
         if self._started:
@@ -26,6 +27,7 @@ class TranscriptionJobQueue:
         self._started = True
         # Create a fresh queue bound to this loop
         self._queue = asyncio.Queue()
+        self._slot_lock = asyncio.Semaphore(self._concurrency)
         for _ in range(self._concurrency):
             self._workers.append(asyncio.create_task(self._worker()))
 
@@ -39,6 +41,7 @@ class TranscriptionJobQueue:
         self._started = False
         # Drop the queue so a new one will be created on next start()
         self._queue = None
+        self._slot_lock = None
 
     async def _worker(self):
         while True:
@@ -51,10 +54,12 @@ class TranscriptionJobQueue:
                 self._queue.task_done()
                 continue
             self._running_ids.add(job_id)
+            assert self._slot_lock is not None
             try:
-                async with AsyncSessionLocal() as db:
-                    await process_transcription_job(job_id, db, should_fail=should_fail)
-                    await db.commit()  # Ensure changes are committed
+                async with self._slot_lock:
+                    async with AsyncSessionLocal() as db:
+                        await process_transcription_job(job_id, db, should_fail=should_fail)
+                        await db.commit()  # Ensure changes are committed
             except Exception:
                 pass  # Errors logged within process_transcription_job
             finally:

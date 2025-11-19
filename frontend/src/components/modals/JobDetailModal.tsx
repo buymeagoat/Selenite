@@ -1,21 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle } from 'lucide-react';
 import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
-
-interface Job {
-  id: string;
-  original_filename: string;
-  file_size: number;
-  duration: number;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  model_used: string;
-  language_detected: string;
-  speaker_count: number;
-  tags: Array<{ id: number; name: string; color: string }>;
-  created_at: string;
-  completed_at: string;
-}
+import type { Job } from '../../services/jobs';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -27,6 +14,7 @@ interface JobDetailModalProps {
   onDelete: (jobId: string) => void;
   onStop: (jobId: string) => void;
   onViewTranscript: (jobId: string) => void;
+  onUpdateTags: (jobId: string, tagIds: number[]) => void;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -38,12 +26,18 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onRestart,
   onDelete,
   onStop,
-  onViewTranscript
+  onViewTranscript,
+  onUpdateTags: _onUpdateTags
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [tagInputValue, setTagInputValue] = useState('');
   const [editableTags, setEditableTags] = useState(job.tags);
+
+  useEffect(() => {
+    // keep local tags in sync when a different job is opened
+    setEditableTags(job.tags);
+  }, [job]);
 
   if (!isOpen) return null;
 

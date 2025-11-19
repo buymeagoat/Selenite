@@ -1,5 +1,6 @@
 """Application configuration management."""
 
+import os
 import secrets
 from pathlib import Path
 from typing import Literal
@@ -107,3 +108,5 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+if os.getenv("PYTEST_CURRENT_TEST"):
+    settings.environment = "testing"

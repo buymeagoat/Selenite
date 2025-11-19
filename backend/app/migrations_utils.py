@@ -17,8 +17,8 @@ def get_alembic_config() -> Config:
     Returns:
         Configured Alembic Config instance
     """
-    # Get path to alembic.ini (should be in backend root)
-    alembic_ini_path = Path(__file__).parent.parent.parent / "alembic.ini"
+    # Get path to alembic.ini (lives in backend root)
+    alembic_ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
 
     if not alembic_ini_path.exists():
         raise FileNotFoundError(

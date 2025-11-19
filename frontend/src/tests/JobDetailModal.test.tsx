@@ -1,21 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
+import type { Job } from '../services/jobs';
 
-const mockJob = {
+const mockJob: Job = {
   id: '123',
   original_filename: 'interview.mp3',
   file_size: 15728640, // 15 MB
+  mime_type: 'audio/mpeg',
   duration: 1834, // 30:34
   status: 'completed',
+  progress_percent: 100,
+  progress_stage: 'completed',
+  estimated_time_left: 0,
   model_used: 'medium',
   language_detected: 'English',
   speaker_count: 2,
+  has_timestamps: true,
+  has_speaker_labels: true,
   tags: [
     { id: 1, name: 'interviews', color: '#2D6A4F' },
     { id: 2, name: 'important', color: '#C9A227' }
   ],
   created_at: '2025-11-15T10:30:00Z',
+  started_at: '2025-11-15T10:31:00Z',
   completed_at: '2025-11-15T11:00:00Z'
 };
 
@@ -25,6 +33,8 @@ describe('JobDetailModal', () => {
   const mockOnDownload = vi.fn();
   const mockOnRestart = vi.fn();
   const mockOnDelete = vi.fn();
+  const mockOnStop = vi.fn();
+  const mockOnViewTranscript = vi.fn();
   const mockOnUpdateTags = vi.fn();
 
   beforeEach(() => {
@@ -33,6 +43,8 @@ describe('JobDetailModal', () => {
     mockOnDownload.mockClear();
     mockOnRestart.mockClear();
     mockOnDelete.mockClear();
+    mockOnStop.mockClear();
+    mockOnViewTranscript.mockClear();
     mockOnUpdateTags.mockClear();
   });
 
@@ -46,6 +58,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -63,6 +77,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -80,6 +96,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -97,6 +115,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -118,6 +138,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -136,6 +158,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -155,6 +179,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -174,6 +200,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -191,6 +219,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -210,6 +240,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
@@ -231,6 +263,8 @@ describe('JobDetailModal', () => {
         onDownload={mockOnDownload}
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );

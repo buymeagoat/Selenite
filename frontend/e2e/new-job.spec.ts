@@ -10,11 +10,10 @@ const samplePath = path.join(__dirname, 'fixtures/media/sample.wav');
 // NOTE: Backend createJob may be stubbed; this test only verifies UI interactions up to submit.
 
 test.describe('New Job Modal', () => {
-  test('user can open modal, select file, and prepare submission', async ({ page }) => {
+  test('user can submit a job via modal and see it on dashboard', async ({ page }) => {
     await uiLogin(page);
     // Navigate to dashboard if not already there (Navbar brand click)
     await page.getByRole('button', { name: 'Selenite' }).click();
-    // Wait for dashboard header - use first() to avoid strict mode with multiple headings
     await expect(page.getByRole('heading', { name: 'Transcriptions' }).first()).toBeVisible();
     await expect(page.getByTestId('new-job-btn')).toBeVisible();
     await page.getByTestId('new-job-btn').click();
@@ -23,7 +22,6 @@ test.describe('New Job Modal', () => {
     // Attach file via hidden input inside dropzone
     const dropzone = page.getByTestId('file-dropzone');
     await expect(dropzone).toBeVisible();
-    // Use file input handle
     const input = await dropzone.locator('input[type="file"]').elementHandle();
     await input?.setInputFiles(samplePath);
 
@@ -41,6 +39,16 @@ test.describe('New Job Modal', () => {
     const startBtn = page.getByTestId('start-transcription-btn');
     await expect(startBtn).toBeEnabled();
 
-    // We do not click submit to avoid depending on backend state.
+    // Click submit to start transcription
+    await startBtn.click();
+
+    // Wait for modal to close (optional, depends on UI)
+    await expect(page.getByTestId('new-job-modal-header')).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for a new job card to appear (dashboard refresh)
+    const jobCard = page.locator('[data-testid="job-card"]');
+    await expect(jobCard.first()).toBeVisible({ timeout: 20000 });
+    // Optionally, check for job status or success message
+    // await expect(page.getByText(/queued|processing|completed/i)).toBeVisible();
   });
 });

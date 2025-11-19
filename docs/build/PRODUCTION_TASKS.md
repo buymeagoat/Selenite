@@ -8,6 +8,21 @@
 
 ---
 
+## ✅ MVP Definition
+- User can upload audio, trigger transcription, view job details, and export transcripts.
+- Basic job management available (delete, restart) and basic tagging (assign/remove existing tags).
+- App runs reliably on a single machine with sensible defaults and basic security (rate limiting, input validation).
+- A manual smoke test passes end-to-end; optional E2E automation can follow post-MVP.
+
+## 🔗 MVP Task Chain (Ordered)
+1) Manual smoke-test pass for core workflow (Login → Upload → Process → View → Export) using `docs/build/testing/SMOKE_TEST.md`.
+2) Frontend wiring completeness for core actions:
+	- Confirm download, restart, delete, and tag assignment function against live API.
+3) Address any P0 issues uncovered by the smoke test (stability and error UX for core paths).
+4) Security hardening verification (rate limiting, validation, headers) — already implemented; verify via quick checks.
+5) Minimal packaging/readiness: ensure health check, logging, and configuration are in place (already implemented).
+6) Update `./testing/E2E_TEST_REPORT.md` with a short note or perform a minimal E2E sanity (optional for MVP, recommended next).
+
 ## 🎯 Critical Path Items (3-4 weeks)
 
 ### 1. Real Whisper Integration (5-7 days)
@@ -47,22 +62,22 @@
 ### 3. Frontend API Integration - Critical Actions (3-4 days)
 
 #### Dashboard Actions (Dashboard.tsx)
-- [ ] Play/pause job (line 114) - trigger transcription start
+- [ ] Play/pause job (line 114) - trigger transcription start  (Moved to Future Enhancements)
 - [x] Download transcript (line 118) - call export endpoint
 - [x] Restart failed job (line 122) - call `/jobs/{id}/restart`
 - [x] Delete job (line 126) - call `DELETE /jobs/{id}`
 - [x] Update tags (line 132) - call tag assignment endpoints
-- [ ] Fetch full job details (line 66) - enhance JobDetail modal
+- [ ] Fetch full job details (line 66) - enhance JobDetail modal  (Moved to Future Enhancements)
 
 #### Settings Operations (Settings.tsx)
 - [x] Save default settings (line 65-67) - `PUT /settings`
 - [x] Save performance settings (line 71-73) - `PUT /settings`
-- [ ] Create tag (line 77-78) - `POST /tags`
+- [ ] Create tag (line 77-78) - `POST /tags`  (Moved to Future Enhancements)
 - [x] Edit tag (line 79-81) - `PATCH /tags/{id}`
 - [x] Delete tag (line 82-84) - `DELETE /tags/{id}`
-- [ ] Stop server (line 93-94) - graceful shutdown endpoint
-- [ ] Restart server (line 101-102) - restart endpoint
-- [ ] Clear job history (line 108-109) - batch delete endpoint
+- [ ] Stop server (line 93-94) - graceful shutdown endpoint  (Moved to Future Enhancements)
+- [ ] Restart server (line 101-102) - restart endpoint  (Moved to Future Enhancements)
+- [ ] Clear job history (line 108-109) - batch delete endpoint  (Moved to Future Enhancements)
 
 **Current Status**: ✅ Core actions complete (download, restart, delete, tags, settings)  
 **Blockers**: None  
@@ -84,7 +99,7 @@
 
 Production sign-off is maintained in `../application_documentation/PRODUCTION_READY.md`. This document tracks tasks and status; see `GAP_ANALYSIS.md` for rationales.
 
-**Current Status**: In Progress  
+**Current Status**: ✅ Complete  
 **Recent Completion**:
 - Dependency audit with pip-audit (setuptools updated to 80.9.0)
 - SQL injection review: All queries use SQLAlchemy parameterized queries
@@ -92,19 +107,19 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - XSS review: React auto-escapes, no dangerouslySetInnerHTML usage
 - Security audit report: docs/SECURITY_AUDIT.md
 **Blockers**: None  
-**Priority**: CRITICAL - In Progress
+**Priority**: CRITICAL - ✅ COMPLETE
 
 ---
 
 ### 5. Production Packaging & Deployment (2-3 days)
 - [x] Environment-based configuration (dev/prod)
-- [ ] Production build scripts (frontend + backend)
+- [ ] Production build scripts (frontend + backend)  (Moved to Future Enhancements)
 - [x] Database initialization and migration scripts
 - [x] Configurable storage paths for uploads/models
 - [x] Logging configuration (file output, log rotation)
-- [ ] Error reporting and monitoring setup
-- [ ] Production dependency lockfiles
-- [ ] Startup/shutdown scripts for services
+- [ ] Error reporting and monitoring setup  (Moved to Future Enhancements)
+- [ ] Production dependency lockfiles  (Moved to Future Enhancements)
+- [ ] Startup/shutdown scripts for services  (Moved to Future Enhancements)
 - [x] Health check endpoint enhancements
 - [x] Resource cleanup on shutdown
 
@@ -175,13 +190,13 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ---
 
 ### 10. Final Testing (2-3 days)
-- [ ] Resolve Firefox E2E flakiness (2 failing tests)
-- [ ] Validate password change fix in full E2E suite
-- [ ] End-to-end workflow testing (upload → transcribe → export)
-- [ ] Performance testing with large files
-- [ ] Multi-model testing (tiny → large-v3)
-- [ ] Error recovery testing (network, disk, memory)
-- [ ] Cross-platform testing (if applicable)
+- [ ] End-to-end workflow testing (upload → transcribe → export) — Minimal sanity acceptable for MVP
+- [ ] Resolve Firefox E2E flakiness (2 failing tests)  (Moved to Future Enhancements)
+- [ ] Validate password change fix in full E2E suite  (Moved to Future Enhancements)
+- [ ] Performance testing with large files  (Moved to Future Enhancements)
+- [ ] Multi-model testing (tiny → large-v3)  (Moved to Future Enhancements)
+- [ ] Error recovery testing (network, disk, memory)  (Moved to Future Enhancements)
+- [ ] Cross-platform testing (if applicable)  (Moved to Future Enhancements)
 
 **Current Status**: ⚠️ E2E at 90.6% (77/85 passing)  
 **Priority**: HIGH - Quality assurance
@@ -190,7 +205,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ## 🐛 Known Issues & Technical Debt
 
-### 11. E2E Test Stability
+### 11. E2E Test Stability  (Moved to Future Enhancements)
 - [x] Password change success message (FIXED - pending validation)
 - [ ] Firefox connection flakiness (2 tag management tests)
 - [ ] Auth setup timeout in isolated test runs
@@ -200,7 +215,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-### 12. Code Quality & Refactoring
+### 12. Code Quality & Refactoring  (Moved to Future Enhancements)
 - [ ] Remove console.log/alert placeholders after API wiring
 - [ ] Add comprehensive error boundaries in React
 - [ ] Standardize error message formatting
@@ -242,6 +257,36 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
+### 15. Moved to Future Enhancements (from above)
+
+#### Dashboard & Settings
+- Play/pause job (Start/pause control UI)
+- Fetch full job details (enhanced modal)
+- Create tag (Settings)
+- Stop/restart server endpoints
+- Clear job history (batch delete)
+
+#### Production & Ops
+- Production build scripts (frontend + backend)
+- Error reporting and monitoring setup
+- Production dependency lockfiles
+- Startup/shutdown service scripts
+
+#### Testing & Stability
+- Resolve Firefox E2E flakiness
+- Validate password change fix across full E2E suite
+- Performance testing (large files)
+- Multi-model testing (tiny → large)
+- Error recovery testing (network/disk/memory)
+- Cross-platform testing
+
+#### UX & Observability
+- Real-time progress via WebSocket/SSE
+- Media playback with transcript sync
+- Additional API endpoints (batch delete, system info, models listing)
+- Codebase polish: error boundaries, loading states, standardize error messages, refactors
+
+
 ## 📊 Progress Summary
 
 **Total Tasks**: 90+  
@@ -253,8 +298,12 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 **Estimated Time to Production**: 1-2 days of focused development
 
-**Critical Path**:
-1. Week 1: ✅ Whisper + ✅ Exports + ✅ Frontend wiring + ✅ Security hardening (core) → Production config + Final testing
+**MVP Critical Path**:
+1. Smoke test pass for core workflow
+2. Verify frontend core actions (download/restart/delete/tag assignment)
+3. Remediate any P0 issues from smoke test
+4. Validate security hardening in place
+5. Optional: minimal E2E sanity and update E2E report
 
 ---
 
@@ -552,12 +601,16 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 **In Progress**: 0  
 **Not Started**: ~1  
 
-**E2E Test Suite**: 73/85 passing (85.9%) - Chromium fully stable, Firefox/WebKit intermittent Vite connection issues
+**E2E Test Suite**: 77/85 passing (90.6%) — see `./testing/E2E_TEST_REPORT.md`
 
 **Estimated Time to Production**: 1-2 days of focused development
 
-**Critical Path**:
-1. Week 1: ✅ Whisper + ✅ Exports + ✅ Frontend wiring + ✅ Security hardening (core) → Production config + Final testing
+**MVP Critical Path**:
+1. Smoke test pass for core workflow
+2. Verify frontend core actions (download/restart/delete/tag assignment)
+3. Remediate any P0 issues from smoke test
+4. Validate security hardening in place
+5. Optional: minimal E2E sanity and update E2E report
 
 ---
 
@@ -605,9 +658,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ---
 
 **Next Immediate Steps**:
-1. ✅ Complete security hardening (DONE)
-2. ✅ Complete production configuration (DONE)
-3. 🚀 **APPLICATION IS PRODUCTION READY** - See `docs/PRODUCTION_READY.md` for sign-off
-4. 📝 Optional future enhancements (real-time progress, media playback) can be added post-launch
-
-**Production Deployment**: Ready to deploy - all critical features complete, security audited, documentation comprehensive.
+1. Execute manual smoke test and log results
+2. Fix any discovered P0 issues blocking core workflow
+3. Quick verification of security hardening knobs
+4. Optional: run minimal E2E sanity and update report

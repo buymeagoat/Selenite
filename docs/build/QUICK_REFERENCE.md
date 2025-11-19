@@ -156,18 +156,11 @@ npm run lint
 npm run build
 ```
 
-### Manual Smoke Test Template
-```
-1. Start backend: cd backend && python -m app.main
-2. Start frontend: cd frontend && npm run dev
-3. Navigate to http://localhost:5173
-4. Test the feature implemented in this increment:
-   - [ ] Feature works as expected
-   - [ ] No console errors
-   - [ ] Error states handled gracefully
-   - [ ] Responsive design works
-5. Document any issues found
-```
+### Manual Smoke Test
+See `./testing/SMOKE_TEST.md` for the canonical step-by-step procedure.
+
+### E2E Results
+See `./testing/E2E_TEST_REPORT.md` for the latest automated run results.
 
 ---
 

@@ -1,3 +1,4 @@
+```markdown
 # E2E Test Report - Increment 19
 
 **Date**: November 17, 2025  
@@ -123,24 +124,7 @@
 
 ## Recommendations
 
-### Before Increment 19 Sign-Off
-1. **Add password change success notification** (high priority)
-   - Quick fix: Add toast component on successful password change
-   - Update Settings page to show success feedback
-
-2. **Investigate Firefox flakiness** (medium priority)
-   - Add retry logic or increase timeouts for Firefox-specific tests
-   - Consider splitting long test suites to avoid server exhaustion
-
-3. **Document skipped tests** (low priority)
-   - Clearly mark real-time progress test as deferred to later increment
-
-### Future Increments (Post-19)
-- Implement WebSocket/SSE for real-time progress updates
-- Add export endpoints (txt/srt)
-- Integrate real Whisper transcription engine
-- Frontend cancel/restart buttons (backend endpoints already exist)
-- Frontend tag add/remove in JobDetailModal (backend endpoints exist)
+Detailed tasks are tracked in `../PRODUCTION_TASKS.md` and the rationale in `../GAP_ANALYSIS.md`.
 
 ## Conclusion
 
@@ -161,3 +145,5 @@ The 90.6% pass rate demonstrates:
 4. Sign off on Increment 19
 
 **Overall Assessment**: System is stable and ready for production use pending UI feedback enhancement.
+
+```

@@ -1,3 +1,4 @@
+```markdown
 # Selenite Smoke Test
 
 ## Purpose
@@ -322,3 +323,5 @@ After successful smoke test:
 3. Deploy to staging environment
 4. Conduct user acceptance testing
 5. Address remaining Sprint 0 tasks (TEST-004)
+
+```

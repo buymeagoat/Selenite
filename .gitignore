@@ -15,6 +15,7 @@ backend/lite-env/
 env/
 ENV/
 build/
+!docs/build/
 develop-eggs/
 dist/
 downloads/

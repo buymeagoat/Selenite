@@ -1,5 +1,7 @@
 # Selenite Gap Analysis & Remediation Plan
 
+[Scope] Single source of truth for all gaps between pre-build specs and actual needs discovered. Any tasks generated after post-mortem creation continue to be tracked here with IDs, priorities, and status.
+
 ## Overview
 This document enumerates functional, technical, operational, and quality gaps remaining after completion of Increment 20. It provides prioritized remediation actions toward production robustness.
 

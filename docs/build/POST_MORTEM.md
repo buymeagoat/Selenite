@@ -1,5 +1,8 @@
 # Selenite Project Post-Mortem
 
+## Purpose & Maintenance Policy
+This post-mortem documents what went well, what didn’t, and how to improve when building from a pre-defined spec. It is updated continuously during and after the build as findings occur. It must also capture work needed beyond pre-build specs and cross-reference `GAP_ANALYSIS.md` for a living list of gaps and `PRODUCTION_TASKS.md` for the actionable backlog.
+
 ## 1. What Went Well
 - **Incremental Structure**: The 20-increment DEVELOPMENT_PLAN provided clear staging and reduced ambiguity; backend completion in first 9 increments accelerated frontend focus.
 - **Specification Fidelity**: COMPONENT_SPECS and API_CONTRACTS were consistently referenced; resulting components (SearchBar, JobFilters, TagInput, TagList, TagBadge, Settings, usePolling, Toast, Skeleton, Navbar changes) match described props and behaviors.
@@ -20,6 +23,24 @@
 - **Monitoring Implementation**: Metrics instrumentation (Prometheus) documented but not integrated—only aspirational guidance.
 - **Model Handling**: Whisper model download strategy left to manual invocation; no automated lazy-load or verification routine during startup.
 - **Data Migration Strategy**: SQLite used without Alembic migration workflow; future schema changes have friction.
+
+## Spec Gaps Discovered
+The authoritative list of gaps is owned by `GAP_ANALYSIS.md`. Representative examples:
+- SEC-001: Add rate limiting middleware on auth endpoints (P0) — reduce brute-force risk.
+- E2E-001/E2E-002: Scaffold Playwright suite and core path tests (P0) — validate end-to-end workflows.
+- DATA-001: Migrate to PostgreSQL + Alembic (P0) — production reliability and evolution.
+- OBS-001/OBS-002: Prometheus metrics and structured JSON logging (P1) — observability baseline.
+
+Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with ID/priority/owner and reflect the actionable task in `PRODUCTION_TASKS.md` with the same ID.
+
+## SWOT
+**Strengths**: Clear incremental plan; high UI polish; core tests for critical components; thorough setup/deploy docs.
+
+**Weaknesses**: Integration and E2E deferred; inconsistent gate enforcement; early security/observability gaps.
+
+**Opportunities**: Automate gates (hooks/CI), interleave integration increments, improve a11y/error handling.
+
+**Threats**: Doc drift and conflicting status; lack of observability; risk of unverified critical paths.
 
 ## 3. What We Can Do Better Next Time
 

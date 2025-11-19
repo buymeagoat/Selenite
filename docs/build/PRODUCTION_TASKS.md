@@ -1,5 +1,7 @@
 # Production Readiness Tasks
 
+[Scope] Actionable tasks to close gaps documented in `GAP_ANALYSIS.md`. This file mirrors those IDs, tracks owners/dates/status, and is the only task backlog. Production sign-off lives in `../application_documentation/PRODUCTION_READY.md`.
+
 **Last Updated**: November 17, 2025  
 **Current Status**: Increment 19 (E2E Testing) - 96% Complete  
 **Target**: Production Deployment Ready
@@ -80,7 +82,9 @@
 - [x] Secure secret management (environment variables)
 - [x] Input validation for all endpoints
 
-**Current Status**: ✅ Complete - All security features implemented and audited  
+Production sign-off is maintained in `../application_documentation/PRODUCTION_READY.md`. This document tracks tasks and status; see `GAP_ANALYSIS.md` for rationales.
+
+**Current Status**: In Progress  
 **Recent Completion**:
 - Dependency audit with pip-audit (setuptools updated to 80.9.0)
 - SQL injection review: All queries use SQLAlchemy parameterized queries
@@ -88,7 +92,7 @@
 - XSS review: React auto-escapes, no dangerouslySetInnerHTML usage
 - Security audit report: docs/SECURITY_AUDIT.md
 **Blockers**: None  
-**Priority**: CRITICAL - ✅ COMPLETE
+**Priority**: CRITICAL - In Progress
 
 ---
 
@@ -245,7 +249,7 @@
 **In Progress**: 0  
 **Not Started**: ~1  
 
-**E2E Test Suite**: 73/85 passing (85.9%) - Chromium fully stable, Firefox/WebKit intermittent Vite connection issues
+**E2E Test Suite**: 77/85 passing (90.6%) — see `./testing/E2E_TEST_REPORT.md`
 
 **Estimated Time to Production**: 1-2 days of focused development
 
@@ -298,12 +302,9 @@
 ---
 
 **Next Immediate Steps**:
-1. ✅ Complete security hardening (DONE)
-2. ✅ Complete production configuration (DONE)
-3. 🚀 **APPLICATION IS PRODUCTION READY** - See `docs/PRODUCTION_READY.md` for sign-off
-4. 📝 Optional future enhancements (real-time progress, media playback) can be added post-launch
-
-**Production Deployment**: Ready to deploy - all critical features complete, security audited, documentation comprehensive.
+1. Resolve remaining P0/P1 items linked from `GAP_ANALYSIS.md`
+2. Re-run E2E and update `./testing/E2E_TEST_REPORT.md`
+3. Prepare production sign-off in `../application_documentation/PRODUCTION_READY.md`
 # Production Readiness Tasks
 
 **Last Updated**: November 17, 2025  

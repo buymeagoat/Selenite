@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:backend": "uvicorn app.main:app --port 8000 --reload --app-dir ../backend/app",
-    "e2e:full": "concurrently -k \"uvicorn app.main:app --port 8000 --app-dir ../backend/app\" \"vite\" & wait-on http://localhost:5173/login && playwright test",
+    "dev:backend": "uvicorn app.main:app --port 8100 --reload --app-dir ../backend/app",
+    "e2e:full": "concurrently -k \"uvicorn app.main:app --port 8100 --app-dir ../backend/app\" \"vite\" & wait-on http://localhost:5173/login && playwright test",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",

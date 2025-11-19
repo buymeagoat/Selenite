@@ -214,7 +214,7 @@ python -c "from app.config import settings; print(f'Environment: {settings.envir
 alembic upgrade head
 
 # 3. Check health
-curl http://localhost:8000/health
+curl http://localhost:8100/health
 
 # 4. Run security audit
 pip-audit

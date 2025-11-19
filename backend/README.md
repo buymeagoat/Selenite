@@ -38,7 +38,7 @@ alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-API documentation available at: http://localhost:8000/docs
+API documentation available at: http://localhost:8100/docs
 
 ### Running Tests
 

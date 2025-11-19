@@ -288,8 +288,8 @@ npm run preview
 ### API Documentation
 
 Start the backend and navigate to:
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+- **Swagger UI**: `http://localhost:8100/docs`
+- **ReDoc**: `http://localhost:8100/redoc`
 
 ## 📊 Performance
 

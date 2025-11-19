@@ -4,7 +4,7 @@ Complete specification for all API endpoints in Selenite. These contracts must b
 
 ## Base URL
 ```
-http://localhost:8000
+http://localhost:8100
 ```
 
 ## Authentication

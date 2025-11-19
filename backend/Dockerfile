@@ -25,17 +25,17 @@ COPY . .
 RUN mkdir -p storage/media storage/transcripts logs
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8100
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:8100/health')" || exit 1
 
 # Run application with Gunicorn
 CMD ["gunicorn", "app.main:app", \
      "--workers", "4", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
+    "--bind", "0.0.0.0:8100", \
      "--timeout", "300", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]

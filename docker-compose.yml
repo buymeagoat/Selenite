@@ -8,7 +8,7 @@ services:
     container_name: selenite-backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8100:8100"
     volumes:
       - ./storage/media:/app/storage/media
       - ./storage/transcripts:/app/storage/transcripts
@@ -26,11 +26,11 @@ services:
       - DEFAULT_WHISPER_MODEL=medium
       - DEFAULT_LANGUAGE=auto
       - HOST=0.0.0.0
-      - PORT=8000
+      - PORT=8100
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://localhost
       - LOG_LEVEL=INFO
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8100/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -47,7 +47,7 @@ services:
     ports:
       - "80:80"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=http://localhost:8100
     depends_on:
       - backend
     healthcheck:

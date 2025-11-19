@@ -17,7 +17,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'pwsh -File ../backend/start_e2e.ps1',
-      port: 8000,
+      port: 8100,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000
     },

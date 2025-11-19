@@ -51,7 +51,7 @@ alembic upgrade head
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # In another terminal, check health
-curl http://localhost:8000/health
+curl http://localhost:8100/health
 ```
 
 **Expected Response**:
@@ -276,7 +276,7 @@ server {
 
     # API proxy
     location /api {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://localhost:8100;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -391,7 +391,7 @@ docker run -d \
 ### Health Checks
 The backend exposes a health check endpoint:
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8100/health
 # Expected response: {"status":"healthy","version":"1.0.0"}
 ```
 
@@ -442,7 +442,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 Instrumentator().instrument(app).expose(app)
 ```
-4. Configure Prometheus to scrape `http://localhost:8000/metrics`
+4. Configure Prometheus to scrape `http://localhost:8100/metrics`
 5. Import Grafana dashboards for FastAPI metrics
 
 ## Troubleshooting

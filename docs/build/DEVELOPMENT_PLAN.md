@@ -610,7 +610,7 @@ LOG_LEVEL=INFO
 
 #### Frontend (.env)
 ```bash
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8100
 VITE_APP_NAME=Selenite
 ```
 
@@ -1257,7 +1257,7 @@ python -c "from app.database import engine; print('Database:', engine.url)"
 ```bash
 pytest tests/test_auth.py -v
 # Manual test via curl:
-curl -X POST http://localhost:8000/auth/login \
+curl -X POST http://localhost:8100/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "changeme"}'
 # Should return: {"access_token": "...", "token_type": "bearer"}

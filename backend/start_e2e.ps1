@@ -17,4 +17,4 @@ python -m app.seed_e2e > $null
 Write-Host "[E2E] Seed complete. Starting uvicorn..."
 
 # Start uvicorn (no reload for test stability)
-python -m uvicorn app.main:app --port 8000 --log-level warning
+python -m uvicorn app.main:app --port 8100 --log-level warning

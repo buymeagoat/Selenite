@@ -10,13 +10,13 @@ This document provides step-by-step instructions for manually validating the com
 - Python 3.10+ installed
 - Backend dependencies installed: `pip install -r requirements-minimal.txt`
 - Backend server running: `python -m uvicorn app.main:app --reload --port 8000`
-- Verify backend health: Navigate to http://localhost:8000/health
+- Verify backend health: Navigate to http://localhost:8100/health
 
 ### Frontend
 - Node.js 18+ installed with npm
 - Frontend dependencies installed: `npm install`
 - Frontend dev server running: `npm run dev` (typically runs on http://localhost:5173)
-- `.env` file configured with `VITE_API_URL=http://localhost:8000`
+- `.env` file configured with `VITE_API_URL=http://localhost:8100`
 
 ### Test Data
 - Prepare a small audio/video file (< 10MB recommended for quick testing)

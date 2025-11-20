@@ -38,6 +38,8 @@ cd backend
 if (-not (Test-Path .\.venv)) { python -m venv .venv }
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements-minimal.txt
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m app.seed
 ```
 
 Then launch the API in production mode (disabling file logs avoids Windows log-lock issues):

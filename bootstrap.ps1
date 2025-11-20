@@ -54,6 +54,14 @@ Invoke-Step "Backend dependencies" {
     .\.venv\Scripts\python.exe -m pip install -r requirements-minimal.txt
 }
 
+Invoke-Step "Database migrations and seed" {
+    Set-Location $BackendDir
+    if (Test-Path .\alembic.ini) {
+        .\.venv\Scripts\python.exe -m alembic upgrade head
+    }
+    .\.venv\Scripts\python.exe -m app.seed
+}
+
 Invoke-Step "Frontend dependencies" {
     Set-Location $FrontendDir
     if (Test-Path .\node_modules) {

@@ -5,6 +5,7 @@ and generating transcriptions with timestamps and speaker labels.
 """
 
 import os
+import json
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -162,9 +163,10 @@ class WhisperService:
             )
 
             # Extract results
+            normalized_segments = self._normalize_segments(result.get("segments", []))
             transcript_result = {
                 "text": result["text"].strip(),
-                "segments": result.get("segments", []),
+                "segments": normalized_segments,
                 "language": result.get("language", "unknown"),
                 "duration": result.get("duration", 0.0),
             }
@@ -262,10 +264,18 @@ class WhisperService:
             job.progress_stage = "finalizing"
             await db.commit()
 
-            # Save transcript to file
+            # Save transcript to file + metadata
             transcript_path = Path(settings.transcript_storage_path) / f"{job_id}.txt"
             transcript_path.parent.mkdir(parents=True, exist_ok=True)
             transcript_path.write_text(transcript_result["text"], encoding="utf-8")
+            metadata_path = transcript_path.with_suffix(".json")
+            metadata = {
+                "text": transcript_result["text"],
+                "segments": transcript_result["segments"],
+                "language": transcript_result["language"],
+                "duration": transcript_result["duration"],
+            }
+            metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
 
             # Create transcript database record
             transcript_db = Transcript(
@@ -317,9 +327,30 @@ class WhisperService:
         # For now, return 1 as default
         return 1
 
+    def _normalize_segments(self, segments: Optional[list]) -> list[Dict[str, Any]]:
+        """Ensure every segment has id/start/end/text fields."""
+        normalized: list[Dict[str, Any]] = []
+        if not segments:
+            return normalized
+        for idx, seg in enumerate(segments):
+            if not isinstance(seg, dict):
+                continue
+            normalized.append(
+                {
+                    "id": seg.get("id", idx),
+                    "start": float(seg.get("start", 0.0) or 0.0),
+                    "end": float(seg.get("end", 0.0) or 0.0),
+                    "text": (seg.get("text") or "").strip(),
+                }
+            )
+        return normalized
+
     async def _simulate_transcription(self, job: Job, db: AsyncSession) -> None:
         """Fast path for tests to avoid loading large Whisper models."""
         transcript_text = f"Simulated transcript for {job.original_filename}"
+        segments = [
+            {"id": 0, "start": 0.0, "end": float(job.duration or 10.0), "text": transcript_text}
+        ]
         job.status = "processing"
         job.started_at = datetime.utcnow()
         job.progress_percent = 10
@@ -346,6 +377,14 @@ class WhisperService:
         transcript_path = Path(settings.transcript_storage_path) / f"{job.id}.txt"
         transcript_path.parent.mkdir(parents=True, exist_ok=True)
         transcript_path.write_text(transcript_text, encoding="utf-8")
+        metadata_path = transcript_path.with_suffix(".json")
+        metadata = {
+            "text": transcript_text,
+            "segments": segments,
+            "language": job.language_detected or "en",
+            "duration": job.duration or 10.0,
+        }
+        metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
 
         transcript_db = Transcript(
             job_id=job.id,

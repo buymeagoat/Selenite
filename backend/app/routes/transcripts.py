@@ -1,7 +1,8 @@
 """Transcript retrieval and export routes."""
 
+import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -24,13 +25,51 @@ from app.utils.transcript_export import (
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 
 
-def _synthesized_segments() -> List[Dict[str, Any]]:
-    """Create a minimal set of segments for the simulated transcript."""
-    return [
-        {"id": 0, "start": 0.0, "end": 5.0, "text": "Hello, this is a simulated transcript."},
-        {"id": 1, "start": 5.0, "end": 12.5, "text": "It demonstrates export formats for testing."},
-        {"id": 2, "start": 12.5, "end": 18.0, "text": "Thank you for trying Selenite."},
-    ]
+def _load_transcript_data(job: Job) -> Tuple[str, List[Dict[str, Any]], str, float]:
+    """Load transcript text, segments, language and duration from disk."""
+    if not job.transcript_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Transcript file not found."
+        )
+
+    transcript_path = Path(job.transcript_path)
+    if not transcript_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Transcript file not found."
+        )
+
+    text = transcript_path.read_text(encoding="utf-8").strip()
+    language = job.language_detected or "unknown"
+    duration = job.duration or 0.0
+    segments: List[Dict[str, Any]] = []
+
+    metadata_path = transcript_path.with_suffix(".json")
+    if metadata_path.exists():
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            segments = metadata.get("segments") or []
+            language = metadata.get("language") or language
+            duration = metadata.get("duration") or duration
+            if not text and metadata.get("text"):
+                text = metadata["text"]
+        except json.JSONDecodeError:
+            pass
+
+    if not segments:
+        segments = [{"id": 0, "start": 0.0, "end": duration, "text": text}]
+
+    normalized: List[Dict[str, Any]] = []
+    for idx, seg in enumerate(segments):
+        normalized.append(
+            {
+                "id": seg.get("id", idx),
+                "start": float(seg.get("start", 0.0) or 0.0),
+                "end": float(seg.get("end", 0.0) or 0.0),
+                "text": (seg.get("text") or "").strip(),
+            }
+        )
+
+    return text, normalized, language, duration
 
 
 @router.get("/{job_id}", response_model=TranscriptResponse)
@@ -39,34 +78,22 @@ async def get_transcript(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the primary transcript structure for a completed job.
-
-    In Increment 6, content is synthesized to enable export functionality.
-    """
+    """Return the primary transcript structure for a completed job."""
     result = await db.execute(
         select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
     )
     job = result.scalar_one_or_none()
-    if not job:
+    if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transcript not found. Job may not be completed.",
         )
 
-    if job.status != "completed":
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Transcript not found. Job may not be completed.",
-        )
-
-    segments = _synthesized_segments()
-    full_text = " ".join(seg["text"] for seg in segments)
-    language = job.language_detected or "en"
-    duration = job.duration or 60.0
+    text, segments, language, duration = _load_transcript_data(job)
 
     return TranscriptResponse(
         job_id=str(job.id),
-        text=full_text,
+        text=text,
         segments=[TranscriptSegment(**seg) for seg in segments],
         language=language,
         duration=duration,
@@ -93,30 +120,19 @@ async def export_transcript(
         select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
     )
     job = result.scalar_one_or_none()
-    if not job:
+    if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transcript not found. Job may not be completed.",
         )
 
-    if job.status != "completed":
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Transcript not found. Job may not be completed.",
-        )
-
-    # Build synthesized transcript
-    segments = _synthesized_segments()
-    full_text = "\n".join(seg["text"] for seg in segments)
-    language = job.language_detected or "en"
-    duration = job.duration or 60.0
-
+    text, segments, language, duration = _load_transcript_data(job)
     title = Path(job.original_filename).stem
 
     if fmt == "txt":
-        content, content_type = export_txt(full_text)
+        content, content_type = export_txt(text)
     elif fmt == "md":
-        content, content_type = export_md(title, full_text)
+        content, content_type = export_md(title, text)
     elif fmt == "srt":
         content, content_type = export_srt(segments)
     elif fmt == "vtt":
@@ -124,7 +140,7 @@ async def export_transcript(
     elif fmt == "json":
         payload = {
             "job_id": str(job.id),
-            "text": full_text,
+            "text": text,
             "segments": segments,
             "language": language,
             "duration": duration,
@@ -132,7 +148,7 @@ async def export_transcript(
         content, content_type = export_json(payload)
     elif fmt == "docx":
         content, content_type = export_docx(title, segments, {"language": language})
-    else:  # pragma: no cover - defensive, should not happen due to earlier check
+    else:  # pragma: no cover
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid format")
 
     filename = f"{title}-transcript.{fmt}"

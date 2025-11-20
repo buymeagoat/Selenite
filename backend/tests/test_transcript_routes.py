@@ -1,6 +1,7 @@
 """Tests for transcript retrieval and export endpoints."""
 
 import io
+import json
 import asyncio
 import os
 
@@ -24,6 +25,7 @@ async def test_db():
     os.makedirs(settings.transcript_storage_path, exist_ok=True)
 
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
@@ -112,6 +114,14 @@ async def create_manual_job(job_id: str, user_id: int, status: str):
             has_speaker_labels=False,
         )
         session.add(job)
+        await session.commit()
+
+
+async def update_job(job_id: str, **fields) -> None:
+    async with AsyncSessionLocal() as session:
+        job = await session.get(Job, job_id)
+        for key, value in fields.items():
+            setattr(job, key, value)
         await session.commit()
 
 
@@ -210,3 +220,45 @@ class TestTranscriptRoutes:
                 headers=other_auth_headers,
             )
             assert unauthorized.status_code == 404
+
+    async def test_transcript_returns_real_text_and_segments(
+        self, test_db, auth_headers, tmp_path
+    ):
+        manual_id = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb"
+        await create_manual_job(manual_id, user_id=1, status="completed")
+        transcript_path = tmp_path / f"{manual_id}.txt"
+        transcript_path.write_text("Actual transcript text", encoding="utf-8")
+        metadata = {
+            "text": "Actual transcript text",
+            "segments": [
+                {"id": 0, "start": 0.0, "end": 2.5, "text": "Actual"},
+                {"id": 1, "start": 2.5, "end": 5.0, "text": "transcript text"},
+            ],
+            "language": "en",
+            "duration": 5.0,
+        }
+        metadata_path = transcript_path.with_suffix(".json")
+        metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+        await update_job(
+            manual_id,
+            transcript_path=str(transcript_path),
+            duration=5.0,
+            language_detected="en",
+        )
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            t_resp = await client.get(f"/transcripts/{manual_id}", headers=auth_headers)
+            assert t_resp.status_code == 200
+            body = t_resp.json()
+            assert body["text"] == "Actual transcript text"
+            assert body["segments"][0]["text"] == "Actual"
+            assert body["segments"][1]["end"] == 5.0
+
+            export_resp = await client.get(
+                f"/transcripts/{manual_id}/export",
+                params={"format": "txt"},
+                headers=auth_headers,
+            )
+            assert export_resp.status_code == 200
+            assert "Actual transcript text" in export_resp.text

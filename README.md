@@ -55,24 +55,42 @@ cd ../frontend
 npm install
 ```
 
-4. **Start the application**:
+4. **Start the application (production stack only)**:
 
-**Development mode**:
+The fastest way—especially for AI assistants—is to run the automated bootstrap script from the repository root:
+
+```powershell
+# PowerShell (Windows)
+cd Selenite
+.\bootstrap.ps1
+```
+
+This script:
+- Kills stray python/node processes and unlocks log files.
+- Installs backend + frontend dependencies.
+- Starts the FastAPI server with `ENVIRONMENT=production`, `ALLOW_LOCALHOST_CORS=1`, and file logging disabled (to avoid Windows log-lock issues).
+- Builds the frontend and serves it via `npm run start:prod` (Vite preview) on `http://127.0.0.1:5173`.
+
+If you need to run the commands manually (Linux/macOS):
+
 ```bash
-# Terminal 1 - Backend
+# Terminal 1 – Backend API
 cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-minimal.txt
+export DISABLE_FILE_LOGS=1
+export ENVIRONMENT=production
+export ALLOW_LOCALHOST_CORS=1
+uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 
-# Terminal 2 - Frontend
+# Terminal 2 – Frontend (production preview)
 cd frontend
-npm run dev
+npm install
+npm run start:prod -- --host 127.0.0.1 --port 5173
 ```
 
-**Docker (recommended for production)**:
-```bash
-docker-compose up -d
-```
+> We no longer maintain a separate “dev server.” Everything runs with production settings to mirror the actual deployment.
 
 5. **Open in browser**: Navigate to `http://localhost:5173`
 
@@ -243,10 +261,13 @@ LOG_LEVEL=INFO
 
 ```bash
 cd backend
-source venv/bin/activate
+source .venv/bin/activate
 
-# Run with hot reload
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Run the production-configured API locally
+ENVIRONMENT=production \
+ALLOW_LOCALHOST_CORS=1 \
+DISABLE_FILE_LOGS=1 \
+uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 
 # Run tests
 pytest
@@ -261,13 +282,13 @@ ruff check app/
 black app/
 ```
 
-### Frontend Development
+### Frontend Tasks
 
 ```bash
 cd frontend
 
-# Development server
-npm run dev
+# Production preview (build + serve on 127.0.0.1:5173)
+npm run start:prod
 
 # Run tests
 npm test

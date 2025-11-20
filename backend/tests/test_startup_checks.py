@@ -68,12 +68,30 @@ def test_validate_configuration_production_localhost_cors():
         mock_settings.media_storage_path = "/var/lib/selenite/media"
         mock_settings.transcript_storage_path = "/var/lib/selenite/transcripts"
         mock_settings.model_storage_path = "models"
+        mock_settings.allow_localhost_cors = False
 
         errors = validate_configuration()
 
         # Should have error about localhost in CORS
         assert len(errors) >= 1
         assert any("localhost" in error.lower() for error in errors)
+
+
+def test_validate_configuration_production_localhost_cors_allowed():
+    """Test allowing localhost origins in production when explicitly enabled."""
+    with patch("app.startup_checks.settings") as mock_settings:
+        mock_settings.is_production = True
+        mock_settings.secret_key = "a" * 32
+        mock_settings.cors_origins = "http://localhost:5173,https://example.com"
+        mock_settings.database_url = "postgresql://..."
+        mock_settings.media_storage_path = "/var/lib/selenite/media"
+        mock_settings.transcript_storage_path = "/var/lib/selenite/transcripts"
+        mock_settings.model_storage_path = "models"
+        mock_settings.allow_localhost_cors = True
+
+        errors = validate_configuration()
+
+        assert errors == []
 
 
 def test_validate_environment_ffmpeg_missing():

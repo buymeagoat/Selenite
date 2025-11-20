@@ -10,6 +10,10 @@ jobs:
   backend-qa:
     name: Backend Quality Checks
     runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: production
+      DISABLE_FILE_LOGS: "1"
+      ALLOW_LOCALHOST_CORS: "1"
     strategy:
       matrix:
         python-version: ['3.11']
@@ -71,6 +75,10 @@ jobs:
   frontend-qa:
     name: Frontend Quality Checks
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      VITE_API_URL: http://127.0.0.1:8100
+      ALLOW_LOCALHOST_CORS: "1"
     strategy:
       matrix:
         node-version: ['20']
@@ -130,6 +138,9 @@ jobs:
     name: E2E Smoke Tests
     runs-on: ubuntu-latest
     needs: [backend-qa, frontend-qa]
+    env:
+      ENVIRONMENT: production
+      ALLOW_LOCALHOST_CORS: "1"
     
     steps:
       - name: Checkout code

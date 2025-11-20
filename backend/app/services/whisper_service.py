@@ -43,6 +43,26 @@ class WhisperService:
             backend_dir = Path(__file__).parent.parent.parent
             self.models_dir = (backend_dir / self.model_storage_path).resolve()
 
+    def _is_cancelled_state(self, job: Job) -> bool:
+        return job.status in {"cancelled", "cancelling"}
+
+    async def _finalize_cancellation(self, job: Job, db: AsyncSession, context: str) -> None:
+        """Finalize a cancellation by ensuring consistent state and logging."""
+        job.status = "cancelled"
+        job.progress_stage = None
+        job.estimated_time_left = None
+        if job.completed_at is None:
+            job.completed_at = datetime.utcnow()
+        await db.commit()
+        logger.info(f"Job {job.id} cancellation acknowledged ({context})")
+
+    async def _abort_if_cancelled(self, job: Job, db: AsyncSession, context: str) -> bool:
+        await db.refresh(job)
+        if self._is_cancelled_state(job):
+            await self._finalize_cancellation(job, db, context)
+            return True
+        return False
+
     async def load_model(self, model_name: str) -> Any:
         """Load a Whisper model, using cache if available.
 
@@ -182,6 +202,10 @@ class WhisperService:
             logger.error(f"Job not found: {job_id}")
             return
 
+        if self._is_cancelled_state(job):
+            await self._finalize_cancellation(job, db, "job fetched")
+            return
+
         try:
             if settings.is_testing:
                 await self._wait_for_processing_slot(db)
@@ -190,7 +214,8 @@ class WhisperService:
                 logger.info(f"Job {job_id} completed via simulated transcription")
                 return
             # Check if already cancelled
-            if job.status == "cancelled":
+            if self._is_cancelled_state(job):
+                await self._finalize_cancellation(job, db, "before processing")
                 return
 
             # Stage 1: Loading model
@@ -203,17 +228,22 @@ class WhisperService:
             model_name = job.model_used or settings.default_whisper_model
             language = job.language_detected if job.language_detected != "auto" else None
 
+            if await self._abort_if_cancelled(job, db, "after loading model"):
+                return
+
             # Load model (will use cache if available)
             await self.load_model(model_name)
 
-            await db.refresh(job)
-            if job.status == "cancelled":
+            if await self._abort_if_cancelled(job, db, "after model load"):
                 return
 
             # Stage 2: Transcribing
             job.progress_percent = 30
             job.progress_stage = "transcribing"
             await db.commit()
+
+            if await self._abort_if_cancelled(job, db, "before transcription"):
+                return
 
             # Perform transcription
             transcript_result = await self.transcribe_audio(
@@ -224,8 +254,7 @@ class WhisperService:
                 enable_speaker_detection=job.has_speaker_labels,
             )
 
-            await db.refresh(job)
-            if job.status == "cancelled":
+            if await self._abort_if_cancelled(job, db, "after transcription"):
                 return
 
             # Stage 3: Finalizing
@@ -262,6 +291,10 @@ class WhisperService:
             logger.info(f"Job {job_id} completed successfully")
 
         except Exception as exc:
+            await db.refresh(job)
+            if self._is_cancelled_state(job):
+                await self._finalize_cancellation(job, db, "during exception")
+                return
             logger.error(f"Job {job_id} failed: {exc}")
             job.status = "failed"
             job.progress_stage = None

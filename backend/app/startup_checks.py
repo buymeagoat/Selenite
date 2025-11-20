@@ -32,7 +32,9 @@ def validate_configuration() -> list[str]:
     # Validate CORS origins in production
     if settings.is_production:
         origins_lower = settings.cors_origins.lower()
-        if "localhost" in origins_lower or "127.0.0.1" in origins_lower:
+        if not settings.allow_localhost_cors and (
+            "localhost" in origins_lower or "127.0.0.1" in origins_lower
+        ):
             errors.append(
                 "CORS_ORIGINS contains localhost/127.0.0.1 in production. "
                 "Configure production frontend URLs."

@@ -236,8 +236,13 @@ async def cancel_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job is not cancellable in its current state",
         )
-    job.status = "cancelled"
-    job.progress_stage = None
+    if job.status == "processing":
+        job.status = "cancelling"
+        job.progress_stage = "cancelling"
+    else:
+        job.status = "cancelled"
+        job.progress_stage = None
+        job.completed_at = datetime.utcnow()
     job.estimated_time_left = None
     await db.commit()
     await db.refresh(job)

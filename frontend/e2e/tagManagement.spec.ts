@@ -7,39 +7,27 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Tag Management', () => {
-  test('create new tag', async ({ page }) => {
+  test('view tag inventory through settings', async ({ page }) => {
     await page.goto('/');
     
-    // Find tag management UI (could be in sidebar, modal, or separate section)
-    const manageTagsButton = page.getByRole('button', { name: /manage tags|tags/i });
+    // Access the Settings page where tag management lives today
+    const settingsButton = page.getByLabel('Settings');
+    await expect(settingsButton).toBeVisible();
+    await settingsButton.click();
+    await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
     
-    if (await manageTagsButton.isVisible()) {
-      await manageTagsButton.click();
-      
-      // Tag management modal/section should open
-      const tagModal = page.getByRole('dialog').or(page.locator('[data-testid="tag-management"]'));
-      await expect(tagModal).toBeVisible();
-      
-      // Find create tag input
-      const tagInput = tagModal.getByPlaceholder(/tag name|new tag/i)
-        .or(tagModal.locator('[data-testid="tag-input"]'));
-      await expect(tagInput).toBeVisible();
-      
-      // Create a unique tag name
-      const tagName = `TestTag${Date.now()}`;
-      await tagInput.fill(tagName);
-      
-      // Submit (could be button or Enter key)
-      const createButton = tagModal.getByRole('button', { name: /create|add|save/i });
-      if (await createButton.isVisible()) {
-        await createButton.click();
-      } else {
-        await tagInput.press('Enter');
-      }
-      
-      // Tag should appear in tag list
-      await expect(tagModal.getByText(tagName)).toBeVisible({ timeout: 5000 });
+    // Expand the Tags accordion if collapsed
+    const tagsSection = page.getByRole('button', { name: /tags/i });
+    await expect(tagsSection).toBeVisible();
+    const tagsContent = page.locator('[data-testid="tag-list"]');
+    try {
+      await expect(tagsContent).toBeVisible({ timeout: 8000 });
+    } catch {
+      await tagsSection.click();
+      await expect(tagsContent).toBeVisible({ timeout: 8000 });
     }
+    
+    await expect(tagsContent.locator('[data-testid="tag-name"]').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('assign tag to job', async ({ page }) => {

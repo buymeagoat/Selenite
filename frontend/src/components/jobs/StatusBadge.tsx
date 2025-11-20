@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface StatusBadgeProps {
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -24,6 +24,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       text: 'text-pine-deep',
       label: 'Processing',
       icon: '⟳',
+      animate: true
+    },
+    cancelling: {
+      bg: 'bg-amber-100',
+      text: 'text-amber-800',
+      label: 'Cancelling',
+      icon: '…',
       animate: true
     },
     completed: {
@@ -51,6 +58,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
 
   return (
     <span
+      data-testid="status-badge"
       className={`inline-flex items-center gap-1 rounded-full font-medium ${config.bg} ${config.text} ${sizeClasses[size]} ${animateClass}`}
     >
       {config.icon && <span>{config.icon}</span>}

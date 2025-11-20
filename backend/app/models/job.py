@@ -10,11 +10,12 @@ class Job(Base):
     """Job table for transcription jobs.
 
     Status values:
-    queued     - Waiting to be picked up by a worker
-    processing - Actively being transcribed
-    completed  - Finished successfully
-    failed     - Processing ended with an error
-    cancelled  - User requested cancellation while queued or processing
+    queued      - Waiting to be picked up by a worker
+    processing  - Actively being transcribed
+    cancelling  - Cancellation requested; worker is draining work in progress
+    completed   - Finished successfully
+    failed      - Processing ended with an error
+    cancelled   - Cancellation confirmed (queued job or worker acknowledged)
     """
 
     __tablename__ = "jobs"
@@ -29,7 +30,7 @@ class Job(Base):
     duration = Column(Float, nullable=True)  # seconds
     status = Column(
         String(20), nullable=False, index=True
-    )  # queued, processing, completed, failed, cancelled
+    )  # queued, processing, cancelling, completed, failed, cancelled
     progress_percent = Column(Integer, default=0, nullable=False)
     progress_stage = Column(String(50), nullable=True)
     estimated_time_left = Column(Integer, nullable=True)  # seconds

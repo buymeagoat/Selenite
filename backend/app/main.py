@@ -58,10 +58,13 @@ async def lifespan(app: FastAPI):
             "Run 'alembic upgrade head' before starting in production."
         )
 
-    # Expose queue via app state
+    # Expose queue via app state; only auto-start outside of unit tests
     app.state.queue = queue
-    await queue.start()
-    logger.info("Job queue started")
+    if settings.is_testing:
+        logger.info("Testing mode detected; job queue will be started by tests as needed")
+    else:
+        await queue.start()
+        logger.info("Job queue started")
 
     yield
 

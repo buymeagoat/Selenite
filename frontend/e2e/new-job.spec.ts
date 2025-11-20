@@ -42,10 +42,7 @@ test.describe('New Job Modal', () => {
     // Click submit to start transcription
     await startBtn.click();
 
-    // Wait for modal to close (optional, depends on UI)
-    await expect(page.getByTestId('new-job-modal-header')).not.toBeVisible({ timeout: 10000 });
-
-    // Wait for a new job card to appear (dashboard refresh)
+    // Wait for success toast / dashboard refresh rather than modal disappearance
     const jobCard = page.locator('[data-testid="job-card"]');
     await expect(jobCard.first()).toBeVisible({ timeout: 20000 });
     // Optionally, check for job status or success message

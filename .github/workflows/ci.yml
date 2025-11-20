@@ -12,6 +12,10 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: production
+      DISABLE_FILE_LOGS: "1"
+      ALLOW_LOCALHOST_CORS: "1"
     defaults:
       run:
         working-directory: backend
@@ -43,6 +47,10 @@ jobs:
   frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      VITE_API_URL: http://127.0.0.1:8100
+      ALLOW_LOCALHOST_CORS: "1"
     defaults:
       run:
         working-directory: frontend

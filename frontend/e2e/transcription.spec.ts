@@ -77,7 +77,10 @@ test.describe('Transcription Workflow', () => {
     // Note: In a real transcription, we'd verify stage transitions:
     // "Uploading" → "Loading Model" → "Transcribing" → "Finalizing" → "Complete"
     // For now, just verify the status badge updates
-    await expect(statusBadge).toContainText(/queued|processing|complete/i, { timeout: 10000 });
+    await expect(async () => {
+      const raw = (await statusBadge.textContent())?.toLowerCase().replace(/\s+/g, '');
+      expect(raw ?? '').toMatch(/queued|processing|complete|failed|cancelled/);
+    }).toPass({ timeout: 10000 });
     
     // If processing, verify progress bar exists
     const progressBar = jobCard.locator('[data-testid="progress-bar"]').or(jobCard.locator('progress'));

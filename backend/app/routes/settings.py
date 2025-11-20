@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.routes.auth import get_current_user
 from app.models.user import User
@@ -30,11 +31,11 @@ async def get_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    settings = await _get_or_create_settings(current_user, db)
+    user_settings = await _get_or_create_settings(current_user, db)
     return SettingsResponse(
-        default_model=settings.default_model,
-        default_language=settings.default_language,
-        max_concurrent_jobs=settings.max_concurrent_jobs,
+        default_model=user_settings.default_model,
+        default_language=user_settings.default_language,
+        max_concurrent_jobs=user_settings.max_concurrent_jobs,
     )
 
 
@@ -44,19 +45,20 @@ async def update_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    settings = await _get_or_create_settings(current_user, db)
-    settings.default_model = payload.default_model
-    settings.default_language = payload.default_language
-    settings.max_concurrent_jobs = payload.max_concurrent_jobs
-    settings.touch()
+    user_settings = await _get_or_create_settings(current_user, db)
+    user_settings.default_model = payload.default_model
+    user_settings.default_language = payload.default_language
+    user_settings.max_concurrent_jobs = payload.max_concurrent_jobs
+    user_settings.touch()
     await db.commit()
-    await db.refresh(settings)
-    try:
-        await queue.set_concurrency(settings.max_concurrent_jobs)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    await db.refresh(user_settings)
+    if not settings.is_testing:
+        try:
+            await queue.set_concurrency(user_settings.max_concurrent_jobs)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     return SettingsResponse(
-        default_model=settings.default_model,
-        default_language=settings.default_language,
-        max_concurrent_jobs=settings.max_concurrent_jobs,
+        default_model=user_settings.default_model,
+        default_language=user_settings.default_language,
+        max_concurrent_jobs=user_settings.max_concurrent_jobs,
     )

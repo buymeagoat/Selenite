@@ -119,6 +119,12 @@ async def validate_media_file(file: UploadFile) -> Tuple[str, int]:
             # Magic detection failed, fall back to extension
             pass
 
+    if detected_mime and detected_mime not in ALLOWED_MIME_TYPES:
+        # Some platforms (e.g., Linux without python-magic-bin) may report
+        # generic types like text/plain for binary data. Fall back to extension
+        # detection in that case to maintain cross-platform behavior.
+        detected_mime = None
+
     if not detected_mime:
         # Fallback to extension-based detection
         extension = Path(file.filename or "").suffix.lower()

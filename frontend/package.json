@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:backend": "uvicorn app.main:app --port 8100 --reload --app-dir ../backend/app",
-    "e2e:full": "concurrently -k \"uvicorn app.main:app --port 8100 --app-dir ../backend/app\" \"vite\" & wait-on http://localhost:5173/login && playwright test",
+    "dev:backend": "node ./node_modules/cross-env/src/bin/cross-env.js DISABLE_FILE_LOGS=1 ENVIRONMENT=production ALLOW_LOCALHOST_CORS=1 uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir ../backend/app",
+    "start:prod": "npm run build && node ./node_modules/cross-env/src/bin/cross-env.js VITE_API_URL=http://127.0.0.1:8100 vite preview --host 127.0.0.1 --port 5173 --strictPort",
+    "e2e:full": "concurrently -k --success first --names backend,frontend,tests \"node ../scripts/start-backend-e2e.js\" \"npm run start:prod\" \"npm run e2e:wait-and-run\"",
+    "e2e:wait-and-run": "wait-on http-get://127.0.0.1:8100/health http-get://127.0.0.1:5173/ && npm run e2e:playwright",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
@@ -18,6 +19,7 @@
     "qa:quick": "npm run type-check && npm run lint",
     "format": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "e2e": "playwright test",
+    "e2e:playwright": "node ./node_modules/cross-env/src/bin/cross-env.js SKIP_WEB_SERVER=1 playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:debug": "playwright test --debug",
     "e2e:report": "playwright show-report",
@@ -41,7 +43,10 @@
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^1.6.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -49,13 +54,12 @@
     "husky": "^9.1.7",
     "jsdom": "^24.0.0",
     "postcss": "^8.4.31",
+    "start-server-and-test": "^2.0.3",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.47.0",
     "vite": "^5.4.21",
     "vitest": "^1.4.0",
-    "concurrently": "^8.2.2",
-    "wait-on": "^7.0.1",
-    "start-server-and-test": "^2.0.3"
+    "wait-on": "^7.0.1"
   }
 }

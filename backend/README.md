@@ -5,7 +5,7 @@ Personal audio/video transcription application backend built with FastAPI.
 ## Setup
 
 ### Prerequisites
-- Python 3.11 or higher
+- Python 3.10 or higher
 - pip
 
 ### Installation
@@ -13,13 +13,13 @@ Personal audio/video transcription application backend built with FastAPI.
 1. Create and activate virtual environment:
 ```powershell
 cd backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
 2. Install dependencies:
 ```powershell
-pip install -e ".[dev]"
+pip install -r requirements-minimal.txt
 ```
 
 3. Copy environment file:
@@ -32,10 +32,13 @@ cp .env.example .env
 alembic upgrade head
 ```
 
-### Running the Server
+### Running the Server (production configuration only)
 
 ```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+$Env:DISABLE_FILE_LOGS = '1'
+$Env:ENVIRONMENT = 'production'
+$Env:ALLOW_LOCALHOST_CORS = '1'
+uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 ```
 
 API documentation available at: http://localhost:8100/docs

@@ -218,19 +218,32 @@ npm run preview
 
 ## Running
 
-### Development Mode
+### Local Production Run (single-thread stack)
 
-**Backend**:
-```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+Use the bootstrap script to mimic the deployment configuration on a workstation:
+
+```powershell
+cd D:\Dev\projects\Selenite
+.\bootstrap.ps1
 ```
 
-**Frontend**:
+If you need a manual run (Linux/macOS):
+
 ```bash
+# Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-minimal.txt
+export DISABLE_FILE_LOGS=1
+export ENVIRONMENT=production
+export ALLOW_LOCALHOST_CORS=1
+uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
+
+# Frontend
 cd frontend
-npm run dev
+npm install
+npm run start:prod -- --host 127.0.0.1 --port 5173
 ```
 
 ### Production Mode

@@ -692,18 +692,22 @@ dev = [
    cd backend
    python -m venv venv
    source venv/bin/activate  # or venv\Scripts\activate on Windows
-   pip install -e ".[dev]"
+   pip install -r requirements-minimal.txt
    cp .env.example .env
    # Edit .env with your configuration
    alembic upgrade head  # Create database tables
-   python -m app.main    # Run backend server
+   # Run backend server (production settings only)
+   ENVIRONMENT=production \
+   ALLOW_LOCALHOST_CORS=1 \
+   DISABLE_FILE_LOGS=1 \
+   uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
    ```
 3. Set up frontend:
    ```bash
    cd frontend
    npm install
    cp .env.example .env
-   npm run dev  # Run development server
+   npm run start:prod  # Build + serve production bundle locally
    ```
 
 ### Daily Development
@@ -1430,7 +1434,7 @@ pytest tests/test_settings.py -v
 ```bash
 cd frontend
 npm test
-npm run dev
+npm run start:prod
 # Manual: Test login at http://localhost:5173
 ```
 
@@ -1731,7 +1735,7 @@ npm run lint
 
 ### Gate 3: Manual Smoke Test
 - Start backend server
-- Start frontend dev server
+- Start frontend production preview server
 - Test the specific feature implemented in this increment
 - Document any issues found
 

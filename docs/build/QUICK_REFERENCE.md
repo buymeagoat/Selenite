@@ -234,13 +234,13 @@ pytest -v -s
 pytest --cov=app --cov-report=html
 ```
 
-### Frontend Development
+### Frontend Operations
 ```powershell
 # Install dependencies
 npm install
 
-# Run development server
-npm run dev
+# Run production preview server (build + serve)
+npm run start:prod
 
 # Run tests
 npm test
@@ -438,7 +438,7 @@ $env:TRACE='on'; npm run e2e; Remove-Item Env:TRACE
 ### Troubleshooting
 | Symptom | Likely Cause | Fix |
 | ------- | ------------ | ---- |
-| Connection refused | Dev server not started | webServer auto-start; else run `npm run dev` |
+| Connection refused | Production preview server not started | webServer auto-start; else run `npm run start:prod -- --host 127.0.0.1 --port 5173` |
 | Missing browsers in CI | Install step skipped | `npx playwright install --with-deps` |
 | getByTestId not found | Attribute mismatch | Ensure `data-testid` present |
 | Timeout after login | App still rendering | Wait for heading `Transcriptions` before actions |
@@ -459,8 +459,8 @@ steps:
 ```
 
 ### Environment Overrides
-- Set `BASE_URL` to point tests at deployed environment (staging) instead of local Vite.
-- Use `CI=true` to enable retries and non-reuse of dev server.
+- Set `BASE_URL` to point tests at deployed environment (staging) instead of local Vite preview.
+- Use `CI=true` to enable retries and non-reuse of the preview server.
 
 ### Quick Health Check Before Commit
 ```powershell

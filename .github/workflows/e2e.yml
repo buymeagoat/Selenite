@@ -11,6 +11,9 @@ jobs:
     name: Playwright Multi-Browser E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      ENVIRONMENT: production
+      ALLOW_LOCALHOST_CORS: "1"
     defaults:
       run:
         working-directory: frontend

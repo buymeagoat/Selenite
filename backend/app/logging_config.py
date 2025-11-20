@@ -2,6 +2,7 @@
 
 import logging
 import logging.config
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,47 @@ def setup_logging() -> None:
     # Create logs directory if it doesn't exist
     log_dir = Path("./logs")
     log_dir.mkdir(exist_ok=True)
+
+    # Determine handler sets based on environment
+    extra_handlers: list[str] = []
+    disable_file_handlers = settings.is_testing or (
+        os.getenv("DISABLE_FILE_LOGS", "").strip() == "1"
+    )
+    handlers: dict[str, Any] = {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG" if settings.is_development else "INFO",
+            "formatter": "detailed" if settings.is_development else "simple",
+            "stream": sys.stdout,
+        },
+    }
+
+    if not disable_file_handlers:
+        handlers.update(
+            {
+                "file": {
+                    "class": "logging.handlers.RotatingFileHandler",
+                    "level": "INFO",
+                    "formatter": "detailed",
+                    "filename": str(log_dir / "selenite.log"),
+                    "maxBytes": 10485760,  # 10MB
+                    "backupCount": 5,
+                    "encoding": "utf-8",
+                },
+                "error_file": {
+                    "class": "logging.handlers.RotatingFileHandler",
+                    "level": "ERROR",
+                    "formatter": "detailed",
+                    "filename": str(log_dir / "error.log"),
+                    "maxBytes": 10485760,  # 10MB
+                    "backupCount": 5,
+                    "encoding": "utf-8",
+                },
+            }
+        )
+        extra_handlers = ["file", "error_file"]
+
+    handler_names = ["console"] + extra_handlers
 
     # Base logging configuration
     log_config: dict[str, Any] = {
@@ -39,57 +81,32 @@ def setup_logging() -> None:
                 }
             ),
         },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "level": "DEBUG" if settings.is_development else "INFO",
-                "formatter": "detailed" if settings.is_development else "simple",
-                "stream": sys.stdout,
-            },
-            "file": {
-                "class": "logging.handlers.RotatingFileHandler",
-                "level": "INFO",
-                "formatter": "detailed",
-                "filename": str(log_dir / "selenite.log"),
-                "maxBytes": 10485760,  # 10MB
-                "backupCount": 5,
-                "encoding": "utf-8",
-            },
-            "error_file": {
-                "class": "logging.handlers.RotatingFileHandler",
-                "level": "ERROR",
-                "formatter": "detailed",
-                "filename": str(log_dir / "error.log"),
-                "maxBytes": 10485760,  # 10MB
-                "backupCount": 5,
-                "encoding": "utf-8",
-            },
-        },
+        "handlers": handlers,
         "loggers": {
             "app": {
                 "level": settings.log_level,
-                "handlers": ["console", "file", "error_file"],
+                "handlers": handler_names,
                 "propagate": False,
             },
             "uvicorn": {
                 "level": "INFO",
-                "handlers": ["console", "file"],
+                "handlers": handler_names,
                 "propagate": False,
             },
             "uvicorn.access": {
                 "level": "INFO",
-                "handlers": ["console", "file"],
+                "handlers": handler_names,
                 "propagate": False,
             },
             "sqlalchemy.engine": {
                 "level": "WARNING" if settings.is_production else "INFO",
-                "handlers": ["console", "file"],
+                "handlers": handler_names,
                 "propagate": False,
             },
         },
         "root": {
             "level": settings.log_level,
-            "handlers": ["console", "file", "error_file"],
+            "handlers": handler_names,
         },
     }
 

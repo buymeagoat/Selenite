@@ -44,6 +44,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         aria-valuenow={clampedPercent}
         aria-valuemin={0}
         aria-valuemax={100}
+        data-testid="progress-bar"
       >
         <div
           data-fill

@@ -7,6 +7,7 @@ In later increments, this can be replaced or enhanced.
 import asyncio
 from typing import Set
 
+from app.config import settings
 from app.database import AsyncSessionLocal
 from app.services.transcription import process_transcription_job
 
@@ -35,7 +36,12 @@ class TranscriptionJobQueue:
         # Graceful stop: put sentinel values
         if self._queue is not None:
             for _ in self._workers:
-                await self._queue.put(("__STOP__", False))
+                try:
+                    await self._queue.put(("__STOP__", False))
+                except RuntimeError as exc:
+                    if "Event loop is closed" in str(exc):
+                        break
+                    raise
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers.clear()
         self._started = False
@@ -46,7 +52,12 @@ class TranscriptionJobQueue:
     async def _worker(self):
         while True:
             assert self._queue is not None
-            job_id, should_fail = await self._queue.get()
+            try:
+                job_id, should_fail = await self._queue.get()
+            except RuntimeError as exc:
+                if "Event loop is closed" in str(exc):
+                    break
+                raise
             if job_id == "__STOP__":  # sentinel
                 break
             # Skip if already running (duplicate enqueue)
@@ -70,11 +81,20 @@ class TranscriptionJobQueue:
         # Avoid duplicate enqueues if already queued or running: check running set only
         if job_id in self._running_ids:
             return
-        # Ensure workers are started even if startup event didn't run (e.g., tests)
+        # Ensure workers are started even if startup event didn't run (e.g., app startup)
         if not self._started:
+            if settings.is_testing:
+                # In unit tests we let fixtures explicitly start the queue to avoid
+                # background work interfering with DB state assertions.
+                return
             await self.start()
         assert self._queue is not None
-        await self._queue.put((job_id, should_fail))
+        try:
+            await self._queue.put((job_id, should_fail))
+        except RuntimeError as exc:
+            if "Event loop is closed" in str(exc):
+                return
+            raise
 
     async def set_concurrency(self, new_value: int) -> None:
         """Dynamically adjust worker concurrency.

@@ -21,12 +21,25 @@ test.describe('Settings Page', () => {
     await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
   });
 
-  test('change password successfully', async ({ page }) => {
+  test('change password successfully (UI only, backend mocked)', async ({ page }) => {
     await page.goto('/');
     
     // Navigate to settings
     await page.getByLabel('Settings').click();
     await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
+
+    // Mock password change endpoint so we don't mutate the shared admin account.
+    await page.route('**/auth/password', async (route) => {
+      const payload = route.request().postDataJSON() as Record<string, string>;
+      expect(payload.current_password).toBeTruthy();
+      expect(payload.new_password).toBeTruthy();
+      expect(payload.confirm_password).toBe(payload.new_password);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Password changed successfully' })
+      });
+    });
     
     // Find password change section
     const currentPasswordInput = page.getByLabel(/current password/i)
@@ -51,9 +64,11 @@ test.describe('Settings Page', () => {
     await saveButton.click();
     
     // Should show success message
-    await expect(
-      page.getByText(/password.*changed|password.*updated|success/i)
-    ).toBeVisible({ timeout: 5000 });
+    const successMessage = page.getByTestId('password-success');
+    await expect(successMessage).toHaveText(/password changed successfully/i, { timeout: 5000 });
+    await expect(currentPasswordInput).toHaveValue('');
+    await expect(newPasswordInput).toHaveValue('');
+    await expect(confirmPasswordInput).toHaveValue('');
   });
 
   test('password change requires current password', async ({ page }) => {

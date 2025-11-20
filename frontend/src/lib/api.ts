@@ -4,7 +4,17 @@
  * Base fetch wrapper with authentication, error handling, and standardized responses.
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8100';
+const envApiBase = import.meta.env.VITE_API_URL?.trim();
+
+let defaultApiBase = 'http://localhost:8100';
+if (typeof window !== 'undefined') {
+  const protocol = window.location?.protocol || 'http:';
+  const hostname = window.location?.hostname || 'localhost';
+  defaultApiBase = `${protocol}//${hostname}:8100`;
+}
+
+export const API_BASE_URL =
+  envApiBase && envApiBase.length > 0 ? envApiBase : defaultApiBase;
 
 export class ApiError extends Error {
   status: number;
@@ -32,6 +42,19 @@ function getAuthToken(): string | null {
 /**
  * Base fetch wrapper with authentication and error handling
  */
+function handleUnauthorized() {
+  try {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  } catch {
+    // Ignore storage errors
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -65,6 +88,9 @@ export async function apiFetch<T>(
       }
 
       const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`;
+      if (response.status === 401) {
+        handleUnauthorized();
+      }
       throw new ApiError(errorMessage, response.status, errorData);
     }
 

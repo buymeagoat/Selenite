@@ -44,7 +44,7 @@ export const Dashboard: React.FC = () => {
   }, [showError]);
 
   // Poll for job updates (processing jobs only)
-  const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued');
+  const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'cancelling');
   
   const fetchJobUpdates = async () => {
     // Fetch latest job data from API
@@ -223,7 +223,12 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleViewTranscript = (jobId: string) => {
-    window.open(`/jobs/${jobId}/transcript`, '_blank');
+    const token = localStorage.getItem('auth_token') || '';
+    const url = new URL(window.location.origin + `/transcripts/${jobId}`);
+    if (token) {
+      url.searchParams.set('token', token);
+    }
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
   };
 
   const handleUpdateTags = async (jobId: string, tagIds: number[]) => {
@@ -275,7 +280,7 @@ export const Dashboard: React.FC = () => {
     }
     if (filters.status) {
       if (filters.status === 'in_progress') {
-        data = data.filter(j => j.status === 'queued' || j.status === 'processing');
+        data = data.filter(j => ['queued', 'processing', 'cancelling'].includes(j.status));
       } else {
         data = data.filter(j => j.status === filters.status);
       }

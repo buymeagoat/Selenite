@@ -1,18 +1,14 @@
 """Unit tests for WhisperService behavior."""
 
-import asyncio
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import engine, Base, AsyncSessionLocal
 from app.models.user import User
 from app.models.job import Job
-from app.models import user_settings as _user_settings  # ensure registry populated
-
-assert _user_settings is not None  # keep linters satisfied
+from app.models import user_settings as _user_settings  # noqa: F401
 from app.services.whisper_service import WhisperService
 from app.config import settings
 from app.utils.security import hash_password

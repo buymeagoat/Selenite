@@ -1,12 +1,10 @@
 """Integration tests for job management routes."""
 
 import io
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import select
 
 from app.main import app
 from app.database import AsyncSessionLocal, engine, Base

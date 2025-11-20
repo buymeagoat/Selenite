@@ -12,7 +12,7 @@ export interface Job {
   file_size: number;
   mime_type: string;
   duration: number;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
   progress_percent: number | null;
   progress_stage: string | null;
   estimated_time_left: number | null;
@@ -39,7 +39,7 @@ export interface JobsResponse {
 }
 
 export interface FetchJobsParams {
-  status?: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status?: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
   date_from?: string;
   date_to?: string;
   tags?: string; // Comma-separated tag IDs

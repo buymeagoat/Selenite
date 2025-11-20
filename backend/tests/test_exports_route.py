@@ -1,7 +1,6 @@
 """Tests for transcript export route."""
 
 import json
-import io
 import pytest
 from pathlib import Path
 from httpx import AsyncClient, ASGITransport

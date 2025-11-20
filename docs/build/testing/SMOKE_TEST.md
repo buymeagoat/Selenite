@@ -9,13 +9,20 @@ This document provides step-by-step instructions for manually validating the com
 ### Backend
 - Python 3.10+ installed
 - Backend dependencies installed: `pip install -r requirements-minimal.txt`
-- Backend server running: `python -m uvicorn app.main:app --reload --port 8000`
+- Backend server running in production mode:
+  ```bash
+  cd backend
+  export DISABLE_FILE_LOGS=1
+  export ENVIRONMENT=production
+  export ALLOW_LOCALHOST_CORS=1
+  uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
+  ```
 - Verify backend health: Navigate to http://localhost:8100/health
 
 ### Frontend
 - Node.js 18+ installed with npm
 - Frontend dependencies installed: `npm install`
-- Frontend dev server running: `npm run dev` (typically runs on http://localhost:5173)
+- Frontend production preview running: `npm run start:prod -- --host 127.0.0.1 --port 5173`
 - `.env` file configured with `VITE_API_URL=http://localhost:8100`
 
 ### Test Data
@@ -44,7 +51,7 @@ This document provides step-by-step instructions for manually validating the com
 - ✅ No console errors
 
 **Troubleshooting:**
-- If 404 error: Check frontend dev server is running
+- If 404 error: Ensure the frontend production preview server (`npm run start:prod`) is running
 - If 401 error: Verify backend is running and credentials are correct
 - If CORS error: Check backend CORS settings in `app/config.py`
 
@@ -232,11 +239,11 @@ This document provides step-by-step instructions for manually validating the com
 
 ### Backend Not Running
 **Symptoms:** Connection refused, 404 errors on API calls  
-**Solution:** Start backend with `python -m uvicorn app.main:app --reload --port 8000`
+**Solution:** Start backend with `ENVIRONMENT=production uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app`
 
 ### Frontend Not Running
 **Symptoms:** Cannot access http://localhost:5173  
-**Solution:** Start frontend with `npm run dev` in frontend directory
+**Solution:** Start frontend with `npm run start:prod -- --host 127.0.0.1 --port 5173` in the frontend directory
 
 ### CORS Errors
 **Symptoms:** Console shows CORS policy errors  

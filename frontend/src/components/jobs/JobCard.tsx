@@ -5,7 +5,7 @@ import { ProgressBar } from './ProgressBar';
 interface Job {
   id: string;
   original_filename: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
   created_at: string;
   duration?: number;
   progress_percent?: number | null;
@@ -65,7 +65,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
       </div>
 
       {/* Progress Bar for Processing */}
-      {job.status === 'processing' && job.progress_percent != null && (
+      {['processing', 'cancelling'].includes(job.status) && job.progress_percent != null && (
         <div className="mb-3">
           <ProgressBar
             percent={job.progress_percent}

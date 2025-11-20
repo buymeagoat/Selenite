@@ -91,12 +91,12 @@
 **Browser**: Firefox only  
 **Issue**: `NS_ERROR_CONNECTION_REFUSED` when navigating to `http://localhost:5173/`  
 **Occurrence**: Mid-test suite (after other tests passed)  
-**Root Cause**: Vite dev server intermittent shutdown or Firefox-specific connection handling
+**Root Cause**: Vite production preview server intermittent shutdown or Firefox-specific connection handling
 
 **Fix Required**:
 - Increase webServer timeout or add retry logic for Firefox
 - Consider browser-specific navigation timeout
-- Monitor for Vite dev server stability during long test runs
+- Monitor for the preview server’s stability during long test runs
 
 #### 3. Skipped Tests
 **Test**: `transcription.spec.ts:57:3 › job progresses through stages with progress updates`

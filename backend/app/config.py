@@ -36,7 +36,13 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8100
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    allow_localhost_cors: bool = False
+    cors_origins: str = (
+        "http://localhost:5173,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:5173,"
+        "http://127.0.0.1:3000"
+    )
 
     # Logging
     log_level: str = "INFO"
@@ -61,7 +67,9 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         """Check if running in testing environment."""
-        return self.environment == "testing"
+        env_var = os.getenv("ENVIRONMENT", "").lower() == "testing"
+        pytest_flag = bool(os.getenv("PYTEST_CURRENT_TEST"))
+        return self.environment == "testing" or env_var or pytest_flag
 
     @field_validator("secret_key")
     @classmethod
@@ -86,7 +94,12 @@ class Settings(BaseSettings):
     def validate_cors_origins(cls, v: str, info) -> str:
         """Validate CORS origins are properly configured in production."""
         env = info.data.get("environment", "development")
-        if env == "production" and ("localhost" in v.lower() or "127.0.0.1" in v):
+        allow_local = info.data.get("allow_localhost_cors", False)
+        if (
+            env == "production"
+            and not allow_local
+            and ("localhost" in v.lower() or "127.0.0.1" in v)
+        ):
             raise ValueError(
                 "CORS_ORIGINS should not include localhost in production. "
                 "Configure production frontend URLs."

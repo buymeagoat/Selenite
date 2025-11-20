@@ -6,12 +6,12 @@ React 18 + Vite + TypeScript frontend for Selenite transcription application.
 
 ```bash
 npm install
-npm run dev
+npm run start:prod
 ```
 
 ## Available Scripts
 
-- `npm run dev` - Start development server
+- `npm run start:prod` - Build and serve the production bundle on http://127.0.0.1:5173
 - `npm run build` - Build for production  
 - `npm test` - Run tests with Vitest
 - `npm run test:watch` - Run tests in watch mode
@@ -50,4 +50,3 @@ src/
 ├── router.tsx
 └── index.css
 ```
-

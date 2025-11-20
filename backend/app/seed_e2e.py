@@ -21,6 +21,9 @@ from sqlalchemy import select, delete
 async def clear_test_data():
     """Clear existing test data (except admin user)."""
     print("Clearing existing test data...")
+    async with engine.begin() as conn:
+        # Ensure tables exist even on a fresh workspace so deletes don't fail
+        await conn.run_sync(Base.metadata.create_all)
     async with AsyncSessionLocal() as db:
         # Delete jobs (cascades to transcripts and job_tags)
         await db.execute(delete(Job))

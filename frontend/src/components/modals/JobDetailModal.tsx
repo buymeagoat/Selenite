@@ -43,9 +43,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
   // UI Logic: Determine what actions are available based on job status
   const hasTranscript = job.status === 'completed';
-  const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
-  const canDelete = !['processing'].includes(job.status);
-  const canStop = job.status === 'processing';
+const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
+const canDelete = !['processing', 'cancelling'].includes(job.status);
+const canStop = job.status === 'processing' || job.status === 'queued';
   const hasMedia = true; // Media always exists if job was created
 
   const formatFileSize = (bytes: number): string => {
@@ -135,8 +135,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
           {/* Content */}
           <div className="p-6">
-            {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-4 mb-6" data-testid="job-metadata">
+          {/* Metadata Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-6" data-testid="job-metadata">
               <div>
                 <div className="text-sm text-pine-mid">Duration</div>
                 <div className="text-base font-medium text-pine-deep">
@@ -225,6 +225,12 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 )}
               </div>
             </div>
+
+            {job.status === 'cancelling' && (
+              <p className="text-xs text-amber-700 mb-4">
+                Cancellation requested. This job will stop once the current step finishes.
+              </p>
+            )}
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="job-actions">

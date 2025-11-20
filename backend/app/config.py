@@ -9,6 +9,9 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -71,6 +74,19 @@ class Settings(BaseSettings):
         pytest_flag = bool(os.getenv("PYTEST_CURRENT_TEST"))
         return self.environment == "testing" or env_var or pytest_flag
 
+    @model_validator(mode="before")
+    @classmethod
+    def auto_allow_localhost(cls, values: dict) -> dict:
+        """Automatically enable localhost CORS when binding to loopback hosts in production."""
+        env = (values.get("environment") or "development").lower()
+        host = (values.get("host") or "").lower()
+        allow_local = values.get("allow_localhost_cors", False)
+
+        host_is_loopback = host in LOOPBACK_HOSTS or host.startswith("127.")
+        if env == "production" and not allow_local and host_is_loopback:
+            values["allow_localhost_cors"] = True
+        return values
+
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v: str, info) -> str:
@@ -95,9 +111,12 @@ class Settings(BaseSettings):
         """Validate CORS origins are properly configured in production."""
         env = info.data.get("environment", "development")
         allow_local = info.data.get("allow_localhost_cors", False)
+        host = info.data.get("host", "").lower()
+        host_is_loopback = host in LOOPBACK_HOSTS or host.startswith("127.")
         if (
             env == "production"
             and not allow_local
+            and not host_is_loopback
             and ("localhost" in v.lower() or "127.0.0.1" in v)
         ):
             raise ValueError(

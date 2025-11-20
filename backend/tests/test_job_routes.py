@@ -1,13 +1,17 @@
 """Integration tests for job management routes."""
 
 import io
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 
 from app.main import app
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
+from app.models.job import Job
 from app.utils.security import create_access_token, hash_password
 
 
@@ -78,17 +82,36 @@ class TestCreateJob:
 
     # Rate limit test removed as requested. Invalid file format test no longer asserts rate limit errors.
 
-    # Removed test_create_job_missing_file to avoid rate limit errors in tests.
+    async def test_create_job_invalid_format(self, test_db, auth_headers):
+        """Uploading an unsupported file extension should fail."""
+        file_content = b"not audio"
+        files = {"file": ("bad.txt", io.BytesIO(file_content), "text/plain")}
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/jobs", files=files, headers=auth_headers)
+        assert response.status_code == 400
+        assert "file type" in response.json()["detail"]
 
-    # Removed test_create_job_no_authentication to avoid rate limit errors in tests.
+    async def test_create_job_without_auth(self, test_db):
+        """Request must include auth header."""
+        file_content = b"fake audio content"
+        files = {"file": ("test.mp3", io.BytesIO(file_content), "audio/mpeg")}
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/jobs", files=files)
+        assert response.status_code in {401, 403}
 
-    # Removed test_create_job_invalid_token to avoid rate limit errors in tests.
-
-    # Removed test_create_job_default_values to avoid rate limit errors in tests.
-
-    # Removed test_create_job_with_video_file to avoid rate limit errors in tests.
-
-    # Removed test_create_job_options to avoid rate limit errors in tests.
+    async def test_create_job_default_values(self, test_db, auth_headers):
+        """Omitting optional form fields should fall back to defaults."""
+        file_content = b"fake audio content"
+        files = {"file": ("default.mp3", io.BytesIO(file_content), "audio/mpeg")}
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/jobs", files=files, headers=auth_headers)
+        assert response.status_code == 201
+        data = response.json()
+        assert data["original_filename"] == "default.mp3"
+        assert data["status"] == "queued"
 
 
 @pytest.mark.asyncio
@@ -107,8 +130,6 @@ class TestListJobs:
         assert json_data["limit"] == 50
         assert json_data["offset"] == 0
         assert json_data["items"] == []
-
-    # Removed test_list_jobs_with_data to avoid rate limit errors in tests.
 
     async def test_list_jobs_filter_by_status(self, test_db, auth_headers):
         """Test filtering jobs by status."""
@@ -138,6 +159,24 @@ class TestListJobs:
             response = await client.get("/jobs")
 
         assert response.status_code == 403
+
+    async def test_list_jobs_with_data(self, test_db, auth_headers):
+        """List endpoint returns created jobs with pagination metadata."""
+        file_content = b"fake audio content"
+        files = {"file": ("a.mp3", io.BytesIO(file_content), "audio/mpeg")}
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post("/jobs", files=files, headers=auth_headers)
+            await client.post(
+                "/jobs",
+                files={"file": ("b.mp3", io.BytesIO(file_content), "audio/mpeg")},
+                headers=auth_headers,
+            )
+            response = await client.get("/jobs?limit=10&offset=0", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
 
 @pytest.mark.asyncio
@@ -210,3 +249,83 @@ class TestGetJob:
             response = await client.get(f"/jobs/{job_id}")
 
         assert response.status_code == 403
+
+
+async def _create_job_via_api(auth_headers: dict, filename: str = "test.mp3") -> str:
+    """Helper to create a job through the API and return its ID."""
+    file_content = b"fake audio content"
+    files = {"file": (filename, io.BytesIO(file_content), "audio/mpeg")}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/jobs", files=files, headers=auth_headers)
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+async def _update_job(job_id: str, **fields):
+    async with AsyncSessionLocal() as session:
+        job = await session.get(Job, job_id)
+        for key, value in fields.items():
+            setattr(job, key, value)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+class TestJobLifecycleActions:
+    async def test_restart_completed_job_creates_new_job(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(
+            job_id,
+            status="completed",
+            completed_at=None,
+            file_size=1234,
+            file_path="/tmp/test.mp3",
+            model_used="base",
+        )
+        with patch("app.routes.jobs.queue.enqueue", new=AsyncMock()) as mock_enqueue:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(f"/jobs/{job_id}/restart", headers=auth_headers)
+        assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == "queued"
+        mock_enqueue.assert_awaited_once()
+
+    async def test_restart_active_job_rejected(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(job_id, status="processing")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(f"/jobs/{job_id}/restart", headers=auth_headers)
+        assert response.status_code == 400
+        assert "Cannot restart an active job" in response.json()["detail"]
+
+    async def test_delete_processing_job_forbidden(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(job_id, status="processing")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.delete(f"/jobs/{job_id}", headers=auth_headers)
+        assert response.status_code == 400
+        assert "Cancel it first" in response.json()["detail"]
+
+    async def test_delete_completed_job_removes_files(self, tmp_path, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        media_path = tmp_path / "media.mp3"
+        media_path.write_bytes(b"content")
+        transcript_path = tmp_path / "transcript.txt"
+        transcript_path.write_text("hello", encoding="utf-8")
+        await _update_job(
+            job_id,
+            status="completed",
+            file_path=str(media_path),
+            transcript_path=str(transcript_path),
+            model_used="base",
+            mime_type="audio/mpeg",
+        )
+        assert media_path.exists()
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.delete(f"/jobs/{job_id}", headers=auth_headers)
+        assert response.status_code == 204
+        assert not media_path.exists()

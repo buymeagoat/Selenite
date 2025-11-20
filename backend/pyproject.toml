@@ -47,3 +47,11 @@ target-version = "py311"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/seed.py",
+    "app/seed_e2e.py",
+    "app/migrations_utils.py"
+]

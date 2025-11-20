@@ -27,14 +27,22 @@ async def test_db():
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
-        # Create test user
-        test_user = User(
-            id=1,
-            username="admin",
-            email="admin@example.com",
-            hashed_password=hash_password("changeme"),
-        )
-        session.add(test_user)
+        # Create test users
+        users = [
+            User(
+                id=1,
+                username="admin",
+                email="admin@example.com",
+                hashed_password=hash_password("changeme"),
+            ),
+            User(
+                id=2,
+                username="other",
+                email="other@example.com",
+                hashed_password=hash_password("changeme"),
+            ),
+        ]
+        session.add_all(users)
         await session.commit()
 
     # Ensure clean worker state per test: stop then start to bind to current loop
@@ -69,6 +77,12 @@ async def auth_headers():
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture
+async def other_auth_headers():
+    token = create_access_token(data={"user_id": 2, "username": "other"})
+    return {"Authorization": f"Bearer {token}"}
+
+
 async def wait_for_status(job_id: str, target_status: str, timeout: float = 6.0):
     deadline = asyncio.get_event_loop().time() + timeout
     while True:
@@ -80,6 +94,25 @@ async def wait_for_status(job_id: str, target_status: str, timeout: float = 6.0)
         if asyncio.get_event_loop().time() > deadline:
             raise AssertionError(f"Timeout waiting for status {target_status}")
         await asyncio.sleep(0.05)
+
+
+async def create_manual_job(job_id: str, user_id: int, status: str):
+    async with AsyncSessionLocal() as session:
+        job = Job(
+            id=job_id,
+            user_id=user_id,
+            original_filename="manual.mp3",
+            saved_filename="manual.mp3",
+            file_path="/tmp/manual.mp3",
+            file_size=100,
+            mime_type="audio/mpeg",
+            status=status,
+            progress_percent=0,
+            has_timestamps=True,
+            has_speaker_labels=False,
+        )
+        session.add(job)
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -144,3 +177,36 @@ class TestTranscriptRoutes:
             )
             assert bad.status_code == 400
             assert "Invalid format" in bad.json()["detail"]
+
+    async def test_get_transcript_not_completed(self, test_db, auth_headers):
+        manual_id = "11111111-1111-1111-1111-111111111111"
+        await create_manual_job(manual_id, user_id=1, status="processing")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(f"/transcripts/{manual_id}", headers=auth_headers)
+        assert resp.status_code == 404
+
+    async def test_get_transcript_missing_job(self, test_db, auth_headers):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/transcripts/00000000-0000-0000-0000-000000000000", headers=auth_headers
+            )
+        assert resp.status_code == 404
+
+    async def test_export_transcript_requires_ownership(
+        self, test_db, auth_headers, other_auth_headers
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            files = {"file": ("lecture.mp4", io.BytesIO(b"fake video"), "video/mp4")}
+            resp = await client.post("/jobs", files=files, headers=auth_headers)
+            job_id = resp.json()["id"]
+            await queue.enqueue(job_id)
+            await wait_for_status(job_id, "completed", timeout=6.0)
+            unauthorized = await client.get(
+                f"/transcripts/{job_id}/export",
+                params={"format": "txt"},
+                headers=other_auth_headers,
+            )
+            assert unauthorized.status_code == 404

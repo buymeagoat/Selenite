@@ -35,6 +35,11 @@ jobs:
           pip install -r requirements-minimal.txt
           pip install pytest-cov black ruff
 
+      - name: Apply migrations and seed database
+        run: |
+          python -m alembic upgrade head
+          python -m app.seed
+
       - name: Run tests with pytest
         run: pytest -v --tb=short --cov=app --cov-report=term-missing
 

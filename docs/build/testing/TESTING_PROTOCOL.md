@@ -14,6 +14,8 @@ Use this checklist whenever another LLM (or developer) needs to exercise Selenit
    ```bash
    cd backend
    pip install -r requirements-minimal.txt
+   python -m alembic upgrade head
+   python -m app.seed
    ```
    > Tip: The requirements file already pins `aiosqlite`, `pytest-asyncio`, etc. No extra flags necessary.
 
@@ -76,9 +78,15 @@ Latest CI summary and known flaky tests live in `docs/build/testing/E2E_TEST_REP
 
 ---
 
-## 4. Smoke Test (Manual)
+## 4. Smoke Test (Manual + automated check)
 
-When a human run-through is required, follow `docs/build/testing/SMOKE_TEST.md`. It covers login → upload → monitor → download.
+Before any hands-on validation, run the backend smoke test to ensure `/health` and `/auth/login` behave correctly (this waits for readiness and uses the seed `admin/changeme` account):
+
+```bash
+python scripts/smoke_test.py --base-url http://127.0.0.1:8100
+```
+
+Once that succeeds, follow `docs/build/testing/SMOKE_TEST.md` for the interactive flow (login → upload → monitor → download).
 
 ---
 

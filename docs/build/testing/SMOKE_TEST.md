@@ -9,6 +9,12 @@ This document provides step-by-step instructions for manually validating the com
 ### Backend
 - Python 3.10+ installed
 - Backend dependencies installed: `pip install -r requirements-minimal.txt`
+- Database migrated and seeded:
+  ```bash
+  cd backend
+  python -m alembic upgrade head
+  python -m app.seed
+  ```
 - Backend server running in production mode:
   ```bash
   cd backend
@@ -18,6 +24,10 @@ This document provides step-by-step instructions for manually validating the com
   uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
   ```
 - Verify backend health: Navigate to http://localhost:8100/health
+- Automated smoke test (optional but recommended):
+  ```bash
+  python scripts/smoke_test.py --base-url http://127.0.0.1:8100
+  ```
 
 ### Frontend
 - Node.js 18+ installed with npm

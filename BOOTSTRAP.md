@@ -58,6 +58,16 @@ You should see `Uvicorn running on http://127.0.0.1:8100`.
 - *PermissionError on `selenite.log`*: delete `backend\logs\selenite.log` (if present) and retry with `DISABLE_FILE_LOGS=1`.
 - *Port already in use*: `netstat -ano | findstr 8100`, then `Stop-Process -Id <PID> -Force`.
 
+### Automated smoke test
+After the backend window reports it is up, run the built-in backend smoke test to ensure `/health` and `/auth/login` behave correctly (this waits for readiness automatically):
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe ..\scripts\smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
+```
+
+The script will exit with a non-zero status if the API is unhealthy or the `admin/changeme` seed account fails to log in.
+
 ---
 
 ## 2. Frontend production server

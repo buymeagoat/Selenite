@@ -91,6 +91,13 @@ npm run start:prod
     Write-Host "Frontend starting on http://127.0.0.1:5173 (check new window)." -ForegroundColor Green
 }
 
+Invoke-Step "Verify backend via smoke test" {
+    Set-Location $Root
+    $pythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
+    $smokeScript = Join-Path $Root 'scripts\smoke_test.py'
+    & $pythonExe $smokeScript --base-url http://127.0.0.1:8100 --health-timeout 90
+}
+
 Write-Section "All done"
 Write-Host "Backend and frontend processes have been launched in separate PowerShell windows."
 Write-Host "If either window reports an error, resolve it before proceeding." -ForegroundColor Yellow

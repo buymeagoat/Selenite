@@ -235,6 +235,8 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-minimal.txt
+python -m alembic upgrade head
+python -m app.seed
 export DISABLE_FILE_LOGS=1
 export ENVIRONMENT=production
 export ALLOW_LOCALHOST_CORS=1
@@ -244,6 +246,9 @@ uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 cd frontend
 npm install
 npm run start:prod -- --host 127.0.0.1 --port 5173
+
+# Smoke test from repo root to verify backend readiness
+python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
 ```
 
 ### Production Mode

@@ -204,31 +204,30 @@ WIP
 
 ## Common Commands
 
-### Backend Development
+### Backend Operations
 ```powershell
 # Activate virtual environment (Windows)
 & .venv\Scripts\Activate.ps1
 
-# Install dependencies
-pip install -e ".[dev]"
+# Install dependencies and prep database
+pip install -r requirements-minimal.txt
+python -m alembic upgrade head
+python -m app.seed
 
-# Run migrations
-alembic upgrade head
+# Smoke test (ensure /health and /auth/login succeed)
+python ..\scripts\smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
 
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Run backend server
-python -m app.main
+# Run backend server (production configuration)
+$env:DISABLE_FILE_LOGS = '1'
+$env:ENVIRONMENT = 'production'
+$env:ALLOW_LOCALHOST_CORS = '1'
+uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 
 # Run specific test file
 pytest tests/test_auth.py -v
 
 # Run specific test
 pytest tests/test_auth.py::test_login_success -v
-
-# Run tests with output
-pytest -v -s
 
 # Generate coverage report
 pytest --cov=app --cov-report=html
@@ -296,7 +295,7 @@ alembic upgrade head
 ```powershell
 # Solution: Ensure virtual environment is activated and dependencies installed
 & .venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+pip install -r requirements-minimal.txt
 ```
 
 **Issue**: Alembic migration fails
@@ -308,8 +307,10 @@ alembic upgrade head
 
 **Issue**: Tests fail with import errors
 ```powershell
-# Solution: Install package in editable mode
-pip install -e .
+# Solution: Reinstall dependencies and rerun migrations/seed
+pip install -r requirements-minimal.txt
+python -m alembic upgrade head
+python -m app.seed
 ```
 
 ### Frontend Issues

@@ -40,6 +40,13 @@ jobs:
           python -m alembic upgrade head
           python -m app.seed
 
+      - name: Backend smoke test
+        run: |
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app >/tmp/uvicorn.log 2>&1 &
+          UV_PID=$!
+          python ../scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
+          kill $UV_PID
+
       - name: Run tests with pytest
         run: pytest -v --tb=short --cov=app --cov-report=term-missing
 

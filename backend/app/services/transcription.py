@@ -8,6 +8,7 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.logging_config import get_logger
 from app.models.job import Job
 from app.services.whisper_service import whisper_service
 
@@ -25,7 +26,9 @@ async def process_transcription_job(
 
     Delegates to WhisperService for actual transcription processing.
     """
+    logger = get_logger(__name__)
     if should_fail:
+        logger.warning("Simulating failure for job %s", job_id)
         # Simulate failure for testing
         result = await db.execute(select(Job).where(Job.id == job_id))
         job = result.scalar_one_or_none()
@@ -36,7 +39,9 @@ async def process_transcription_job(
         return
 
     # Use real Whisper service for transcription
+    logger.info("Processing transcription job %s", job_id)
     await whisper_service.process_job(job_id, db)
+    logger.info("Completed transcription job %s", job_id)
 
 
 def start_transcription_job_async(job_id: str, db: AsyncSession) -> None:
@@ -50,8 +55,11 @@ def start_transcription_job_async(job_id: str, db: AsyncSession) -> None:
     Note: Prefer using the job_queue service. This legacy
     helper may be removed in a future increment.
     """
+    logger = get_logger(__name__)
     loop = asyncio.get_event_loop()
     if loop.is_running():
+        logger.debug("Scheduling background transcription for job %s", job_id)
         asyncio.create_task(process_transcription_job(job_id, db))
     else:
+        logger.debug("Executing transcription synchronously for job %s", job_id)
         loop.run_until_complete(process_transcription_job(job_id, db))

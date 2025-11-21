@@ -9,6 +9,7 @@ from typing import Set
 
 from app.config import settings
 from app.database import AsyncSessionLocal
+from app.logging_config import get_logger
 from app.services.transcription import process_transcription_job
 
 
@@ -21,6 +22,7 @@ class TranscriptionJobQueue:
         self._concurrency = concurrency
         self._started = False
         self._slot_lock: asyncio.Semaphore | None = None
+        self._logger = get_logger(__name__)
 
     async def start(self):
         if self._started:
@@ -30,7 +32,9 @@ class TranscriptionJobQueue:
         self._queue = asyncio.Queue()
         self._slot_lock = asyncio.Semaphore(self._concurrency)
         for _ in range(self._concurrency):
-            self._workers.append(asyncio.create_task(self._worker()))
+            task = asyncio.create_task(self._worker())
+            self._workers.append(task)
+        self._logger.info("Job queue started with %s workers", self._concurrency)
 
     async def stop(self):
         # Graceful stop: put sentinel values
@@ -48,6 +52,7 @@ class TranscriptionJobQueue:
         # Drop the queue so a new one will be created on next start()
         self._queue = None
         self._slot_lock = None
+        self._logger.info("Job queue stopped")
 
     async def _worker(self):
         while True:
@@ -67,6 +72,7 @@ class TranscriptionJobQueue:
             self._running_ids.add(job_id)
             assert self._slot_lock is not None
             try:
+                self._logger.debug("Worker picked job %s (should_fail=%s)", job_id, should_fail)
                 async with self._slot_lock:
                     async with AsyncSessionLocal() as db:
                         await process_transcription_job(job_id, db, should_fail=should_fail)
@@ -76,10 +82,12 @@ class TranscriptionJobQueue:
             finally:
                 self._running_ids.discard(job_id)
                 self._queue.task_done()
+                self._logger.debug("Worker finished job %s", job_id)
 
     async def enqueue(self, job_id: str, *, should_fail: bool = False) -> None:
         # Avoid duplicate enqueues if already queued or running: check running set only
         if job_id in self._running_ids:
+            self._logger.debug("Job %s already running; skipping enqueue", job_id)
             return
         # Ensure workers are started even if startup event didn't run (e.g., app startup)
         if not self._started:
@@ -91,6 +99,7 @@ class TranscriptionJobQueue:
         assert self._queue is not None
         try:
             await self._queue.put((job_id, should_fail))
+            self._logger.info("Queued job %s (should_fail=%s)", job_id, should_fail)
         except RuntimeError as exc:
             if "Event loop is closed" in str(exc):
                 return
@@ -106,6 +115,7 @@ class TranscriptionJobQueue:
             raise ValueError("Concurrency must be >= 1")
         if new_value == self._concurrency:
             return
+        self._logger.info("Changing concurrency from %s to %s", self._concurrency, new_value)
         # In test contexts the event loop may already be closing; be defensive.
         try:
             await self.stop()

@@ -247,6 +247,14 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 **Current Status**: ✅ Completed – previously low coverage modules now ≥98%  
 **Priority**: MEDIUM – addressed in Nov 21, 2025 run
 
+### Logging Enhancements (New)
+- [x] Job queue instrumentation – add `app.services.job_queue` logger statements for enqueue/worker lifecycle *(Nov 21, 2025)*
+- [x] Transcription service instrumentation – log start/finish/error paths in `app.services.transcription` *(Nov 21, 2025)*
+- [ ] Route-level tracing for critical actions (job create/delete, settings update) *(Future Enhancements)*
+
+**Current Status**: ✅ Core services instrumented; remaining route-level tracing deferred to future cleanup  
+**Priority**: MEDIUM – improves troubleshooting and production telemetry
+
 ---
 
 ## 🚀 Future Enhancements (Post-MVP)

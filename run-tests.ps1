@@ -51,6 +51,22 @@ function Get-BackendPythonPath {
 
 $script:BackendPython = Get-BackendPythonPath
 
+$MemorialRoot = Join-Path $RepoRoot "docs/memorialization/test-runs"
+if (-not (Test-Path $MemorialRoot)) {
+    New-Item -ItemType Directory -Force -Path $MemorialRoot | Out-Null
+}
+$runParts = @()
+if (-not $SkipBackend) { $runParts += "backend" }
+if (-not $SkipFrontend) { $runParts += "frontend" }
+if (-not $SkipE2E) { $runParts += "e2e" }
+if ($runParts.Count -eq 0) { $runParts += "notes" }
+$RunStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$RunDirName = "$RunStamp-" + ($runParts -join "+")
+$RunDir = Join-Path $MemorialRoot $RunDirName
+New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
+$TranscriptPath = Join-Path $RunDir "run-tests.log"
+Start-Transcript -Path $TranscriptPath | Out-Null
+
 function Write-Section {
     param([string]$Message)
     Write-Host "`n=== $Message ===" -ForegroundColor Cyan
@@ -144,25 +160,56 @@ function Run-E2E {
 }
 
 # --- Main execution ---
+try {
+    if (-not $SkipBackend) {
+        Ensure-BackendEnv -Force:$ForceBackendInstall
+        Run-BackendTests
+    } else {
+        Write-Host "Skipping backend tests (-SkipBackend set)." -ForegroundColor Yellow
+    }
 
-if (-not $SkipBackend) {
-    Ensure-BackendEnv -Force:$ForceBackendInstall
-    Run-BackendTests
-} else {
-    Write-Host "Skipping backend tests (-SkipBackend set)." -ForegroundColor Yellow
+    if (-not $SkipFrontend) {
+        Ensure-FrontendDeps -Force:$ForceFrontendInstall
+        Run-FrontendTests
+    } else {
+        Write-Host "Skipping frontend tests (-SkipFrontend set)." -ForegroundColor Yellow
+    }
+
+    if (-not $SkipE2E) {
+        Run-E2E
+    } else {
+        Write-Host "Skipping Playwright E2E (-SkipE2E set)." -ForegroundColor Yellow
+    }
+
+    Write-Section "All requested test suites completed"
 }
+finally {
+    try { Stop-Transcript | Out-Null } catch {}
 
-if (-not $SkipFrontend) {
-    Ensure-FrontendDeps -Force:$ForceFrontendInstall
-    Run-FrontendTests
-} else {
-    Write-Host "Skipping frontend tests (-SkipFrontend set)." -ForegroundColor Yellow
+    if (-not $SkipBackend) {
+        $backendCov = Join-Path $BackendDir ".coverage"
+        if (Test-Path $backendCov) {
+            Copy-Item $backendCov (Join-Path $RunDir "backend.coverage") -Force
+        }
+    }
+
+    if (-not $SkipFrontend) {
+        $frontendSummary = Join-Path $FrontendDir "coverage/coverage-summary.json"
+        if (Test-Path $frontendSummary) {
+            Copy-Item $frontendSummary (Join-Path $RunDir "frontend-coverage-summary.json") -Force
+        }
+    }
+
+    if (-not $SkipE2E) {
+        $playwrightReport = Join-Path $FrontendDir "playwright-report"
+        if (Test-Path $playwrightReport) {
+            $dest = Join-Path $RunDir "playwright-report"
+            Copy-Item $playwrightReport $dest -Recurse -Force
+        }
+        $playwrightResults = Join-Path $FrontendDir "test-results"
+        if (Test-Path $playwrightResults) {
+            $destResults = Join-Path $RunDir "playwright-test-results"
+            Copy-Item $playwrightResults $destResults -Recurse -Force
+        }
+    }
 }
-
-if (-not $SkipE2E) {
-    Run-E2E
-} else {
-    Write-Host "Skipping Playwright E2E (-SkipE2E set)." -ForegroundColor Yellow
-}
-
-Write-Section "All requested test suites completed"

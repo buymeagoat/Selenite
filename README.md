@@ -115,6 +115,8 @@ This script installs backend/frontend dependencies if needed, executes `pytest -
 - `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` – Skip portions of the suite.
 - `-ForceBackendInstall`, `-ForceFrontendInstall` – Reinstall dependencies even if `.venv` / `node_modules` already exist.
 
+Every invocation writes a timestamped log and copies coverage/Playwright artifacts into `docs/memorialization/test-runs/<run-id>` (gitignored). If you run tests manually (e.g., `npm run e2e:full`), copy the outputs into that folder so the historical record stays complete.
+
 On Linux/macOS use PowerShell Core: `pwsh ./run-tests.ps1 [-SkipE2E ...]`.
 
 ## 📖 Documentation

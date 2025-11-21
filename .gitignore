@@ -41,6 +41,8 @@ wheels/
 htmlcov/
 .tox/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 
 # IDEs
 .vscode/

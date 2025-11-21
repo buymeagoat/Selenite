@@ -11,8 +11,9 @@
 ## ⚖️ Process Directives
 1. **This document is the canonical backlog.** No engineering work (code, docs, automation, testing) happens unless a task exists here first.
 2. **Memorialize every change.** Before starting new work, add/confirm an entry (with owner/date/status). After finishing, update the item with a concise summary and check it off.
-3. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task’s description so future readers can reconstruct the history.
-4. **Future-scope items stay parked.** Anything marked “Moved to Future Enhancements” remains untouched until re-prioritized here.
+3. **Archive all test outputs.** Every time automated or manual tests run, drop the resulting logs/artifacts under `docs/memorialization/test-runs/<timestamp>-<suite>` (use `run-tests.ps1`, or copy artifacts manually if you run ad-hoc commands). This folder is gitignored and serves as the historical log.
+4. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task’s description so future readers can reconstruct the history.
+5. **Future-scope items stay parked.** Anything marked “Moved to Future Enhancements” remains untouched until re-prioritized here.
 
 Compliance with these directives is mandatory for humans and AI collaborators alike.
 

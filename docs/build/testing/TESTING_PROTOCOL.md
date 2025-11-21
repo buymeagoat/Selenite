@@ -16,6 +16,7 @@ This script mirrors the sections below:
 - Ensures the backend virtualenv exists (creating it and installing requirements if necessary) and runs `pytest --maxfail=1 --disable-warnings --cov=app`.
 - Ensures frontend dependencies are installed, then runs `npm run test:coverage` followed by `npm run coverage:summary`.
 - Executes the Playwright “full” suite via `npm run e2e:full` (which launches the production backend/frontend harness automatically).
+- Captures the entire console transcript and copies coverage/Playwright artifacts into `docs/memorialization/test-runs/<timestamp>-<suites>` (gitignored) for the memorialization log.
 
 Optional switches:
 
@@ -24,7 +25,7 @@ Optional switches:
 | `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` | Skip that portion of the suite (e.g., `.\run-tests.ps1 -SkipE2E`). |
 | `-ForceBackendInstall`, `-ForceFrontendInstall` | Reinstall dependencies even if `.venv` / `node_modules` already exist. |
 
-Use this script for AI workflows so they don’t need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required.
+Use this script for AI workflows so they don’t need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required. If you run tests manually (e.g., `npm run e2e:full` by itself), copy the resulting logs/coverage/Playwright report into `docs/memorialization/test-runs/<timestamp>-manual` to keep the historical record complete.
 
 ---
 

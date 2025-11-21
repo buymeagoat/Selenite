@@ -4,6 +4,7 @@ import logging
 import logging.config
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,13 +33,16 @@ def setup_logging() -> None:
     }
 
     if not disable_file_handlers:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        info_log = log_dir / f"selenite-{timestamp}.log"
+        error_log = log_dir / f"error-{timestamp}.log"
         handlers.update(
             {
                 "file": {
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "INFO",
                     "formatter": "detailed",
-                    "filename": str(log_dir / "selenite.log"),
+                    "filename": str(info_log),
                     "maxBytes": 10485760,  # 10MB
                     "backupCount": 5,
                     "encoding": "utf-8",
@@ -47,7 +51,7 @@ def setup_logging() -> None:
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "ERROR",
                     "formatter": "detailed",
-                    "filename": str(log_dir / "error.log"),
+                    "filename": str(error_log),
                     "maxBytes": 10485760,  # 10MB
                     "backupCount": 5,
                     "encoding": "utf-8",

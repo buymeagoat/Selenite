@@ -275,11 +275,15 @@ PORT=8000
 CORS_ORIGINS=http://localhost:5173
 
 # Logging
+Selenite writes structured logs to the `logs/` directory. Every backend start creates fresh files named `selenite-YYYYMMDD-HHMMSS.log` and `error-YYYYMMDD-HHMMSS.log`, so historical runs remain available for troubleshooting. Log rotation (10 MB, 5 backups per file) still applies, but files are never overwritten—do not delete them unless you are explicitly archiving old runs.
+
+```bash
 LOG_LEVEL=INFO
 ```
 
-## 🛠️ Development
+To disable file logging temporarily (e.g., when running locally on Windows), set `DISABLE_FILE_LOGS=1` before launching the backend; otherwise leave it unset so logs are retained.
 
+## 🛠️ Development
 ### Backend Development
 
 ```bash

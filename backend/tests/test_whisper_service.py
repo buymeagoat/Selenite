@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from uuid import uuid4
+import sys
+import types
 
 import pytest
 
@@ -9,6 +11,7 @@ from app.database import engine, Base, AsyncSessionLocal
 from app.models.user import User
 from app.models.job import Job
 from app.models import user_settings as _user_settings  # noqa: F401
+from app.services import whisper_service as whisper_module
 from app.services.whisper_service import WhisperService
 from app.config import settings
 from app.utils.security import hash_password
@@ -160,3 +163,103 @@ async def test_process_job_failure_sets_error(monkeypatch, tmp_path, test_db):
     job = await get_job(job_id)
     assert job.status == "failed"
     assert job.error_message == "boom"
+
+
+@pytest.mark.anyio
+async def test_process_job_missing_job_noop(test_db):
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    async with AsyncSessionLocal() as session:
+        await service.process_job("nonexistent", session)
+
+
+@pytest.mark.anyio
+async def test_load_model_missing_file_raises(tmp_path, monkeypatch):
+    whisper_module._model_cache.clear()
+    fake_whisper = types.SimpleNamespace(load_model=lambda *args, **kwargs: None)
+    monkeypatch.setitem(sys.modules, "whisper", fake_whisper)
+    service = WhisperService(model_storage_path=str(tmp_path))
+    with pytest.raises(FileNotFoundError):
+        await service.load_model("base")
+
+
+@pytest.mark.anyio
+async def test_load_model_caches(monkeypatch, tmp_path):
+    whisper_module._model_cache.clear()
+    model_file = tmp_path / "base.pt"
+    model_file.write_text("fake")
+    load_calls = []
+
+    def fake_load_model(name, download_root):
+        load_calls.append(name)
+        return {"name": name}
+
+    class DummyLoop:
+        def __init__(self):
+            self.calls = 0
+
+        async def run_in_executor(self, executor, func):
+            self.calls += 1
+            return func()
+
+    dummy_loop = DummyLoop()
+    monkeypatch.setattr("asyncio.get_event_loop", lambda: dummy_loop)
+    monkeypatch.setitem(sys.modules, "whisper", types.SimpleNamespace(load_model=fake_load_model))
+
+    service = WhisperService(model_storage_path=str(tmp_path))
+    first = await service.load_model("base")
+    second = await service.load_model("base")
+
+    assert first == second == {"name": "base"}
+    assert dummy_loop.calls == 1
+    assert load_calls == ["base"]
+
+
+@pytest.mark.anyio
+async def test_transcribe_audio_missing_file(monkeypatch):
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    with pytest.raises(FileNotFoundError):
+        await service.transcribe_audio("missing.wav", model_name="base")
+
+
+@pytest.mark.anyio
+async def test_transcribe_audio_wraps_exceptions(monkeypatch, tmp_path):
+    audio_path = tmp_path / "clip.wav"
+    audio_path.write_bytes(b"fake")
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+
+    class DummyLoop:
+        async def run_in_executor(self, executor, func):
+            return func()
+
+    class DummyModel:
+        def transcribe(self, *args, **kwargs):
+            raise ValueError("decode failed")
+
+    async def fake_load_model(name):
+        return DummyModel()
+
+    monkeypatch.setattr("asyncio.get_event_loop", lambda: DummyLoop())
+    monkeypatch.setattr(service, "load_model", fake_load_model)
+
+    with pytest.raises(RuntimeError):
+        await service.transcribe_audio(str(audio_path), model_name="base")
+
+
+def test_normalize_segments_handles_invalid(tmp_path):
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    segments = [
+        {"id": 5, "start": "1.5", "end": "2.5", "text": " hello "},
+        "bad",
+        {"text": None},
+    ]
+    normalized = service._normalize_segments(segments)
+    assert len(normalized) == 2
+    assert normalized[0]["text"] == "hello"
+
+
+@pytest.mark.anyio
+async def test_wait_for_processing_slot_respects_max_zero(monkeypatch, test_db):
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    monkeypatch.setattr(settings, "max_concurrent_jobs", 0)
+    async with AsyncSessionLocal() as session:
+        await service._wait_for_processing_slot(session)

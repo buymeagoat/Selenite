@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -25,11 +26,14 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440  # 24 hours
+    admin_default_password: str | None = None
 
     # Storage
-    media_storage_path: str = "./storage/media"
-    transcript_storage_path: str = "./storage/transcripts"
-    model_storage_path: str = "models"
+    media_storage_path: str = str(BASE_DIR / "storage" / "media")
+    transcript_storage_path: str = str(BASE_DIR / "storage" / "transcripts")
+    model_storage_path: str = str(BASE_DIR / "models")
+    nginx_ssl_cert_path: str | None = None
+    nginx_ssl_key_path: str | None = None
 
     # Transcription
     max_concurrent_jobs: int = 3
@@ -40,17 +44,19 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8100
     allow_localhost_cors: bool = False
+    frontend_url: str | None = None
     cors_origins: str = (
         "http://localhost:5173,"
         "http://localhost:3000,"
         "http://127.0.0.1:5173,"
         "http://127.0.0.1:3000"
     )
+    redis_url: str | None = None
 
     # Logging
     log_level: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    model_config = SettingsConfigDict(env_file=(".env.test", ".env"), case_sensitive=False)
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -142,3 +148,7 @@ class Settings(BaseSettings):
 settings = Settings()
 if os.getenv("PYTEST_CURRENT_TEST"):
     settings.environment = "testing"
+if settings.is_testing:
+    settings.environment = "testing"
+    if not settings.database_url.startswith("sqlite+aiosqlite"):
+        settings.database_url = "sqlite+aiosqlite:///./selenite.db"

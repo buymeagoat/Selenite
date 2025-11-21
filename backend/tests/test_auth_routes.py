@@ -127,6 +127,28 @@ async def test_get_me_with_invalid_token(test_db):
 
 
 @pytest.mark.asyncio
+async def test_get_me_invalid_token_payload(test_db, monkeypatch):
+    """Decode returns payload without user_id -> invalid payload error."""
+    monkeypatch.setattr("app.routes.auth.decode_access_token", lambda token: {})
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/auth/me", headers={"Authorization": "Bearer anything"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid token payload"
+
+
+@pytest.mark.asyncio
+async def test_get_me_user_not_found(test_db, monkeypatch):
+    """Token references a user that no longer exists."""
+    monkeypatch.setattr("app.routes.auth.decode_access_token", lambda token: {"user_id": 9999})
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/auth/me", headers={"Authorization": "Bearer anything"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "User not found"
+
+
+@pytest.mark.asyncio
 async def test_health_check():
     """Test health check endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

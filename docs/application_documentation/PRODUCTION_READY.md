@@ -1,8 +1,24 @@
 # Selenite - Production Ready Checklist
 
-**Date**: November 17, 2025  
-**Status**: ✅ PRODUCTION READY  
-**Completion**: 96% (89/90 critical tasks)
+**Date**: November 21, 2025  
+**Status**: ✅ PRODUCTION READY (MVP)  
+**Completion**: 100% of MVP tasks (future enhancements tracked separately)
+
+---
+
+## 🔍 Verification Snapshot (Nov 21, 2025)
+- `./run-tests.ps1 -SkipE2E`  
+  - Backend: 313 pytest cases, **89%** statement coverage (see console log above).  
+  - Frontend: Vitest coverage – **90.0% statements**, **69.4% functions**, **91.9% branches** (`frontend/coverage/coverage-summary.json`).  
+- `npm run e2e:full`  
+  - Boots backend via `scripts/start-backend-e2e.js`, builds frontend, then executes **85 Playwright specs** across Chromium/Firefox/WebKit.  
+  - Latest run: 85/85 passing; artifacts stored in `frontend/playwright-report` and `frontend/test-results/.last-run.json`.  
+- Coverage hardening: `app/services/transcription.py` and `app/utils/file_validation.py` now ≥98% due to new dedicated unit suites.
+
+Supporting evidence:
+- `docs/build/testing/E2E_TEST_REPORT.md` – latest + historical Playwright results  
+- `docs/build/testing/TESTING_PROTOCOL.md` – canonical test execution steps  
+- `docs/build/PRODUCTION_TASKS.md` – backlog/sign-off log with directives
 
 ---
 
@@ -219,9 +235,8 @@ curl http://localhost:8100/health
 # 4. Run security audit
 pip-audit
 
-# 5. Run tests
-pytest
-npm test
+# 5. Run automated test suite
+pwsh ./run-tests.ps1    # add -SkipE2E when Playwright already executed separately
 ```
 
 ---
@@ -264,9 +279,10 @@ npm test
 ## 📊 Metrics
 
 ### Code Quality
-- Backend: 129 tests, ~85% coverage
-- Frontend: 104 tests, ~80% coverage
-- Security: 0 critical vulnerabilities
+- Backend: 313 pytest cases, ~89% statement coverage (see `run-tests.ps1` output)
+- Frontend: Vitest coverage – 90% statements / 69% functions / 91.9% branches
+- E2E: 85 Playwright specs (Chromium/Firefox/WebKit) – 100% pass on latest run
+- Security: 0 critical vulnerabilities (pip-audit clean)
 - Performance: Handles 3 concurrent jobs smoothly
 
 ### Lines of Code

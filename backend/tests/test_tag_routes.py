@@ -3,12 +3,15 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+from fastapi import HTTPException
 from app.main import app
 from app.models.user import User
 from app.models.job import Job
 from app.models.tag import Tag
 from app.utils.security import hash_password, create_access_token
 from app.database import AsyncSessionLocal, engine, Base
+from app.routes import tags as tags_module
+from app.schemas.tag import TagCreate, TagUpdate, TagAssignment
 
 
 @pytest.fixture
@@ -484,3 +487,95 @@ class TestJobTagAssociations:
                     assert tag_data["job_count"] == 1
                 else:
                     assert tag_data["job_count"] == 0
+
+
+@pytest.mark.asyncio
+class TestTagRouteDirect:
+    """Directly invoke tag route functions to boost coverage of branches."""
+
+    async def test_create_tag_direct(self, test_db):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            resp = await tags_module.create_tag(
+                TagCreate(name="direct", color="#123456"),
+                db=session,
+                current_user=user,
+            )
+        assert resp.name == "direct"
+        assert resp.job_count == 0
+
+    async def test_create_tag_duplicate_direct(self, test_db):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            await tags_module.create_tag(TagCreate(name="dup"), db=session, current_user=user)
+            with pytest.raises(HTTPException) as exc:
+                await tags_module.create_tag(TagCreate(name="dup"), db=session, current_user=user)
+            assert exc.value.status_code == 400
+
+    async def test_update_tag_conflict_direct(self, test_db):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            first = await tags_module.create_tag(
+                TagCreate(name="first"), db=session, current_user=user
+            )
+            await tags_module.create_tag(TagCreate(name="second"), db=session, current_user=user)
+            with pytest.raises(HTTPException):
+                await tags_module.update_tag(
+                    first.id,
+                    TagUpdate(name="second"),
+                    db=session,
+                    current_user=user,
+                )
+
+    async def test_delete_tag_not_found_direct(self, test_db):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            with pytest.raises(HTTPException) as exc:
+                await tags_module.delete_tag(999, db=session, current_user=user)
+            assert exc.value.status_code == 404
+
+    async def test_assign_tags_to_job_direct(self, test_db, sample_job, sample_tags):
+        assignment = TagAssignment(tag_ids=[sample_tags[0].id])
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            resp = await tags_module.assign_tags_to_job(
+                sample_job.id,
+                assignment,
+                db=session,
+                current_user=user,
+            )
+        assert resp.job_id == sample_job.id
+        assert resp.tags[0].id == sample_tags[0].id
+
+    async def test_assign_tags_invalid_payload_direct(self, test_db, sample_job):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            with pytest.raises(HTTPException):
+                await tags_module.assign_tags_to_job(
+                    sample_job.id,
+                    TagAssignment(tag_ids=[]),
+                    db=session,
+                    current_user=user,
+                )
+
+    async def test_remove_tag_from_job_direct(self, test_db, sample_job, sample_tags):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            await tags_module.assign_tags_to_job(
+                sample_job.id,
+                TagAssignment(tag_ids=[sample_tags[0].id]),
+                db=session,
+                current_user=user,
+            )
+            resp = await tags_module.remove_tag_from_job(
+                sample_job.id, sample_tags[0].id, db=session, current_user=user
+            )
+        assert resp.tag_id == sample_tags[0].id
+
+    async def test_remove_tag_missing_direct(self, test_db, sample_job):
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, 1)
+            with pytest.raises(HTTPException):
+                await tags_module.remove_tag_from_job(
+                    sample_job.id, 999, db=session, current_user=user
+                )

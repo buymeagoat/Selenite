@@ -23,18 +23,9 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
     Returns:
         User object if authentication successful, None otherwise
     """
-    # Get user by username
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
-
-    if not user:
-        return None
-
-    # Verify password
-    if not verify_password(password, user.hashed_password):
-        return None
-
-    return user
+    return user if user and verify_password(password, user.hashed_password) else None
 
 
 def create_token_response(user: User) -> TokenResponse:

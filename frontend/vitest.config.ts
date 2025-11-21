@@ -8,4 +8,10 @@ export default defineConfig({
     reporters: 'default',
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**', '**/.{idea,git,cache,output,temp}/**'],
   },
+  coverage: {
+    enabled: false,
+    provider: 'v8',
+    reportsDirectory: 'coverage',
+    reporter: ['text', 'html', 'json-summary'],
+  },
 });

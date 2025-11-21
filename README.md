@@ -102,6 +102,21 @@ python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 9
 
 Default credentials: `admin` / (your configured password)
 
+### Automated Test Runner
+
+Once the stack is bootstrapped (or anytime you need to verify a change), run the entire automated test battery from the repo root with:
+
+```powershell
+.\run-tests.ps1
+```
+
+This script installs backend/frontend dependencies if needed, executes `pytest --cov=app`, runs `npm run test:coverage` + `npm run coverage:summary`, and finishes with the Playwright suite (`npm run e2e:full`). Common switches:
+
+- `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` – Skip portions of the suite.
+- `-ForceBackendInstall`, `-ForceFrontendInstall` – Reinstall dependencies even if `.venv` / `node_modules` already exist.
+
+On Linux/macOS use PowerShell Core: `pwsh ./run-tests.ps1 [-SkipE2E ...]`.
+
 ## 📖 Documentation
 
 - **[User Guide](docs/USER_GUIDE.md)**: Complete guide for end users
@@ -365,6 +380,10 @@ Contributions are welcome! Please follow these steps:
 - Write tests for new features
 - Update documentation as needed
 - Keep commits focused and descriptive
+
+### Work Tracking Policy
+
+All engineering work (code, docs, tests, automation) **must** originate from `docs/build/PRODUCTION_TASKS.md`. Before starting something new, add/confirm a task entry there; after finishing, update the status with a short summary. Nothing ships unless it’s tracked in that backlog.
 
 ## 📝 Roadmap
 

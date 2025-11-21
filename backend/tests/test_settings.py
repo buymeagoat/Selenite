@@ -2,11 +2,19 @@
 
 import pytest
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
+from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from fastapi import HTTPException
+
 from app.main import app
 from app.models.user import User
 from app.models.settings import Settings
+from app.models.user_settings import UserSettings
 from app.utils.security import hash_password, create_access_token
 from app.database import AsyncSessionLocal, engine, Base
+from app.routes import settings as settings_routes
+from app.schemas.settings import SettingsUpdateRequest
 
 
 @pytest.fixture
@@ -258,3 +266,59 @@ class TestSettingsValidation:
                     "/settings", json={"max_concurrent_jobs": jobs}, headers=auth_headers
                 )
                 assert response.status_code == 200, f"Jobs count {jobs} should be valid"
+
+
+@pytest.mark.asyncio
+async def test_helper_creates_and_reuses_settings(test_db):
+    """Exercise the internal helper coverage by creating default records."""
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, 1)
+        existing = await session.execute(select(UserSettings))
+        assert existing.scalars().first() is None
+
+        first = await settings_routes._get_or_create_settings(user, session)
+        assert isinstance(first, UserSettings)
+        assert first.user_id == user.id
+
+        second = await settings_routes._get_or_create_settings(user, session)
+        assert second.id == first.id
+
+
+@pytest.mark.asyncio
+async def test_update_settings_sets_queue_concurrency(test_db, monkeypatch):
+    """Ensure queue.set_concurrency executes when not in testing mode."""
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, 1)
+        payload = SettingsUpdateRequest(
+            default_model="large", default_language="es", max_concurrent_jobs=4
+        )
+        mock_set = AsyncMock()
+        monkeypatch.setattr(settings_routes.queue, "set_concurrency", mock_set)
+        monkeypatch.setattr(settings_routes, "settings", SimpleNamespace(is_testing=False))
+
+        response = await settings_routes.update_settings(payload, current_user=user, db=session)
+
+        mock_set.assert_awaited_once_with(4)
+        assert response.max_concurrent_jobs == 4
+
+
+@pytest.mark.asyncio
+async def test_update_settings_queue_failure_raises_http_error(test_db, monkeypatch):
+    """If queue rejects the concurrency value, the route should raise HTTP 400."""
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, 1)
+        payload = SettingsUpdateRequest(
+            default_model="base", default_language="en", max_concurrent_jobs=9
+        )
+        monkeypatch.setattr(
+            settings_routes.queue,
+            "set_concurrency",
+            AsyncMock(side_effect=ValueError("invalid concurrency")),
+        )
+        monkeypatch.setattr(settings_routes, "settings", SimpleNamespace(is_testing=False))
+
+        with pytest.raises(HTTPException) as exc:
+            await settings_routes.update_settings(payload, current_user=user, db=session)
+
+        assert exc.value.status_code == 400
+        assert "invalid concurrency" in exc.value.detail

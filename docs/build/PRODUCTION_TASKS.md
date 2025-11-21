@@ -2,9 +2,19 @@
 
 [Scope] Actionable tasks to close gaps documented in `GAP_ANALYSIS.md`. This file mirrors those IDs, tracks owners/dates/status, and is the only task backlog. Production sign-off lives in `../application_documentation/PRODUCTION_READY.md`.
 
-**Last Updated**: November 17, 2025  
+**Last Updated**: November 21, 2025  
 **Current Status**: Increment 19 (E2E Testing) - 96% Complete  
 **Target**: Production Deployment Ready
+
+---
+
+## ⚖️ Process Directives
+1. **This document is the canonical backlog.** No engineering work (code, docs, automation, testing) happens unless a task exists here first.
+2. **Memorialize every change.** Before starting new work, add/confirm an entry (with owner/date/status). After finishing, update the item with a concise summary and check it off.
+3. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task’s description so future readers can reconstruct the history.
+4. **Future-scope items stay parked.** Anything marked “Moved to Future Enhancements” remains untouched until re-prioritized here.
+
+Compliance with these directives is mandatory for humans and AI collaborators alike.
 
 ---
 
@@ -177,20 +187,20 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ## 📚 Documentation & Testing
 
 ### 9. User Documentation (2-3 days)
-- [ ] README with installation instructions
-- [ ] User guide for transcription workflow
-- [ ] Configuration guide (models, settings)
-- [ ] Troubleshooting common issues
-- [ ] API documentation (if exposing to power users)
-- [ ] Export format specifications
+- [x] README with installation instructions *(README.md, BOOTSTRAP.md)*
+- [x] User guide for transcription workflow *(docs/application_documentation/USER_GUIDE.md)*
+- [x] Configuration guide (models, settings) *(docs/application_documentation/DEPLOYMENT.md, README env sections)*
+- [x] Troubleshooting common issues *(USER_GUIDE.md + QUICK_REFERENCE.md contain dedicated sections)*
+- [x] API documentation (if exposing to power users) *(docs/pre-build/API_CONTRACTS.md)*
+- [x] Export format specifications *(API_CONTRACTS.md export table + services/export_service.py docs)*
 
-**Current Status**: ⚠️ Technical docs only (DEVELOPMENT_PLAN.md)  
-**Priority**: MEDIUM - Essential for handoff
+**Current Status**: ✅ Complete  
+**Priority**: MEDIUM - Essential for handoff (done)
 
 ---
 
 ### 10. Final Testing (2-3 days)
-- [ ] End-to-end workflow testing (upload → transcribe → export) — Minimal sanity acceptable for MVP
+- [x] End-to-end workflow testing (upload → transcribe → export) — Minimal sanity acceptable for MVP *(Playwright `npm run e2e:full` – latest run 85/85 passing)*
 - [ ] Resolve Firefox E2E flakiness (2 failing tests)  (Moved to Future Enhancements)
 - [ ] Validate password change fix in full E2E suite  (Moved to Future Enhancements)
 - [ ] Performance testing with large files  (Moved to Future Enhancements)
@@ -228,6 +238,15 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
+### Coverage Hardening (New)
+- [x] Raise `app/services/transcription.py` coverage from 80% → ≥85% (new `test_transcription_service.py` covers failure path + async helpers) *(Nov 21, 2025)*
+- [x] Raise `app/utils/file_validation.py` coverage from 78% → ≥85% (new `test_file_validation_unit.py` exercises magic detection, limits, filename checks) *(Nov 21, 2025)*
+
+**Current Status**: ✅ Completed – previously low coverage modules now ≥98%  
+**Priority**: MEDIUM – addressed in Nov 21, 2025 run
+
+---
+
 ## 🚀 Future Enhancements (Post-MVP)
 
 ### 13. Advanced Features
@@ -248,7 +267,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Database migration to PostgreSQL (for multi-user)
 - [ ] Celery/Redis for distributed job queue
 - [ ] Docker containerization
-- [ ] CI/CD pipeline setup
+- [x] CI/CD pipeline setup *(GitHub Actions now runs `run-tests.ps1` + lint/type-check/build)*
 - [ ] Automated backup system
 - [ ] Performance monitoring and analytics
 
@@ -273,6 +292,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - Startup/shutdown service scripts
 
 #### Testing & Stability
+- [x] Unified `run-tests.ps1` harness + documentation (TESTING_PROTOCOL.md + README instructions)
 - Resolve Firefox E2E flakiness
 - Validate password change fix across full E2E suite
 - Performance testing (large files)
@@ -351,9 +371,23 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ---
 
 **Next Immediate Steps**:
-1. Resolve remaining P0/P1 items linked from `GAP_ANALYSIS.md`
-2. Re-run E2E and update `./testing/E2E_TEST_REPORT.md`
-3. Prepare production sign-off in `../application_documentation/PRODUCTION_READY.md`
+- [x] Resolve remaining P0/P1 items linked from `GAP_ANALYSIS.md` *(Nov 21, 2025 – document updated to reflect completed items)*
+- [x] Re-run E2E and update `./testing/E2E_TEST_REPORT.md` *(Nov 21, 2025 – see latest report)*
+- [x] Close coverage gaps for transcription/file validation modules (see Coverage Hardening) *(Nov 21, 2025)*
+- [x] Prepare production sign-off in `../application_documentation/PRODUCTION_READY.md` *(Nov 21, 2025 – latest verification snapshot + commands added)*
+
+✅ **Progress Log (Nov 21, 2025)**:
+- Ran `npm run e2e:full` → 85/85 passing across Chromium/Firefox/WebKit (report updated).  
+- Coverage hardening completed (transcription + file validation now ≥98%).  
+- CI/automation + unified runner tasks memorialized above.
+- Production readiness document refreshed with latest verification evidence.
+
+---
+
+## 🗂️ Memorialized Work Log (Recent Additions)
+- [x] **Unified test runner (`run-tests.ps1`)** – Added cross-platform script, documented usage in README + TESTING_PROTOCOL, and validated via CLI run (Nov 21, 2025).
+- [x] **CI workflow upgrade** – Replaced multi-job pipeline with single job that calls `run-tests.ps1`, then runs lint/type-check/build steps and publishes coverage artifacts (Nov 21, 2025).
+- [x] **Auth/Queue coverage push** – Added dedicated unit suites for auth service + job queue, raising both modules above the coverage watermark and documenting new tasks here (Nov 21, 2025).
 # Production Readiness Tasks
 
 **Last Updated**: November 17, 2025  

@@ -1,15 +1,21 @@
 """Integration tests for job management routes."""
 
 import io
+from datetime import datetime, timedelta
+from uuid import uuid4
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.main import app
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.job import Job
+from app.models.tag import Tag
 from app.utils.security import create_access_token, hash_password
 
 
@@ -17,6 +23,7 @@ from app.utils.security import create_access_token, hash_password
 async def test_db():
     """Create test database."""
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
@@ -47,6 +54,47 @@ async def auth_token():
 async def auth_headers(auth_token):
     """Generate authorization headers with valid token."""
     return {"Authorization": f"Bearer {auth_token}"}
+
+
+async def _create_job_record(
+    *,
+    job_id: str,
+    user_id: int = 1,
+    status: str = "completed",
+    file_path: str | None = None,
+    transcript_path: str | None = None,
+    original_filename: str = "sample.mp3",
+):
+    async with AsyncSessionLocal() as session:
+        job = Job(
+            id=job_id,
+            user_id=user_id,
+            original_filename=original_filename,
+            saved_filename=f"{job_id}.mp3",
+            file_path=file_path or f"/tmp/{job_id}.mp3",
+            file_size=1024,
+            mime_type="audio/mpeg",
+            status=status,
+            progress_percent=0,
+            model_used="medium",
+            has_timestamps=True,
+            has_speaker_labels=True,
+            created_at=datetime.utcnow(),
+            transcript_path=transcript_path,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        return job
+
+
+async def _create_tag_record(tag_id: int, name: str = "Tag", color: str = "#FF0000"):
+    async with AsyncSessionLocal() as session:
+        tag = Tag(id=tag_id, name=name, color=color)
+        session.add(tag)
+        await session.commit()
+        await session.refresh(tag)
+        return tag
 
 
 @pytest.mark.asyncio
@@ -130,25 +178,52 @@ class TestListJobs:
         assert json_data["items"] == []
 
     async def test_list_jobs_filter_by_status(self, test_db, auth_headers):
-        """Test filtering jobs by status."""
-        # Create job
-        file_content = b"fake audio content"
-        files = {"file": ("test.mp3", io.BytesIO(file_content), "audio/mpeg")}
-
+        completed = await _create_job_record(job_id=str(uuid4()), status="completed")
+        await _create_job_record(job_id=str(uuid4()), status="failed")
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await client.post("/jobs", files=files, headers=auth_headers)
-
-            # Filter by queued status
-            response = await client.get("/jobs?status=queued", headers=auth_headers)
-            json_data = response.json()
-            assert json_data["total"] == 1
-            assert json_data["items"][0]["status"] == "queued"
-
-            # Filter by completed status (should be empty)
             response = await client.get("/jobs?status=completed", headers=auth_headers)
-            json_data = response.json()
-            assert json_data["total"] == 0
+        assert response.status_code == 200
+        json_data = response.json()
+        assert json_data["total"] == 1
+        assert json_data["items"][0]["id"] == completed.id
+
+    async def test_list_jobs_filter_by_date_range(self, test_db, auth_headers):
+        old_job = await _create_job_record(job_id=str(uuid4()))
+        await _set_job_created_at(old_job.id, datetime.utcnow() - timedelta(days=7))
+        recent = await _create_job_record(job_id=str(uuid4()))
+        cutoff = (datetime.utcnow() - timedelta(days=1)).isoformat()
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(f"/jobs?date_from={cutoff}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["id"] == recent.id
+
+    async def test_list_jobs_filter_by_tags(self, test_db, auth_headers):
+        tag = await _create_tag_record(10, name="Finance")
+        tagged = await _create_job_record(job_id=str(uuid4()))
+        await _assign_tags_to_job(tagged.id, [tag.id])
+        await _create_job_record(job_id=str(uuid4()))
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/jobs?tags=10", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["id"] == tagged.id
+
+    async def test_list_jobs_filter_by_search(self, test_db, auth_headers):
+        match = await _create_job_record(job_id=str(uuid4()), original_filename="Revenue_Q4.mp3")
+        await _create_job_record(job_id=str(uuid4()), original_filename="standup.mp3")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/jobs?search=Revenue", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["id"] == match.id
 
     async def test_list_jobs_no_authentication(self):
         """Test that job listing requires authentication."""
@@ -266,6 +341,21 @@ async def _update_job(job_id: str, **fields):
         for key, value in fields.items():
             setattr(job, key, value)
         await session.commit()
+        await session.refresh(job)
+        return job
+
+
+async def _assign_tags_to_job(job_id: str, tag_ids: list[int]):
+    async with AsyncSessionLocal() as session:
+        job = await session.get(Job, job_id, options=[selectinload(Job.tags)])
+        tags = await session.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+        job.tags = tags.scalars().all()
+        await session.commit()
+        await session.refresh(job)
+
+
+async def _set_job_created_at(job_id: str, created_at: datetime):
+    await _update_job(job_id, created_at=created_at)
 
 
 @pytest.mark.asyncio
@@ -327,3 +417,96 @@ class TestJobLifecycleActions:
             response = await client.delete(f"/jobs/{job_id}", headers=auth_headers)
         assert response.status_code == 204
         assert not media_path.exists()
+
+    async def test_cancel_queued_job_sets_cancelled(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(job_id, status="queued", progress_stage="waiting")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(f"/jobs/{job_id}/cancel", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "cancelled"
+        assert data["progress_stage"] is None
+
+    async def test_cancel_processing_job_sets_cancelling(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(job_id, status="processing", progress_stage="transcribing")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(f"/jobs/{job_id}/cancel", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "cancelling"
+        assert data["progress_stage"] == "cancelling"
+
+    async def test_cancel_non_cancellable_job(self, test_db, auth_headers):
+        job_id = await _create_job_via_api(auth_headers)
+        await _update_job(job_id, status="completed")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(f"/jobs/{job_id}/cancel", headers=auth_headers)
+        assert response.status_code == 400
+        assert "not cancellable" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+class TestJobTagAssignments:
+    async def test_assign_tags_requires_list(self, test_db, auth_headers):
+        job = await _create_job_record(job_id=str(uuid4()))
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                f"/jobs/{job.id}/tags", json={"tag_ids": "oops"}, headers=auth_headers
+            )
+        assert response.status_code == 422
+
+    async def test_assign_tags_empty_list(self, test_db, auth_headers):
+        job = await _create_job_record(job_id=str(uuid4()))
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                f"/jobs/{job.id}/tags", json={"tag_ids": []}, headers=auth_headers
+            )
+        assert response.status_code == 422
+
+    async def test_assign_tags_job_not_found(self, test_db, auth_headers):
+        transport = ASGITransport(app=app)
+        missing_id = uuid4()
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                f"/jobs/{missing_id}/tags", json={"tag_ids": [1]}, headers=auth_headers
+            )
+        assert response.status_code == 404
+
+    async def test_assign_tags_missing_tag_entries(self, test_db, auth_headers):
+        job = await _create_job_record(job_id=str(uuid4()))
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                f"/jobs/{job.id}/tags", json={"tag_ids": [123]}, headers=auth_headers
+            )
+        assert response.status_code == 404
+        assert "One or more tags not found" in response.json()["detail"]
+
+    async def test_assign_tags_success(self, test_db, auth_headers):
+        job = await _create_job_record(job_id=str(uuid4()))
+        tag1 = await _create_tag_record(1, name="Customer")
+        tag2 = await _create_tag_record(2, name="Internal")
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                f"/jobs/{job.id}/tags",
+                json={"tag_ids": [tag1.id, tag2.id]},
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        body = response.json()
+        assert {tag["name"] for tag in body["tags"]} == {"Customer", "Internal"}
+        # Verify persisted relationship
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Job).options(selectinload(Job.tags)).where(Job.id == job.id)
+            )
+            refreshed = result.scalar_one()
+            assert len(refreshed.tags) == 2

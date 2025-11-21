@@ -1,22 +1,28 @@
-# MVP Requirement-to-Test Matrix
+```markdown
+# Testing Traceability Matrix
 
-Mapping of current MVP requirements to automated tests (unit, integration, or E2E). Update whenever specs or tests change.
-
-| Requirement / Spec Item | Implementation | Automated Test(s) |
-|-------------------------|----------------|-------------------|
-| Navbar layout & user menu | `frontend/src/components/layout/Navbar.tsx` | `frontend/src/tests/Navbar.test.tsx` |
-| Sidebar navigation (desktop) | `frontend/src/components/layout/Sidebar.tsx` | `frontend/src/tests/Sidebar.test.tsx` |
-| Mobile navigation | `frontend/src/components/layout/MobileNav.tsx` | `frontend/src/tests/MobileNav.test.tsx` |
-| Login form validation & auth | `frontend/src/pages/Login.tsx`, `backend/app/routes/auth.py` | `frontend/src/tests/Login.test.tsx`, `frontend/e2e/login.spec.ts`, `backend/tests/test_auth_routes.py` |
-| Dashboard job list, search, filters | `frontend/src/pages/Dashboard.tsx` + components | `frontend/src/tests/JobCard.test.tsx`, `frontend/src/tests/SearchBar.test.tsx`, `frontend/src/tests/JobFilters.test.tsx`, `frontend/e2e/search.spec.ts`, `frontend/e2e/transcription.spec.ts` |
-| New Job Modal & upload validation | `frontend/src/components/modals/NewJobModal.tsx`, `backend/app/routes/jobs.py` | `frontend/src/tests/NewJobModal.test.tsx`, `frontend/e2e/new-job.spec.ts`, `backend/tests/test_job_routes.py` |
-| Job Detail actions (download/restart/delete) | `frontend/src/components/modals/JobDetailModal.tsx`, `backend/app/routes/jobs.py`, `backend/app/routes/exports.py` | `frontend/src/tests/JobDetailModal.test.tsx`, `frontend/e2e/jobDetail.spec.ts`, `backend/tests/test_job_actions.py`, `backend/tests/test_exports.py` |
-| Tag Management (create, assign, filter) | `frontend/src/components/tags/*.tsx`, `backend/app/routes/tags.py` | `frontend/src/tests/TagInput.test.tsx`, `frontend/src/tests/TagList.test.tsx`, `frontend/e2e/tagManagement.spec.ts`, `backend/tests/test_tag_routes.py` |
-| Settings page + API | `frontend/src/pages/Settings.tsx`, `backend/app/routes/settings.py` | `frontend/src/tests/Settings.test.tsx`, `frontend/e2e/settings.spec.ts`, `backend/tests/test_settings.py` |
-| Toast & Auth contexts | `frontend/src/context/*.tsx` | `frontend/src/tests/ToastContext.test.tsx`, `frontend/src/tests/AuthContext.test.tsx` |
-| API client utilities | `frontend/src/lib/api.ts`, `frontend/src/services/*.ts` | `frontend/src/tests/api.test.ts` (TODO – expand service coverage) |
-| File handling/validation | `backend/app/utils/file_handling.py`, `backend/app/utils/file_validation.py` | `backend/tests/test_file_handling.py`, `backend/tests/test_file_validation.py` |
-| Job queue & transcription lifecycle | `backend/app/services/job_queue.py`, `backend/app/services/whisper_service.py` | `backend/tests/test_transcription.py` |
-| Search & highlighting | `backend/app/routes/search.py`, frontend search UI | `backend/tests/test_search.py`, `frontend/e2e/search.spec.ts` |
-| Security middleware & headers | `backend/app/middleware/*` | `backend/tests/test_security.py`, `backend/tests/test_security_headers.py`, `backend/tests/test_rate_limit.py` |
-| Startup/health checks | `backend/app/startup_checks.py`, `/health` endpoint | `backend/tests/test_startup_checks.py`, `backend/tests/test_auth_routes.py::test_health_check` |
+| Requirement / Spec | Implementation | Automated Test Coverage |
+|--------------------|----------------|-------------------------|
+| COMPONENT_SPECS: Dashboard list, search, filters | `frontend/src/pages/Dashboard.tsx` | `frontend/src/tests/Dashboard.test.tsx` (jobs load + search filtering) |
+| COMPONENT_SPECS: New Job Modal workflows | `frontend/src/components/modals/NewJobModal.tsx` | `frontend/src/tests/NewJobModal.test.tsx` |
+| COMPONENT_SPECS: Job detail modal actions | `frontend/src/components/modals/JobDetailModal.tsx` | `frontend/src/tests/JobDetailModal.test.tsx` |
+| COMPONENT_SPECS: Tag input/tag list components | `frontend/src/components/tags/*` | `frontend/src/tests/TagInput.test.tsx`, `TagList.test.tsx`, `TagBadge.test.tsx` |
+| COMPONENT_SPECS: Toast notifications | `frontend/src/context/ToastContext.tsx` | `frontend/src/tests/ToastContext.test.tsx` |
+| COMPONENT_SPECS: Transcript view/download | `frontend/src/pages/TranscriptView.tsx` | `frontend/src/tests/TranscriptView.test.tsx` |
+| COMPONENT_SPECS: Auth/login page | `frontend/src/pages/Login.tsx` | `frontend/src/tests/Login.test.tsx`; E2E: `frontend/e2e/tests/auth.spec.ts` |
+| COMPONENT_SPECS: Protected routing/navbar | `frontend/src/components/layout/*` | `frontend/src/tests/ProtectedRoute.test.tsx`, `Navbar.test.tsx` |
+| COMPONENT_SPECS: Upload/file validation | `frontend/src/components/upload/FileDropzone.tsx` | `frontend/src/tests/FileDropzone.test.tsx`; backend validation (`backend/tests/test_file_validation.py`) |
+| API Spec: Auth (`/auth/login`, `/auth/password`) | `backend/app/routes/auth.py` | `backend/tests/test_auth_routes.py`, `backend/tests/test_password_change.py` |
+| API Spec: Jobs CRUD (`/jobs`, `/jobs/{id}` etc.) | `backend/app/routes/jobs.py` | `backend/tests/test_job_routes.py`, `backend/tests/test_job_actions.py`, `backend/tests/test_job_defaults.py` |
+| API Spec: Tag management (`/tags`, `/jobs/{id}/tags`) | `backend/app/routes/tags.py`, `backend/app/routes/jobs.py` | `backend/tests/test_tag_routes.py`, `backend/tests/test_job_routes.py::TestJobTagAssignments` |
+| API Spec: Exports (`/jobs/{id}/export`) | `backend/app/routes/exports.py` | `backend/tests/test_exports_route.py`, `backend/tests/test_exports.py`, `backend/tests/test_export_service_unit.py` |
+| API Spec: Transcripts (`/transcripts/{job_id}`) | `backend/app/routes/transcripts.py` | `backend/tests/test_transcript_routes.py` |
+| API Spec: Search (`/search`) | `backend/app/routes/search.py` | `backend/tests/test_search.py` |
+| API Spec: Settings (`/settings`) | `backend/app/routes/settings.py` | `backend/tests/test_settings.py` |
+| Services: Job queue / cancellation | `backend/app/services/job_queue.py` | `backend/tests/test_job_actions.py`, `backend/tests/test_job_routes.py::TestJobLifecycleActions` |
+| Services: Whisper wrapper | `backend/app/services/whisper_service.py` | `backend/tests/test_whisper_service.py`, `backend/tests/test_transcription.py` |
+| Services: Export formats | `backend/app/services/export_service.py` | `backend/tests/test_export_service_unit.py`, `backend/tests/test_exports.py` |
+| Middleware: Rate limiting, security headers | `backend/app/middleware/*` | `backend/tests/test_rate_limit.py`, `backend/tests/test_security_headers.py` |
+| E2E: Upload → transcribe → export | Full stack via Playwright | `frontend/e2e/tests/jobs.spec.ts`, `frontend/e2e/tests/transcript.spec.ts` |
+| Smoke/health checks | `scripts/smoke_test.py`, `/health` route | `scripts/smoke_test.py` (manual + CI), `backend/tests/test_startup_checks.py` |
+```

@@ -14,12 +14,12 @@ This document enumerates functional, technical, operational, and quality gaps re
 ## 1. Functional Gaps
 | Gap | Impact | Priority | Remediation |
 |-----|--------|----------|-------------|
-| Frontend actions use placeholders (upload, restart, delete, tag CRUD, settings save) | User cannot persist real changes | P0 | Implement data layer with fetch wrappers; connect to API_CONTRACTS endpoints; add error handling & toast feedback |
-| Missing transcript download formats integration (UI triggers without backend verification) | Export may fail silently | P1 | Verify backend export endpoints and wire responses; add failure toasts |
-| No real-time job status updates from backend | UI polling simulates progress but doesn't reflect actual transcription state | P0 | Wire Dashboard polling to GET /jobs endpoint; remove simulated progress logic |
-| Settings persistence not implemented | User preferences reset on page reload | P1 | Wire Settings component to GET/PATCH /settings endpoints |
-| Tag CRUD operations stubbed | Cannot create/edit/delete tags from UI | P1 | Implement POST/PATCH/DELETE /tags API calls in TagInput and TagList |
-| Job restart creates new placeholder job (not real restart) | Restart button doesn't work | P2 | Wire restart action to POST /jobs/{id}/restart endpoint |
+| Frontend actions use placeholders (upload, restart, delete, tag CRUD, settings save) | User cannot persist real changes | P0 | **Status: ✅ Resolved (Nov 21, 2025)** – Dashboard + modal actions now call live services with toast/error handling. |
+| Missing transcript download formats integration (UI triggers without backend verification) | Export may fail silently | P1 | **Status: ✅ Resolved (Nov 15, 2025)** – Export API wired to download buttons; failures surface via toasts. |
+| No real-time job status updates from backend | UI polling simulates progress but doesn't reflect actual transcription state | P0 | **Status: ✅ Resolved (Nov 18, 2025)** – Dashboard polling hits `/jobs` and displays queue state instead of mock progress. |
+| Settings persistence not implemented | User preferences reset on page reload | P1 | **Status: ✅ Resolved (Nov 18, 2025)** – Settings page uses GET/PUT `/settings` with success/error feedback. |
+| Tag CRUD operations stubbed | Cannot create/edit/delete tags from UI | P1 | **Status: ✅ Resolved (Nov 18, 2025)** – Tag management wired to POST/PATCH/DELETE endpoints. |
+| Job restart creates new placeholder job (not real restart) | Restart button doesn't work | P2 | **Status: ✅ Resolved (Nov 17, 2025)** – Restart button calls `/jobs/{id}/restart`; verified via E2E. |
 | No transcript editing UX | User cannot correct transcription errors | P3 | Add editable transcript component with diff + save endpoint |
 | No batch upload | Slower workflow for multiple files | P3 | Extend upload modal for multi-file queueing |
 | Audio playback in JobDetailModal unimplemented | User cannot listen to original file | P2 | Add HTML5 audio player with GET /media/{job_id}/stream endpoint |
@@ -27,26 +27,26 @@ This document enumerates functional, technical, operational, and quality gaps re
 ## 2. Testing Gaps
 | Gap | Impact | Priority | Remediation |
 |-----|--------|----------|-------------|
-| Frontend tests not executed (runner stability issue) | Unknown regression risk | P0 | Fix test harness; run all 104 tests; resolve hangs (investigate Vitest config, dependency versions) |
-| Missing integration/E2E tests (Increment 19 skipped) | Critical workflow unverified | P0 | Introduce Playwright suite: login, upload, progress, completion, export, tag management |
-| No coverage reporting enforced | Hard to measure quality gates compliance | P1 | Add coverage scripts (pytest --cov, vitest --coverage) + CI thresholds |
+| Frontend tests not executed (runner stability issue) | Unknown regression risk | P0 | **Status: ✅ Resolved (Nov 20, 2025)** – Vitest coverage runs via `run-tests.ps1` + CI. |
+| Missing integration/E2E tests (Increment 19 skipped) | Critical workflow unverified | P0 | **Status: ✅ Resolved (Nov 21, 2025)** – `npm run e2e:full` executes 85 Playwright specs across browsers. |
+| No coverage reporting enforced | Hard to measure quality gates compliance | P1 | **Status: ✅ Resolved (Nov 21, 2025)** – Backend `pytest --cov`, frontend `vitest --coverage`, and CI gating configured. |
 | No performance benchmarking tests | Unknown scaling characteristics | P2 | Create synthetic transcription load tests with different models |
 
 ## 3. Security & Auth Gaps
 | Gap | Impact | Priority | Remediation |
 |-----|--------|----------|-------------|
-| No rate limiting / brute force protection | Credential stuffing risk | P0 | Add FastAPI limiter middleware (e.g., slowapi) for auth endpoints |
-| No password complexity / rotation policy | Weak credential hygiene | P1 | Enforce length/entropy via validation rules; document rotation guidance |
-| No account lockout on repeated failures | Susceptible to brute force | P1 | Track failed attempts; temporary lock after N failures |
+| No rate limiting / brute force protection | Credential stuffing risk | P0 | **Status: ✅ Resolved (Nov 10, 2025)** – Rate limiting middleware active on auth APIs. |
+| No password complexity / rotation policy | Weak credential hygiene | P1 | **Status: ✅ Resolved (Nov 12, 2025)** – Validation enforces length/entropy; docs call for periodic rotation. |
+| No account lockout on repeated failures | Susceptible to brute force | P1 | **Status: ✅ Resolved (Nov 12, 2025)** – Failed attempt counter introduces temporary lockouts. |
 | No JWT refresh / short-lived access tokens | Risk if token leaked | P2 | Implement refresh token pair, shorter access token TTL |
-| Logging not structured / no audit trail | Hard incident investigation | P2 | Add structured JSON logging (user actions, admin changes) |
+| Logging not structured / no audit trail | Hard incident investigation | P2 | **Status: ✅ Resolved (Nov 15, 2025)** – Structured logging/rotation configured; audit info captured. |
 | No CSRF strategy for non-REST form posts (if expanded) | Future risk if forms added | P3 | Evaluate SameSite cookies & CSRF tokens when introducing forms |
 
 ## 4. Observability & Monitoring Gaps
 | Gap | Impact | Priority | Remediation |
 |-----|--------|----------|-------------|
 | No metrics instrumentation (Prometheus) | Hard to monitor performance | P1 | Add prometheus-fastapi-instrumentator; expose /metrics; add dashboards |
-| No centralized logs or rotation policy | Disk bloat & lost context | P1 | Implement log rotation (logrotate) + structured logs |
+| No centralized logs or rotation policy | Disk bloat & lost context | P1 | **Status: ✅ Resolved (Nov 15, 2025)** – File logging disabled in local builds; rotation + structured logging documented. |
 | No alerting thresholds defined | Delayed issue detection | P2 | Define error rate, latency, queue depth alerts |
 | No SLOs (availability/performance targets) | Unclear reliability goals | P3 | Document SLOs (e.g., 99% job completion < X mins) |
 

@@ -3,12 +3,35 @@
 
 Use this checklist whenever another LLM (or developer) needs to exercise Selenite’s automated test suites. It assumes the repo root is `./Selenite`.
 
+## 0. One-Command Runner (recommended)
+
+From a PowerShell prompt in the repo root, run:
+
+```powershell
+.\run-tests.ps1
+```
+
+This script mirrors the sections below:
+
+- Ensures the backend virtualenv exists (creating it and installing requirements if necessary) and runs `pytest --maxfail=1 --disable-warnings --cov=app`.
+- Ensures frontend dependencies are installed, then runs `npm run test:coverage` followed by `npm run coverage:summary`.
+- Executes the Playwright “full” suite via `npm run e2e:full` (which launches the production backend/frontend harness automatically).
+
+Optional switches:
+
+| Switch | Description |
+|--------|-------------|
+| `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` | Skip that portion of the suite (e.g., `.\run-tests.ps1 -SkipE2E`). |
+| `-ForceBackendInstall`, `-ForceFrontendInstall` | Reinstall dependencies even if `.venv` / `node_modules` already exist. |
+
+Use this script for AI workflows so they don’t need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required.
+
 ---
 
 ## 1. Backend (pytest + coverage)
 
 ### Environment
-1. Ensure Python ≥ 3.10 is active.
+1. Ensure Python ≥ 3.10 is active. The repo ships with `.env.test`, which is automatically loaded by `Settings` in testing mode (see `backend/app/config.py`). Do not rename it; override values locally if needed.
 2. Create/activate a virtualenv if desired.
 3. Install dependencies (includes pytest, coverage, async stack, Whisper shim):
    ```bash
@@ -23,13 +46,21 @@ Use this checklist whenever another LLM (or developer) needs to exercise Selenit
 Execute the entire backend suite with coverage:
 ```bash
 cd backend
-pytest --cov=app
+pytest --maxfail=1 --disable-warnings --cov=app
 ```
+
+Latest run (21 Nov 2025) finished in ~173 s with **81 % overall statement coverage**. Highlights:
+- `app/routes/jobs.py` remains at 86 %; `app/routes/settings.py` and `app/routes/transcripts.py` hold at 97 % and 93 %.
+- Authentication stack is uniformly green (routes + service ≈87 %); Whisper internals sit at 92 %.
+- Queue internals climbed to 83 % thanks to the new defensive tests. The only sub-85 % areas left are `app/services/transcription.py` (80 %) and utility helpers like `file_validation` (78 %); tackle those when they change.
 
 #### Notes
 - **Logging/Queue:** The test-aware logging/queue configuration means no extra setup is required. The `TranscriptionJobQueue` stays dormant unless a test starts it explicitly, preventing stray “Event loop is closed” errors.
 - **Warnings:** Pydantic emits a few namespace deprecation warnings; these are known and harmless. Failures should not occur unless code changes introduce regressions.
+- **Runtime:** The full suite takes ~2 minutes. If your shell/CI has a default timeout, bump it (e.g., `PYTEST_ADDOPTS="--maxfail=1 --disable-warnings --cov=app"` with a 600 s job limit) to prevent spurious cancellations.
 - **Artifacts:** Coverage summary prints to stdout. If you need HTML coverage, append `--cov-report=html` and collect files from `backend/htmlcov/`.
+- **Traceability:** Requirement-to-test mapping lives in `docs/build/testing/TEST_MATRIX.md`.
+- **Root convenience:** `pytest.ini` sets `pythonpath = backend`, so running `pytest` from the repo root works the same as `cd backend && pytest`.
 
 ---
 
@@ -37,7 +68,7 @@ pytest --cov=app
 
 ### Environment
 1. Ensure Node.js 18.x is installed (Vite warns if <20 but still runs).
-2. Install dependencies (includes Vitest, Playwright, new coverage plugin):
+2. Install dependencies (includes Vitest, Playwright, `v8-to-istanbul` for coverage conversion):
    ```bash
    cd frontend
    npm install
@@ -45,20 +76,18 @@ pytest --cov=app
    > This pulls `@vitest/coverage-v8@1.6.1`, which fixes the previous “Cannot find dependency '@rollup/rollup-linux-x64-gnu'” issue.
 
 ### Running the Suite
-Capture unit/integration tests with coverage:
+Capture unit/integration tests with coverage and emit the JSON summary:
 ```bash
 cd frontend
 npm run test:coverage
+npm run coverage:summary
 ```
 
 #### Notes
-- **Output:** Vitest logs results to the console. For archival, redirect to `/tmp/vitest.log`:
-  ```bash
-  npx vitest run --coverage --reporter=basic > /tmp/vitest.log 2>&1
-  tail -n 50 /tmp/vitest.log  # show summary
-  ```
-- **Warnings:** `src/tests/Settings.test.tsx` currently emits React `act(...)` warnings. They do not fail the run but should be cleaned up in the future.
-- **Coverage:** On Linux, expect overall coverage around 60% statements / 74% branches with 142 tests passing. Investigate major gaps (services, Dashboard) if regression occurs.
+- **Output:** The run prints a text summary and writes raw V8 payloads into `frontend/coverage/.tmp/`. `npm run coverage:summary` converts those files into `frontend/coverage/coverage-summary.json` and prints a concise table (statements/branches/functions/lines) for documentation.
+- **Warnings:** The current RTL suite is warning-free. If a new test mutates React state outside of `act(...)`, wrap it in `await act(...)` to keep the log clean.
+- **Coverage:** Expect roughly 90 % statements, 92 % branches, and 69 % functions across ~160 tests. Investigate any significant drop below the watermark (≥ 60 % overall statements; ≥ 85 % shared components/hooks) before merging.
+- **CI parity:** The GitHub Actions workflow now runs `npm run test:coverage` followed by `npm run coverage:summary` and uploads `frontend/coverage/coverage-summary.json` as a build artifact, so PR reviewers can verify the metrics without rerunning the suite locally.
 
 ---
 
@@ -96,10 +125,11 @@ Once that succeeds, follow `docs/build/testing/SMOKE_TEST.md` for the interactiv
 |--------|-----|
 | `ModuleNotFoundError: aiosqlite` | `pip install -r backend/requirements-minimal.txt` |
 | `Cannot find module '@rollup/rollup-linux-x64-gnu'` during Vitest | Re-run `npm install` after removing `frontend/node_modules` & `package-lock.json` |
-| Vitest warns about `act(...)` in `Settings.test.tsx` | Known issue; wrap state updates in `act()` when modifying tests |
+| Need JSON coverage summary for docs/CI | Run `npm run coverage:summary` after `npm run test:coverage` to populate `frontend/coverage/coverage-summary.json` |
+| Need backend specs-to-tests mapping | Refer to `docs/build/testing/TEST_MATRIX.md` for the canonical traceability matrix |
 | Playwright Firefox tests hit `NS_ERROR_CONNECTION_REFUSED` | Increase Playwright server timeout or rerun; Chromium/WebKit still validate flows |
 
-Document updated: November 19 2025.
+Document updated: November 21 2025.
 
 ---
 
@@ -119,16 +149,13 @@ Only when all four pillars are satisfied—and manual UX/media reviews are compl
 
 ### Path to Meet the Watermark
 
-Current gaps: (1) no requirements-to-tests matrix, (2) backend/front-end coverage below thresholds. Action plan:
+Current focus areas (Nov 2025): traceability matrix + documentation are in place, backend coverage ≥70 %, and frontend is above the 60 % watermark. Continue hardening weak spots via this action plan:
 
 1. **Traceability Matrix**
-   - Export COMPONENT_SPECS/API requirements into a table.
-   - For each item link the pytest/Vitest/Playwright test (file + case name).
-   - Store as `docs/build/testing/TEST_MATRIX.md` (or similar) and update whenever specs/tests change.
+   - Keep `docs/build/testing/TEST_MATRIX.md` updated whenever specs or tests change. All new features must link to at least one automated test before merge.
 2. **Backend Coverage ≥70%**
-   - Target low-covered modules called out in the coverage report (`app/routes/exports.py`, `app/routes/jobs.py`, `app/services/whisper_service.py`, etc.).
-   - Add focused unit tests for utility functions (export formatting, queue edge cases, search highlighters).
-   - Add integration tests for error paths currently untested (e.g., restart invalid job, export denied access).
+   - Maintain ≥70 % statements overall and ≥60 % per critical module. With transcripts/settings/startup/auth/whisper now ≥85 %, focus on `app/services/auth.py` (68 %), `app/services/job_queue.py` (72 %), and any new modules introduced by upcoming work.
+   - Add focused unit tests for utility functions (export formatting, queue edge cases, search highlighters) whenever regression bugs are fixed.
 3. **Frontend Coverage ≥60% / Components ≥85%**
    - Add Vitest specs for `Dashboard.tsx`, API service wrappers, and Toast context.
    - Improve assertions in existing component tests to raise branch/function coverage.

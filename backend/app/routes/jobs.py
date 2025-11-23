@@ -415,17 +415,23 @@ async def delete_job(
         transcript_path = Path(job.transcript_path)
         if transcript_path.is_absolute():
             files_to_delete.append(transcript_path)
+            files_to_delete.append(transcript_path.with_suffix(".json"))
         else:
             backend_dir = Path(__file__).parent.parent.parent
-            files_to_delete.append((backend_dir / transcript_path).resolve())
+            resolved = (backend_dir / transcript_path).resolve()
+            files_to_delete.append(resolved)
+            files_to_delete.append(resolved.with_suffix(".json"))
 
     # Also check default transcript location
     default_transcript = Path(settings.transcript_storage_path) / f"{job.id}.txt"
     if default_transcript.is_absolute():
         files_to_delete.append(default_transcript)
+        files_to_delete.append(default_transcript.with_suffix(".json"))
     else:
         backend_dir = Path(__file__).parent.parent.parent
-        files_to_delete.append((backend_dir / default_transcript).resolve())
+        resolved_default = (backend_dir / default_transcript).resolve()
+        files_to_delete.append(resolved_default)
+        files_to_delete.append(resolved_default.with_suffix(".json"))
 
     # Delete files (silently ignore missing files)
     for file_path in files_to_delete:

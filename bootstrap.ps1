@@ -9,7 +9,9 @@ param(
     [switch]$Dev,            # Use uvicorn reload; ENVIRONMENT=development
     [switch]$Seed,           # Run app.seed
     [switch]$ForceInstall,   # Force npm install even if node_modules exists
-    [switch]$ResetAuth       # Clear cached auth state (frontend .auth folder)
+    [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
+    [string]$BindIP = "127.0.0.1",  # Bind address for backend/frontend (use 0.0.0.0 or Tailscale IP)
+    [string]$ApiBase = ""           # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +23,7 @@ $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $MediaDir = Join-Path $Root 'storage\media'
 $TranscriptDir = Join-Path $Root 'storage\transcripts'
+$ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:8100" }
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
 
@@ -116,19 +119,20 @@ Invoke-Step "Start backend API (new window)" {
 $backendCmd = @"
 cd "$BackendDir"
 $envBlock
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app $uvicornArgs
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host $BindIP --port 8100 --app-dir app $uvicornArgs
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $backendCmd
-    Write-Host "Backend starting on http://127.0.0.1:8100 (check new window)." -ForegroundColor Green
+    Write-Host "Backend starting on http://$BindIP`:8100 (check new window)." -ForegroundColor Green
 }
 
 Invoke-Step "Start frontend production preview (new window)" {
     $frontendCmd = @"
 cd "$FrontendDir"
-npm run start:prod
+$env:VITE_API_URL="$ApiBaseResolved"
+npm run start:prod -- --host $BindIP --port 5173
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd
-    Write-Host "Frontend starting on http://127.0.0.1:5173 (check new window)." -ForegroundColor Green
+    Write-Host "Frontend starting on http://$BindIP`:5173 (check new window)." -ForegroundColor Green
 }
 
 Invoke-Step "Verify backend via smoke test" {

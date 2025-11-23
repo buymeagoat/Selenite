@@ -42,10 +42,17 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     return `${hours}h ${remMinutes}m`;
   };
 
+  const parseTimestamp = (value?: string | null) => {
+    if (!value) return null;
+    // Support both ISO strings and DB-style "YYYY-MM-DD HH:MM:SS" without a T separator
+    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    const ts = Date.parse(normalized);
+    return Number.isNaN(ts) ? null : ts;
+  };
+
   const elapsedSeconds = useMemo(() => {
-    if (!startedAt) return null;
-    const started = new Date(startedAt).getTime();
-    if (Number.isNaN(started)) return null;
+    const started = parseTimestamp(startedAt);
+    if (started === null) return null;
     return Math.max(0, Math.floor((now - started) / 1000));
   }, [now, startedAt]);
 

@@ -1,0 +1,15 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bundle/accessibility/perf smoke placeholders
+        run: |
+          echo "Quality checks placeholder: bundle budget, accessibility, perf smoke to be expanded."

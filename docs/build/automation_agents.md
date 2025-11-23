@@ -44,6 +44,17 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
 - bundle-report (job in report workflow)
 - coverage (job in coverage-report workflow)
 
+## Manual GitHub Configuration (owner action)
+1) Branch protection on `main`:
+   - Require PRs with at least one approval.
+   - Require status checks to pass before merging; include: hygiene, docs_api, memorialization, migrations, tests, security, quality, bundle-report, coverage. (Leave nightly-audit optional.)
+   - Require commit status checks to pass; disallow bypass for admins if you want stricter gating.
+2) Secrets/variables in GitHub Actions:
+   - `PERF_PROBE_URL`: set to deployed `/health` (optional, defaults to localhost).
+   - `PERF_PROBE_BUDGET_MS`: override 200 ms if needed (optional).
+   - `GITLEAKS_LICENSE`: if you have one (optional; config is in repo).
+3) Enforce PR template usage (default for repo; already in `.github/pull_request_template.md`).
+
 ## Developer/Author Flow
 1) Run pre-commit; fix issues locally.
 2) Add a short memorialization note (changelog or docs) for any code change.

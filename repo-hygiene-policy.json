@@ -3,7 +3,8 @@
   "last_updated": "2025-11-22",
   "allowed_databases": [
     "selenite.db",
-    "selenite.test.db"
+    "selenite.test.db",
+    "backend/selenite.db"
   ],
   "storage": {
     "canonical_root": "storage",
@@ -26,8 +27,6 @@
     "frontend/test-results"
   ],
   "forbidden_globs": [
-    "backend/*.db",
-    "backend/storage/**",
     "frontend/playwright-report/**",
     "frontend/test-results/**"
   ],

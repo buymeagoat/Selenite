@@ -164,7 +164,7 @@ const canStop = job.status === 'processing' || job.status === 'queued';
               <div>
                 <div className="text-sm text-pine-mid">Speakers</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {job.speaker_count} detected
+                  {job.has_speaker_labels ? `${job.speaker_count || 1} detected` : 'Not available'}
                 </div>
               </div>
               <div>

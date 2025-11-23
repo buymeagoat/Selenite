@@ -253,8 +253,28 @@ def test_normalize_segments_handles_invalid(tmp_path):
         {"text": None},
     ]
     normalized = service._normalize_segments(segments)
-    assert len(normalized) == 2
+    assert len(normalized) == 1
     assert normalized[0]["text"] == "hello"
+
+
+def test_normalize_segments_handles_objects():
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+
+    class DummySegment:
+        def __init__(self, start, end, text, speaker=None):
+            self.start = start
+            self.end = end
+            self.text = text
+            self.speaker = speaker
+
+    segments = [
+        DummySegment(0.0, 1.5, "First", "Speaker 1"),
+        DummySegment(1.5, 3.0, "Second "),
+    ]
+    normalized = service._normalize_segments(segments)
+    assert len(normalized) == 2
+    assert normalized[0]["speaker"] == "Speaker 1"
+    assert normalized[1]["text"] == "Second"
 
 
 @pytest.mark.anyio

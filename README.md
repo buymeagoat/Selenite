@@ -119,6 +119,16 @@ Every invocation writes a timestamped log and copies coverage/Playwright artifac
 
 On Linux/macOS use PowerShell Core: `pwsh ./run-tests.ps1 [-SkipE2E ...]`.
 
+> **Test data isolation:** `run-tests.ps1` automatically switches the backend to `ENVIRONMENT=testing`, uses a dedicated SQLite file (`selenite.test.db`), and writes media/transcripts into `storage/test-media` + `storage/test-transcripts`. Those folders (and the DB) are purged before the suites start and deleted again when the script finishes, so real production data stays untouched. If you execute suites manually, export the same environment variables first and remove the temporary DB/storage after the run.
+
+> **Composite output:** When the script finishes (even on failure) it prints a concise table showing the status of the backend, frontend, and E2E suites plus paths to the saved transcript/artifacts so you can review the results quickly.
+
+> **Port hygiene:** Before launching the Playwright harness, the script automatically kills any processes listening on ports `8100` or `5173` (the production backend/frontend ports). This mirrors the manual “kill stray python/node” instructions in `BOOTSTRAP.md` so repeated runs never collide with a stale dev server. If you manage the servers yourself, stop them before invoking `run-tests.ps1`.
+
+> **Environment reset:** Any environment variables the runner overrides (`ENVIRONMENT`, `DATABASE_URL`, etc.) are restored at the end, so your shell goes back to production defaults. You no longer get “testing-mode” backends after running the suite.
+
+> **Repository hygiene:** The final step runs `python scripts/check_repo_hygiene.py`, which loads `repo-hygiene-policy.json` (v1.0.0) and fails if stray databases, storage folders, or Playwright artifacts remain. Keeping the repo clean is enforced automatically; bump the policy version whenever new directories or generated files are introduced.
+
 ## 📖 Documentation
 
 - **[User Guide](docs/USER_GUIDE.md)**: Complete guide for end users

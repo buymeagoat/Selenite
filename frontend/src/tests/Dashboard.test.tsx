@@ -47,6 +47,7 @@ const buildJob = (overrides: Partial<any> = {}) => ({
   progress_percent: 100,
   progress_stage: 'done',
   estimated_time_left: null,
+  estimated_total_seconds: 120,
   model_used: 'medium',
   language_detected: 'English',
   speaker_count: 1,
@@ -56,8 +57,10 @@ const buildJob = (overrides: Partial<any> = {}) => ({
     { id: 1, name: 'General', color: '#1D8348' },
   ],
   created_at: overrides.created_at ?? new Date().toISOString(),
+  updated_at: overrides.updated_at ?? new Date().toISOString(),
   started_at: null,
   completed_at: new Date().toISOString(),
+  stalled_at: null,
 });
 
 const jobsResponse = (items: any[]) => ({

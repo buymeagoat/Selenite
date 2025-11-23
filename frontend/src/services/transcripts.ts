@@ -5,6 +5,7 @@ export interface TranscriptSegment {
   start: number;
   end: number;
   text: string;
+  speaker?: string | null;
 }
 
 export interface TranscriptResponse {
@@ -13,6 +14,8 @@ export interface TranscriptResponse {
   segments: TranscriptSegment[];
   language: string;
   duration: number;
+  has_timestamps: boolean;
+  has_speaker_labels: boolean;
 }
 
 export async function fetchTranscript(jobId: string): Promise<TranscriptResponse> {

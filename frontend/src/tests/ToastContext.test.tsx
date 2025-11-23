@@ -4,15 +4,13 @@ import { vi } from 'vitest';
 import { ToastProvider, useToast } from '../context/ToastContext';
 
 describe('ToastContext', () => {
-  beforeAll(() => {
+  beforeEach(() => {
     vi.useFakeTimers();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterAll(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 
@@ -33,10 +31,10 @@ describe('ToastContext', () => {
     fireEvent.click(screen.getByText(/trigger/i));
     expect(screen.getByText(/saved!/i)).toBeInTheDocument();
 
-    act(() => {
-      vi.advanceTimersByTime(5000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
     });
-
+    vi.useRealTimers();
     await waitFor(() => expect(screen.queryByText(/saved!/i)).not.toBeInTheDocument());
   });
 

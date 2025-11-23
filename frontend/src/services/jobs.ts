@@ -16,6 +16,7 @@ export interface Job {
   progress_percent: number | null;
   progress_stage: string | null;
   estimated_time_left: number | null;
+  estimated_total_seconds: number | null;
   model_used: string;
   language_detected: string;
   speaker_count: number | null;
@@ -27,8 +28,10 @@ export interface Job {
     color: string;
   }>;
   created_at: string;
+  updated_at?: string;
   started_at: string | null;
   completed_at: string | null;
+  stalled_at?: string | null;
 }
 
 export interface JobsResponse {

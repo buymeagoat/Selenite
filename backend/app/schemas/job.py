@@ -32,7 +32,7 @@ class JobCreate(BaseModel):
     model: str = Field(default="medium", pattern="^(tiny|base|small|medium|large|large-v3)$")
     language: str = Field(default="auto", max_length=10)
     enable_timestamps: bool = Field(default=True)
-    enable_speaker_detection: bool = Field(default=True)
+    enable_speaker_detection: bool = Field(default=False)
 
 
 class JobResponse(BaseModel):
@@ -51,6 +51,7 @@ class JobResponse(BaseModel):
     progress_percent: int = 0
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
+    estimated_total_seconds: Optional[int] = None
     model_used: str
     language_detected: Optional[str] = None
     speaker_count: Optional[int] = None
@@ -61,8 +62,10 @@ class JobResponse(BaseModel):
     tags: List[TagResponse] = []
     available_exports: List[str] = ["txt", "md", "srt", "vtt", "json", "docx"]
     created_at: datetime
+    updated_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    stalled_at: Optional[datetime] = None
 
 
 class JobListItem(BaseModel):
@@ -79,6 +82,7 @@ class JobListItem(BaseModel):
     progress_percent: int = 0
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
+    estimated_total_seconds: Optional[int] = None
     model_used: str
     language_detected: Optional[str] = None
     speaker_count: Optional[int] = None
@@ -86,8 +90,10 @@ class JobListItem(BaseModel):
     has_speaker_labels: bool
     tags: List[TagResponse] = []
     created_at: datetime
+    updated_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    stalled_at: Optional[datetime] = None
 
 
 class JobListResponse(BaseModel):
@@ -109,6 +115,9 @@ class JobStatusResponse(BaseModel):
     progress_percent: int
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
+    estimated_total_seconds: Optional[int] = None
+    updated_at: Optional[datetime] = None
+    stalled_at: Optional[datetime] = None
 
 
 class JobCreatedResponse(BaseModel):

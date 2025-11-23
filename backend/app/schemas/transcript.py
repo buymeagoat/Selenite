@@ -22,3 +22,5 @@ class TranscriptResponse(BaseModel):
     segments: List[TranscriptSegment]
     language: str
     duration: float
+    has_timestamps: bool
+    has_speaker_labels: bool

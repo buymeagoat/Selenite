@@ -40,7 +40,8 @@ async def create_job(
     model: Optional[str] = Form(default=None),
     language: Optional[str] = Form(default=None),
     enable_timestamps: bool = Form(default=True),
-    enable_speaker_detection: bool = Form(default=True),
+    # Speaker detection is not implemented; the flag is ignored and forced off.
+    enable_speaker_detection: bool = Form(default=False),
     should_fail: bool = Query(False, alias="fail"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -94,7 +95,7 @@ async def create_job(
         progress_percent=0,
         model_used=resolved_model,
         has_timestamps=enable_timestamps,
-        has_speaker_labels=enable_speaker_detection,
+        has_speaker_labels=False,
         created_at=datetime.utcnow(),
     )
 

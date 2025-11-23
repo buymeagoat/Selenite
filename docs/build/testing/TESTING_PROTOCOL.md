@@ -27,6 +27,49 @@ Optional switches:
 
 Use this script for AI workflows so they don’t need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required. If you run tests manually (e.g., `npm run e2e:full` by itself), copy the resulting logs/coverage/Playwright report into `docs/memorialization/test-runs/<timestamp>-manual` to keep the historical record complete.
 
+`run-tests.ps1` also ensures the production ports are free before the Playwright run by killing any process bound to `8100` (API) or `5173` (frontend). That guarantees the concurrent bootstrap script doesn’t immediately crash with “port already in use” errors.
+
+All temporary environment overrides are reverted at the end of the run, so your shell will still launch the backend in production mode afterward.
+
+### Temporary test database & storage
+
+`run-tests.ps1` always:
+
+1. Sets `ENVIRONMENT=testing`.
+2. Points `DATABASE_URL` at a dedicated SQLite file (`selenite.test.db`) in the repo root.
+3. Redirects uploads/transcripts to `storage/test-media` and `storage/test-transcripts`.
+4. Deletes the temporary DB and those folders after the suites finish.
+
+When executing suites manually, reproduce that isolation before running any tests, e.g.:
+
+```powershell
+$env:ENVIRONMENT = "testing"
+$env:DATABASE_URL = "sqlite+aiosqlite:///$(Join-Path (Get-Location) 'selenite.test.db')"
+$env:MEDIA_STORAGE_PATH = "$(Join-Path (Get-Location) 'storage/test-media')"
+$env:TRANSCRIPT_STORAGE_PATH = "$(Join-Path (Get-Location) 'storage/test-transcripts')"
+```
+
+Before the suites start it deletes any stale `selenite.test.db` / `storage/test-*` contents, and after the run it removes the fresh artifacts so production data remains pristine. Never run tests against `selenite.db`.
+
+### Composite summary output
+
+`run-tests.ps1` captures the entire console transcript and ends by printing a summary table:
+
+```
+=== Composite Test Summary ===
+Suite     Status Details
+-----     ------ -------
+Backend   PASS   pytest --cov=app
+Frontend  PASS   npm run test:coverage && npm run coverage:summary
+E2E       PASS   npm run e2e:full
+Artifacts saved to: docs/memorialization/test-runs/20251121-145758-backend+frontend+e2e
+Full transcript: docs/memorialization/test-runs/20251121-145758-backend+frontend+e2e/run-tests.log
+```
+
+Review that summary first; if anything failed, the transcript + coverage artifacts in the referenced folder provide the full context.
+
+After cleanup, the runner executes `python scripts/check_repo_hygiene.py` to confirm the repo tree has no unexpected databases, storage directories, or leftover Playwright artifacts. If hygiene fails, the command exits non‑zero and the overall test run fails.
+
 ---
 
 ## 1. Backend (pytest + coverage)

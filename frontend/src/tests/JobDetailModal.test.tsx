@@ -13,16 +13,18 @@ const mockJob: Job = {
   progress_percent: 100,
   progress_stage: 'completed',
   estimated_time_left: 0,
+  estimated_total_seconds: 2000,
   model_used: 'medium',
   language_detected: 'English',
-  speaker_count: 2,
+  speaker_count: null,
   has_timestamps: true,
-  has_speaker_labels: true,
+  has_speaker_labels: false,
   tags: [
     { id: 1, name: 'interviews', color: '#2D6A4F' },
     { id: 2, name: 'important', color: '#C9A227' }
   ],
   created_at: '2025-11-15T10:30:00Z',
+  updated_at: '2025-11-15T10:59:00Z',
   started_at: '2025-11-15T10:31:00Z',
   completed_at: '2025-11-15T11:00:00Z'
 };
@@ -124,7 +126,7 @@ describe('JobDetailModal', () => {
     expect(screen.getByText(/30:34/)).toBeInTheDocument(); // Duration
     expect(screen.getByText('medium')).toBeInTheDocument(); // Model
     expect(screen.getByText('English')).toBeInTheDocument(); // Language
-    expect(screen.getByText(/2 detected/)).toBeInTheDocument(); // Speakers
+    expect(screen.getByText(/Not available/i)).toBeInTheDocument(); // Speakers disabled
     expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size
   });
 

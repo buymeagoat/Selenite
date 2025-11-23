@@ -12,11 +12,19 @@
 1. **This document is the canonical backlog.** No engineering work (code, docs, automation, testing) happens unless a task exists here first.
 2. **Memorialize every change.** Before starting new work, add/confirm an entry (with owner/date/status). After finishing, update the item with a concise summary and check it off.
 3. **Archive all test outputs.** Every time automated or manual tests run, drop the resulting logs/artifacts under `docs/memorialization/test-runs/<timestamp>-<suite>` (use `run-tests.ps1`, or copy artifacts manually if you run ad-hoc commands). This folder is gitignored and serves as the historical log.
-4. **Keep every log file.** Backend logging now emits `logs/selenite-YYYYMMDD-HHMMSS.log` and `logs/error-YYYYMMDD-HHMMSS.log` on each start—never overwrite or delete them unless you’re performing an explicit archival process.
+4. **Keep every log file.** Backend logging now emits `logs/selenite-YYYYMMDD-HHMMSS.log` and `logs/error-YYYYMMDD-HHMMSS.log` on each start—never overwrite or delete them unless you’re performing an explicit archival process. Review size/retention quarterly per the hygiene policy.
 5. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task’s description so future readers can reconstruct the history.
 6. **Future-scope items stay parked.** Anything marked “Moved to Future Enhancements” remains untouched until re-prioritized here.
 
 Compliance with these directives is mandatory for humans and AI collaborators alike.
+
+---
+
+## ♻️ Maintenance Cadence
+
+| ID | Task | Description | Owner | Target Date | Status |
+|----|------|-------------|-------|-------------|--------|
+| [HYGIENE-AUDIT] | Repository hygiene audit | Review `repo-hygiene-policy.json` thresholds, prune `logs/` and `docs/memorialization/test-runs` if over limits, confirm automation hooks remain aligned. | Owner | 2026-02-01 (repeats quarterly) | ☐ |
 
 ---
 

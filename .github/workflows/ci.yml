@@ -53,6 +53,9 @@ jobs:
           npm run type-check
           npm run build
 
+      - name: Repository hygiene check
+        run: python scripts/check_repo_hygiene.py
+
       - name: Upload frontend coverage summary
         uses: actions/upload-artifact@v4
         with:

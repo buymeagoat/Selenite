@@ -42,12 +42,14 @@ describe('TranscriptView', () => {
   it('loads and displays transcript content', async () => {
     fetchTranscriptMock.mockResolvedValue({
       job_id: 'job-1',
-      text: 'Full transcript text',
+      text: '[00:00.0 – 00:05.0] Hello world',
       segments: [
-        { id: 1, start: 0, end: 5, text: 'Hello world' },
+        { id: 1, start: 0, end: 5, text: 'Hello world', speaker: 'Speaker 1' },
       ],
       language: 'en',
       duration: 5,
+      has_timestamps: true,
+      has_speaker_labels: true,
     });
 
     window.history.pushState({}, 'Transcript', '/transcripts/job-1?token=abc123');
@@ -56,8 +58,8 @@ describe('TranscriptView', () => {
     await waitFor(() => expect(fetchTranscriptMock).toHaveBeenCalledWith('job-1'));
     expect(localStorage.getItem('auth_token')).toBe('abc123');
     expect(screen.getByText(/job id: job-1/i)).toBeInTheDocument();
-    expect(screen.getByText(/full transcript text/i)).toBeInTheDocument();
-    expect(screen.getByText(/hello world/i)).toBeInTheDocument();
+    expect(screen.getByText(/\[00:00\.0 – 00:05\.0\] hello world/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/hello world/i).length).toBeGreaterThan(0);
   });
 
   it('surfaces errors and shows fallback when transcript cannot be loaded', async () => {

@@ -79,7 +79,8 @@ describe('Settings', () => {
     expect(screen.getByLabelText(/default model/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/default language/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/timestamps/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/speaker detection/i)).toBeInTheDocument();
+    const speakerToggle = screen.getByLabelText(/speaker detection/i) as HTMLInputElement;
+    expect(speakerToggle).toBeDisabled();
   });
 
   it('renders performance settings', async () => {

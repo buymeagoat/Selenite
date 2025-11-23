@@ -15,6 +15,10 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
+$MediaDir = Join-Path $Root 'storage\media'
+$TranscriptDir = Join-Path $Root 'storage\transcripts'
+New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
+New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
 
 function Write-Section($Message) {
     Write-Host ""
@@ -71,11 +75,13 @@ Invoke-Step "Frontend dependencies" {
 }
 
 Invoke-Step "Start backend API (new window)" {
-    $backendCmd = @"
+$backendCmd = @"
 cd "$BackendDir"
-$env:DISABLE_FILE_LOGS = '1'
-$env:ENVIRONMENT = 'production'
-$env:ALLOW_LOCALHOST_CORS = '1'
+`$env:DISABLE_FILE_LOGS = '1'
+`$env:ENVIRONMENT = 'production'
+`$env:ALLOW_LOCALHOST_CORS = '1'
+`$env:MEDIA_STORAGE_PATH = '$MediaDir'
+`$env:TRANSCRIPT_STORAGE_PATH = '$TranscriptDir'
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $backendCmd

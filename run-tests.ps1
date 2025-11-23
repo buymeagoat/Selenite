@@ -51,6 +51,12 @@ function Get-BackendPythonPath {
 
 $script:BackendPython = Get-BackendPythonPath
 
+function Convert-ToSqliteUrl {
+    param([string]$PathValue)
+    $normalized = $PathValue -replace '\\', '/'
+    return "sqlite+aiosqlite:///$normalized"
+}
+
 $MemorialRoot = Join-Path $RepoRoot "docs/memorialization/test-runs"
 if (-not (Test-Path $MemorialRoot)) {
     New-Item -ItemType Directory -Force -Path $MemorialRoot | Out-Null
@@ -67,9 +73,84 @@ New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
 $TranscriptPath = Join-Path $RunDir "run-tests.log"
 Start-Transcript -Path $TranscriptPath | Out-Null
 
+$script:TestSummary = New-Object System.Collections.Generic.List[psobject]
+
+$TestDbPath = Join-Path $RepoRoot "selenite.test.db"
+$TestMediaPath = Join-Path $RepoRoot "storage/test-media"
+$TestTranscriptPath = Join-Path $RepoRoot "storage/test-transcripts"
+
+$OriginalEnv = @{
+    ENVIRONMENT = $env:ENVIRONMENT
+    DATABASE_URL = $env:DATABASE_URL
+    MEDIA_STORAGE_PATH = $env:MEDIA_STORAGE_PATH
+    TRANSCRIPT_STORAGE_PATH = $env:TRANSCRIPT_STORAGE_PATH
+}
+
+$env:ENVIRONMENT = "testing"
+$env:DATABASE_URL = Convert-ToSqliteUrl $TestDbPath
+$env:MEDIA_STORAGE_PATH = $TestMediaPath
+$env:TRANSCRIPT_STORAGE_PATH = $TestTranscriptPath
+foreach ($path in @($TestDbPath, $TestMediaPath, $TestTranscriptPath)) {
+    if (Test-Path $path) {
+        Remove-Item $path -Recurse -Force
+    }
+}
+
 function Write-Section {
     param([string]$Message)
     Write-Host "`n=== $Message ===" -ForegroundColor Cyan
+}
+
+function Throw-OnError {
+    param(
+        [string]$Context
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Context failed (exit code $LASTEXITCODE)"
+    }
+}
+
+function Stop-PortListener {
+    param(
+        [int]$Port
+    )
+    try {
+        if ($IsWindows) {
+            $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+            foreach ($connection in $connections) {
+                $procId = $connection.OwningProcess
+                if ($procId) {
+                    Write-Host "Stopping process $procId using port $Port..." -ForegroundColor Yellow
+                    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } else {
+            $pids = & bash -lc "lsof -ti tcp:$Port -s tcp:listen 2>/dev/null"
+            if ($pids) {
+                foreach ($pid in $pids -split "`n") {
+                    if ($pid.Trim()) {
+                        Write-Host "Stopping process $pid using port $Port..." -ForegroundColor Yellow
+                        & bash -lc "kill -9 $pid" | Out-Null
+                    }
+                }
+            }
+        }
+    } catch {
+        Write-Warning "Unable to free port ${Port}: $_"
+    }
+}
+
+function Add-Summary {
+    param(
+        [string]$Suite,
+        [string]$Status,
+        [string]$Details
+    )
+    $script:TestSummary.Add([pscustomobject]@{
+        Suite   = $Suite
+        Status  = $Status
+        Details = $Details
+    })
 }
 
 function Get-SystemPython {
@@ -92,6 +173,7 @@ function Ensure-BackendEnv {
             Write-Host "Creating backend virtualenv (.venv)..." -ForegroundColor Yellow
             $pythonExe = Get-SystemPython
             & $pythonExe -m venv .venv
+            Throw-OnError "python -m venv .venv"
             $Force = $true
             $script:BackendPython = Get-BackendPythonPath
         }
@@ -99,7 +181,9 @@ function Ensure-BackendEnv {
         if ($Force) {
             Write-Host "Installing backend dependencies..." -ForegroundColor Yellow
             & $script:BackendPython -m pip install --upgrade pip
+            Throw-OnError "pip install --upgrade pip"
             & $script:BackendPython -m pip install -r requirements-minimal.txt
+            Throw-OnError "pip install -r requirements-minimal.txt"
         } else {
             Write-Host "Backend dependencies already present. Use -ForceBackendInstall to reinstall." -ForegroundColor DarkGray
         }
@@ -114,6 +198,7 @@ function Run-BackendTests {
     Push-Location $BackendDir
     try {
         & $script:BackendPython -m pytest --maxfail=1 --disable-warnings --cov=app --cov-report=term
+        Throw-OnError "pytest"
     }
     finally {
         Pop-Location
@@ -127,6 +212,7 @@ function Ensure-FrontendDeps {
         if ($Force -or -not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
             Write-Host "Installing frontend dependencies (npm install)..." -ForegroundColor Yellow
             npm install
+            Throw-OnError "npm install"
         } else {
             Write-Host "Frontend node_modules already present. Use -ForceFrontendInstall to reinstall." -ForegroundColor DarkGray
         }
@@ -141,7 +227,9 @@ function Run-FrontendTests {
     Push-Location $FrontendDir
     try {
         npm run test:coverage
+        Throw-OnError "npm run test:coverage"
         npm run coverage:summary
+        Throw-OnError "npm run coverage:summary"
     }
     finally {
         Pop-Location
@@ -152,7 +240,11 @@ function Run-E2E {
     Write-Section "Running Playwright E2E suite"
     Push-Location $FrontendDir
     try {
+        foreach ($port in 8100, 5173) {
+            Stop-PortListener -Port $port
+        }
         npm run e2e:full
+        Throw-OnError "npm run e2e:full"
     }
     finally {
         Pop-Location
@@ -160,31 +252,70 @@ function Run-E2E {
 }
 
 # --- Main execution ---
+$script:StoredError = $null
 try {
     if (-not $SkipBackend) {
-        Ensure-BackendEnv -Force:$ForceBackendInstall
-        Run-BackendTests
+        try {
+            Ensure-BackendEnv -Force:$ForceBackendInstall
+            Run-BackendTests
+            Add-Summary -Suite "Backend" -Status "PASS" -Details "pytest --cov=app"
+        } catch {
+            Add-Summary -Suite "Backend" -Status "FAIL" -Details $_.Exception.Message
+            throw
+        }
     } else {
         Write-Host "Skipping backend tests (-SkipBackend set)." -ForegroundColor Yellow
+        Add-Summary -Suite "Backend" -Status "SKIPPED" -Details "-SkipBackend flag"
     }
 
     if (-not $SkipFrontend) {
-        Ensure-FrontendDeps -Force:$ForceFrontendInstall
-        Run-FrontendTests
+        try {
+            Ensure-FrontendDeps -Force:$ForceFrontendInstall
+            Run-FrontendTests
+            Add-Summary -Suite "Frontend" -Status "PASS" -Details "npm run test:coverage && npm run coverage:summary"
+        } catch {
+            Add-Summary -Suite "Frontend" -Status "FAIL" -Details $_.Exception.Message
+            throw
+        }
     } else {
         Write-Host "Skipping frontend tests (-SkipFrontend set)." -ForegroundColor Yellow
+        Add-Summary -Suite "Frontend" -Status "SKIPPED" -Details "-SkipFrontend flag"
     }
 
     if (-not $SkipE2E) {
-        Run-E2E
+        try {
+            Run-E2E
+            Add-Summary -Suite "E2E" -Status "PASS" -Details "npm run e2e:full"
+        } catch {
+            Add-Summary -Suite "E2E" -Status "FAIL" -Details $_.Exception.Message
+            throw
+        }
     } else {
         Write-Host "Skipping Playwright E2E (-SkipE2E set)." -ForegroundColor Yellow
+        Add-Summary -Suite "E2E" -Status "SKIPPED" -Details "-SkipE2E flag"
     }
 
     Write-Section "All requested test suites completed"
 }
+catch {
+    $script:StoredError = $_
+}
 finally {
+    if ($script:TestSummary.Count -gt 0) {
+        Write-Section "Composite Test Summary"
+        $script:TestSummary | Format-Table -AutoSize
+        Write-Host "Artifacts saved to: $RunDir" -ForegroundColor DarkGray
+        Write-Host "Full transcript: $TranscriptPath" -ForegroundColor DarkGray
+    }
     try { Stop-Transcript | Out-Null } catch {}
+
+    foreach ($key in @("ENVIRONMENT","DATABASE_URL","MEDIA_STORAGE_PATH","TRANSCRIPT_STORAGE_PATH")) {
+        if ($OriginalEnv[$key]) {
+            Set-Item -Path "Env:$key" -Value $OriginalEnv[$key]
+        } else {
+            Remove-Item -Path "Env:$key" -ErrorAction SilentlyContinue
+        }
+    }
 
     if (-not $SkipBackend) {
         $backendCov = Join-Path $BackendDir ".coverage"
@@ -212,4 +343,31 @@ finally {
             Copy-Item $playwrightResults $destResults -Recurse -Force
         }
     }
+
+    if (Test-Path $TestDbPath) {
+        Remove-Item $TestDbPath -Force
+    }
+    foreach ($path in @($TestMediaPath, $TestTranscriptPath)) {
+        if (Test-Path $path) {
+            Remove-Item $path -Recurse -Force
+        }
+    }
+
+    $playwrightReportDir = Join-Path $FrontendDir "playwright-report"
+    if (Test-Path $playwrightReportDir) {
+        Remove-Item $playwrightReportDir -Recurse -Force
+    }
+    $playwrightResultsDir = Join-Path $FrontendDir "test-results"
+    if (Test-Path $playwrightResultsDir) {
+        Remove-Item $playwrightResultsDir -Recurse -Force
+    }
 }
+
+if ($script:StoredError) {
+    throw $script:StoredError
+}
+
+Write-Section "Repository hygiene verification"
+$systemPython = Get-SystemPython
+& $systemPython (Join-Path $RepoRoot "scripts/check_repo_hygiene.py")
+Throw-OnError "Repository hygiene check"

@@ -153,6 +153,7 @@ Authorization: Bearer <token>
       "progress_percent": 100,
       "progress_stage": null,
       "estimated_time_left": null,
+      "estimated_total_seconds": 1900,
       "model_used": "medium",
       "language_detected": "en",
       "speaker_count": 2,
@@ -166,8 +167,10 @@ Authorization: Bearer <token>
         }
       ],
       "created_at": "2025-11-15T10:30:00Z",
+      "updated_at": "2025-11-15T10:45:30Z",
       "started_at": "2025-11-15T10:30:15Z",
-      "completed_at": "2025-11-15T10:45:30Z"
+      "completed_at": "2025-11-15T10:45:30Z",
+      "stalled_at": null
     }
   ]
 }
@@ -195,6 +198,7 @@ Authorization: Bearer <token>
   "progress_percent": 100,
   "progress_stage": null,
   "estimated_time_left": null,
+  "estimated_total_seconds": 1900,
   "model_used": "medium",
   "language_detected": "en",
   "speaker_count": 2,
@@ -211,8 +215,10 @@ Authorization: Bearer <token>
   ],
   "available_exports": ["txt", "md", "srt", "vtt", "json", "docx"],
   "created_at": "2025-11-15T10:30:00Z",
+  "updated_at": "2025-11-15T10:45:30Z",
   "started_at": "2025-11-15T10:30:15Z",
-  "completed_at": "2025-11-15T10:45:30Z"
+  "completed_at": "2025-11-15T10:45:30Z",
+  "stalled_at": null
 }
 ```
 
@@ -436,7 +442,7 @@ Authorization: Bearer <token>
   - vtt: text/vtt
   - json: application/json
   - docx: application/vnd.openxmlformats-officedocument.wordprocessingml.document
-- Content-Disposition: attachment; filename="interview-transcript.{format}"
+- Content-Disposition: attachment; filename="interview.{format}"
 - Body: File content
 
 **Response 400 Bad Request**:

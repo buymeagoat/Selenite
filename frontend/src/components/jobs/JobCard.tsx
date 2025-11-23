@@ -7,10 +7,13 @@ interface Job {
   original_filename: string;
   status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
   created_at: string;
+  started_at?: string | null;
   duration?: number;
   progress_percent?: number | null;
   progress_stage?: string | null;
   estimated_time_left?: number | null;
+  estimated_total_seconds?: number | null;
+  stalled_at?: string | null;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 
@@ -71,6 +74,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
             percent={job.progress_percent}
             stage={job.progress_stage || undefined}
             estimatedTimeLeft={job.estimated_time_left || undefined}
+            startedAt={job.started_at || undefined}
+            stalled={job.progress_stage === 'stalled' || Boolean(job.stalled_at)}
           />
         </div>
       )}

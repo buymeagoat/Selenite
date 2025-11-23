@@ -197,6 +197,8 @@ class TestTranscriptRoutes:
             assert isinstance(body["segments"], list) and len(body["segments"]) >= 1
             assert "language" in body
             assert "duration" in body
+            assert body["has_timestamps"] is True
+            assert body["has_speaker_labels"] in (True, False)
 
             # Export in all formats
             formats = {
@@ -215,7 +217,7 @@ class TestTranscriptRoutes:
                 assert e_resp.headers.get("content-type", "").startswith(ctype)
                 # Content-Disposition filename
                 cd = e_resp.headers.get("content-disposition", "")
-                assert cd.startswith("attachment;") and f"-transcript.{fmt}" in cd
+                assert cd.startswith("attachment;") and f"meeting.{fmt}" in cd
                 assert e_resp.content and len(e_resp.content) > 0
 
     async def test_export_invalid_format(self, test_db, auth_headers):
@@ -349,9 +351,13 @@ def test_load_transcript_with_metadata(tmp_path):
         transcript_path=str(transcript_file),
         language_detected="en",
         duration=10.0,
+        has_timestamps=False,
+        has_speaker_labels=False,
     )
 
-    text, segments, language, duration = transcript_routes._load_transcript_data(job)
+    text, segments, language, duration, has_timestamps, has_speaker_labels = (
+        transcript_routes._load_transcript_data(job)
+    )
 
     assert text == "from metadata"
     assert language == "fr"

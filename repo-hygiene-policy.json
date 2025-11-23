@@ -1,0 +1,45 @@
+{
+  "policy_version": "1.0.0",
+  "last_updated": "2025-11-22",
+  "allowed_databases": [
+    "selenite.db",
+    "selenite.test.db"
+  ],
+  "storage": {
+    "canonical_root": "storage",
+    "allowed_subdirectories": [
+      "media",
+      "transcripts"
+    ],
+    "test_subdirectories": [
+      "test-media",
+      "test-transcripts"
+    ],
+    "legacy_paths": [
+      "backend/storage"
+    ]
+  },
+  "must_be_empty": [
+    "storage/test-media",
+    "storage/test-transcripts",
+    "frontend/playwright-report",
+    "frontend/test-results"
+  ],
+  "forbidden_globs": [
+    "backend/*.db",
+    "backend/storage/**",
+    "frontend/playwright-report/**",
+    "frontend/test-results/**"
+  ],
+  "require_clean_git_status": true,
+  "log_directories": [
+    {
+      "path": "logs",
+      "max_size_mb": 200
+    },
+    {
+      "path": "docs/memorialization/test-runs",
+      "max_entry_count": 50
+    }
+  ]
+}

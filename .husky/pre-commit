@@ -8,6 +8,14 @@ echo "🔍 Selenite QA Gateway: Pre-Commit Validation"
 echo "=============================================="
 echo "[LOG] Pre-commit hook started at $(date)"
 
+echo ""
+echo "🧹 Stage 0: Repository Hygiene Policy"
+if ! python scripts/check_repo_hygiene.py; then
+  echo "❌ FAILED: Repository hygiene violations detected"
+  exit 1
+fi
+echo "  ✅ Repository hygiene OK"
+
 # Check if SKIP_QA is set (emergency bypass)
 if [ -n "$SKIP_QA" ]; then
   echo "⚠️  WARNING: QA checks bypassed via SKIP_QA environment variable"

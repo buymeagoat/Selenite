@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchTranscript, TranscriptResponse } from '../services/transcripts';
 import { ApiError, API_BASE_URL } from '../lib/api';
@@ -74,6 +74,19 @@ export const TranscriptView: React.FC = () => {
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds - mins * 60;
+    return `${String(mins).padStart(2, '0')}:${secs.toFixed(1).padStart(4, '0')}`;
+  };
+
+  const hasSpeakerLabels = transcript?.has_speaker_labels ?? false;
+  const hasTimestamps = transcript?.has_timestamps ?? false;
+  const speakerDataPresent = useMemo(
+    () => Boolean(transcript?.segments.some((segment) => segment.speaker)),
+    [transcript?.segments]
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-sage-light">
@@ -99,7 +112,7 @@ export const TranscriptView: React.FC = () => {
   return (
     <div className="min-h-screen bg-sage-light px-6 py-8">
       <div className="max-w-3xl mx-auto bg-white border border-sage-mid rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center justify-between gap-4 mb-3">
           <div>
             <h1 className="text-2xl font-semibold text-pine-deep">Transcript</h1>
             <p className="text-sm text-pine-mid mt-1">Job ID: {transcript.job_id}</p>
@@ -110,6 +123,14 @@ export const TranscriptView: React.FC = () => {
           >
             Back to Dashboard
           </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 mb-6 text-xs text-pine-mid">
+          <span className="px-2 py-1 rounded-full bg-sage-light border border-sage-mid">
+            {hasTimestamps ? 'Inline timestamps enabled' : 'Timestamps disabled'}
+          </span>
+          <span className="px-2 py-1 rounded-full bg-sage-light border border-sage-mid">
+            {hasSpeakerLabels ? 'Speaker labels requested' : 'Speaker labels disabled'}
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
@@ -124,11 +145,22 @@ export const TranscriptView: React.FC = () => {
           ))}
         </div>
 
-        <section className="mb-6">
-          <h2 className="text-lg font-medium text-pine-deep mb-2">Full Text</h2>
+        <section className="mb-6 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-medium text-pine-deep">Full Text</h2>
+            {hasTimestamps && (
+              <span className="text-xs text-pine-mid">Each line includes the timestamp range requested.</span>
+            )}
+          </div>
           <div className="bg-sage-50 border border-sage-mid rounded-lg p-4 text-sm text-pine-deep whitespace-pre-wrap">
             {transcript.text}
           </div>
+          {hasSpeakerLabels && !speakerDataPresent && (
+            <p className="text-xs text-terracotta">
+              Speaker separation is not available for this transcript. The request has been recorded for export formats,
+              but inline diarization requires the upcoming speaker detection upgrade.
+            </p>
+          )}
         </section>
 
         <section>
@@ -137,8 +169,11 @@ export const TranscriptView: React.FC = () => {
             {transcript.segments.map((segment) => (
               <div key={segment.id} className="border border-gray-200 rounded-lg p-3 text-sm">
                 <div className="text-xs text-pine-mid mb-1">
-                  {segment.start.toFixed(1)}s – {segment.end.toFixed(1)}s
+                  {formatTime(segment.start)} – {formatTime(segment.end)}
                 </div>
+                {segment.speaker && (
+                  <div className="text-xs font-medium text-pine-deep mb-1">{segment.speaker}</div>
+                )}
                 <div>{segment.text}</div>
               </div>
             ))}

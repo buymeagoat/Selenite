@@ -13,7 +13,7 @@ describe('ProgressBar', () => {
   it('displays stage and time estimate when provided', () => {
     render(<ProgressBar percent={30} stage="Transcribing..." estimatedTimeLeft={420} />);
     expect(screen.getByText(/Transcribing/i)).toBeInTheDocument();
-    expect(screen.getByText(/7 minutes/i)).toBeInTheDocument();
+    expect(screen.getByText(/7m 00s/i)).toBeInTheDocument();
     expect(screen.getByText('30%')).toBeInTheDocument();
   });
 

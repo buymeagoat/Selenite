@@ -140,7 +140,8 @@ describe('NewJobModal', () => {
     );
     
     const speakerCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
-    expect(speakerCheckbox.checked).toBe(true);
+    expect(speakerCheckbox.checked).toBe(false);
+    expect(speakerCheckbox).toBeDisabled();
   });
 
   it('allows changing model selection', () => {
@@ -183,6 +184,9 @@ describe('NewJobModal', () => {
     const timestampsCheckbox = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
     fireEvent.click(timestampsCheckbox);
     expect(timestampsCheckbox.checked).toBe(false);
+
+    const speakersCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
+    expect(speakersCheckbox).toBeDisabled();
   });
 
   it('shows loading state during submission', async () => {

@@ -14,7 +14,8 @@ export const Settings: React.FC = () => {
   const [defaultModel, setDefaultModel] = useState('medium');
   const [defaultLanguage, setDefaultLanguage] = useState('auto');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
-  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
+  // Speaker detection not implemented yet; keep disabled.
+  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -300,10 +301,11 @@ export const Settings: React.FC = () => {
               type="checkbox"
               checked={enableSpeakerDetection}
               onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-              className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+              disabled
+              className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green opacity-50 cursor-not-allowed"
             />
             <label htmlFor="default-speaker-detection" className="text-sm text-pine-deep">
-              Enable Speaker Detection
+              Enable Speaker Detection (coming soon)
             </label>
           </div>
           <button

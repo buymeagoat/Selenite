@@ -42,8 +42,13 @@ class Job(Base):
     transcript_path = Column(String(512), nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, index=True
+    )
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    estimated_total_seconds = Column(Integer, nullable=True)
+    stalled_at = Column(DateTime, nullable=True)
 
     # Relationships
     tags = relationship("Tag", secondary="job_tags", back_populates="jobs")

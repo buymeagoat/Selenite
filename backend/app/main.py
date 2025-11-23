@@ -16,7 +16,7 @@ from app.routes import tags as tags_module
 from app.routes import search as search_module
 from app.routes import settings as settings_module
 from app.routes import exports as exports_module
-from app.services.job_queue import queue
+from app.services.job_queue import queue, resume_queued_jobs
 
 # Initialize logging
 setup_logging()
@@ -64,7 +64,11 @@ async def lifespan(app: FastAPI):
         logger.info("Testing mode detected; job queue will be started by tests as needed")
     else:
         await queue.start()
-        logger.info("Job queue started")
+        resumed = await resume_queued_jobs(queue)
+        if resumed:
+            logger.info("Job queue started and resumed %s queued job(s)", resumed)
+        else:
+            logger.info("Job queue started")
 
     yield
 

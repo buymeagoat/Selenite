@@ -61,11 +61,7 @@ frontend/test-results/
 *.sqlite
 *.sqlite3
 
-# Storage (uploaded files)
-backend/storage/media/*
-backend/storage/transcripts/*
-!backend/storage/media/.gitkeep
-!backend/storage/transcripts/.gitkeep
+# Storage (uploaded files + memorialized test runs)
 storage/
 docs/memorialization/
 

@@ -1,12 +1,18 @@
 """Unit tests for TranscriptionJobQueue internals."""
 
 import asyncio
+from datetime import datetime, timedelta
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
+from sqlalchemy import delete
 
 from app.services.job_queue import TranscriptionJobQueue
 import app.services.job_queue as job_queue_module
+from app.database import AsyncSessionLocal, engine, Base
+from app.models.job import Job
+from app.models.user import User
 
 
 class DummySession:
@@ -36,7 +42,7 @@ async def test_enqueue_processes_job_once(monkeypatch):
     monkeypatch.setattr(job_queue_module, "AsyncSessionLocal", lambda: DummySession())
     monkeypatch.setattr(job_queue_module, "process_transcription_job", fake_process)
 
-    queue = TranscriptionJobQueue(concurrency=1)
+    queue = TranscriptionJobQueue(concurrency=1, enable_watchdog=False)
     await queue.start()
 
     await queue.enqueue("job-1")
@@ -57,7 +63,7 @@ async def test_enqueue_processes_job_once(monkeypatch):
 @pytest.mark.asyncio
 async def test_enqueue_skips_when_testing(monkeypatch):
     """When not started and settings.is_testing is True, enqueue should no-op."""
-    queue = TranscriptionJobQueue()
+    queue = TranscriptionJobQueue(enable_watchdog=False)
     monkeypatch.setattr(job_queue_module, "settings", SimpleNamespace(is_testing=True))
 
     await queue.enqueue("job-x")
@@ -69,7 +75,7 @@ async def test_enqueue_skips_when_testing(monkeypatch):
 @pytest.mark.asyncio
 async def test_enqueue_autostarts_when_not_testing(monkeypatch):
     """Enqueue should spawn workers when not testing."""
-    queue = TranscriptionJobQueue()
+    queue = TranscriptionJobQueue(enable_watchdog=False)
     monkeypatch.setattr(job_queue_module, "settings", SimpleNamespace(is_testing=False))
     monkeypatch.setattr(job_queue_module, "AsyncSessionLocal", lambda: DummySession())
 
@@ -93,7 +99,7 @@ async def test_set_concurrency_restarts_workers(monkeypatch):
         job_queue_module, "process_transcription_job", lambda *args, **kwargs: asyncio.sleep(0)
     )
 
-    queue = TranscriptionJobQueue(concurrency=1)
+    queue = TranscriptionJobQueue(concurrency=1, enable_watchdog=False)
     await queue.start()
     assert len(queue._workers) == 1
 
@@ -107,7 +113,7 @@ async def test_set_concurrency_restarts_workers(monkeypatch):
 @pytest.mark.asyncio
 async def test_set_concurrency_rejects_invalid():
     """Concurrency must be >=1."""
-    queue = TranscriptionJobQueue()
+    queue = TranscriptionJobQueue(enable_watchdog=False)
     with pytest.raises(ValueError):
         await queue.set_concurrency(0)
 
@@ -135,7 +141,7 @@ async def test_stop_handles_event_loop_closed(monkeypatch):
 @pytest.mark.asyncio
 async def test_set_concurrency_handles_loop_closed(monkeypatch):
     """If stop raises RuntimeError loop closed, state should reset."""
-    queue = TranscriptionJobQueue(concurrency=1)
+    queue = TranscriptionJobQueue(concurrency=1, enable_watchdog=False)
 
     async def fake_stop():
         raise RuntimeError("Event loop is closed")
@@ -149,3 +155,127 @@ async def test_set_concurrency_handles_loop_closed(monkeypatch):
     await queue.set_concurrency(2)
     assert queue._started is False
     assert queue._queue is None
+
+
+@pytest.mark.asyncio
+async def test_resume_queued_jobs_requeues_pending(monkeypatch):
+    """resume_queued_jobs should enqueue every job still marked queued."""
+    user_id = None
+    queued_id = str(uuid4())
+    completed_id = str(uuid4())
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as session:
+        suffix = uuid4().hex[:8]
+        user = User(
+            username=f"queue_user_{suffix}",
+            email=f"queue_user_{suffix}@example.com",
+            hashed_password="hashed",
+        )
+        session.add(user)
+        await session.flush()
+        user_id = user.id
+        session.add_all(
+            [
+                Job(
+                    id=queued_id,
+                    user_id=user_id,
+                    original_filename="queued.mp3",
+                    saved_filename="queued.mp3",
+                    file_path=f"/tmp/{queued_id}.mp3",
+                    file_size=1234,
+                    mime_type="audio/mpeg",
+                    status="queued",
+                    progress_percent=0,
+                    model_used="medium",
+                    has_timestamps=True,
+                    has_speaker_labels=True,
+                    created_at=datetime.utcnow(),
+                ),
+                Job(
+                    id=completed_id,
+                    user_id=user_id,
+                    original_filename="done.mp3",
+                    saved_filename="done.mp3",
+                    file_path=f"/tmp/{completed_id}.mp3",
+                    file_size=4321,
+                    mime_type="audio/mpeg",
+                    status="completed",
+                    progress_percent=100,
+                    model_used="medium",
+                    has_timestamps=True,
+                    has_speaker_labels=True,
+                    created_at=datetime.utcnow(),
+                ),
+            ]
+        )
+        await session.commit()
+
+    enqueued: list[tuple[str, bool]] = []
+
+    class StubQueue:
+        async def enqueue(self, job_id: str, *, should_fail: bool = False):
+            enqueued.append((job_id, should_fail))
+
+    try:
+        await job_queue_module.resume_queued_jobs(StubQueue())  # type: ignore[arg-type]
+        assert any(item[0] == queued_id for item in enqueued)
+        assert all(item[0] != completed_id for item in enqueued)
+    finally:
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(Job).where(Job.id.in_([queued_id, completed_id])))
+            if user_id is not None:
+                await session.execute(delete(User).where(User.id == user_id))
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_watchdog_marks_job_stalled(monkeypatch):
+    """Watchdog should fail processing jobs that exceed the allowed window."""
+    monkeypatch.setattr(job_queue_module.settings, "stall_check_interval_seconds", 0.1)
+    monkeypatch.setattr(job_queue_module.settings, "stall_timeout_multiplier", 0.5)
+    monkeypatch.setattr(job_queue_module.settings, "stall_timeout_min_seconds", 1)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    queue = TranscriptionJobQueue(concurrency=1, enable_watchdog=True)
+    await queue.start()
+
+    async with AsyncSessionLocal() as session:
+        user = User(username="watchdog", email="watchdog@example.com", hashed_password="hashed")
+        session.add(user)
+        await session.flush()
+
+        job = Job(
+            id=str(uuid4()),
+            user_id=user.id,
+            original_filename="stalled.mp3",
+            saved_filename="stalled.mp3",
+            file_path="/tmp/stalled.mp3",
+            file_size=123,
+            mime_type="audio/mpeg",
+            status="processing",
+            progress_percent=40,
+            model_used="medium",
+            has_timestamps=True,
+            has_speaker_labels=False,
+            created_at=datetime.utcnow(),
+            started_at=datetime.utcnow() - timedelta(seconds=5),
+            estimated_total_seconds=1,
+        )
+        session.add(job)
+        await session.commit()
+
+    await asyncio.sleep(1.2)
+
+    async with AsyncSessionLocal() as session:
+        refreshed = await session.get(Job, job.id)
+        assert refreshed.status == "failed"
+        assert refreshed.progress_stage == "stalled"
+        assert refreshed.stalled_at is not None
+
+    await queue.stop()

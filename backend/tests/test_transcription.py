@@ -26,6 +26,7 @@ async def test_db():
     os.makedirs(settings.transcript_storage_path, exist_ok=True)
 
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:

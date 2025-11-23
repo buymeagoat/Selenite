@@ -45,7 +45,9 @@ describe('JobCard', () => {
       status: 'processing' as const,
       progress_percent: 45,
       progress_stage: 'Transcribing...',
-      estimated_time_left: 420
+      estimated_time_left: 420,
+      estimated_total_seconds: 900,
+      started_at: '2025-11-15T10:31:00Z'
     };
     
     render(<JobCard job={processingJob} onClick={vi.fn()} />);

@@ -27,7 +27,8 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [model, setModel] = useState(defaultModel);
   const [language, setLanguage] = useState(defaultLanguage);
   const [enableTimestamps, setEnableTimestamps] = useState(true);
-  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
+  // Speaker detection is not implemented; keep disabled until diarization is added.
+  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
@@ -83,7 +84,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setModel(defaultModel);
       setLanguage(defaultLanguage);
       setEnableTimestamps(true);
-      setEnableSpeakerDetection(true);
+      setEnableSpeakerDetection(false);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
@@ -209,11 +210,13 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 type="checkbox"
                 checked={enableSpeakerDetection}
                 onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-                disabled={isSubmitting}
-                className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                disabled
+                className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green opacity-50 cursor-not-allowed"
                 data-testid="speakers-checkbox"
               />
-              <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
+              <span className="ml-2 text-sm text-pine-deep">
+                Detect speakers (coming soon)
+              </span>
             </label>
           </div>
 

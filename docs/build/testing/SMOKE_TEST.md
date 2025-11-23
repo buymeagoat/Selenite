@@ -153,7 +153,7 @@ This document provides step-by-step instructions for manually validating the com
 
 **Troubleshooting:**
 - If modal blank: Check browser console for errors
-- If transcript missing: Check backend storage directory
+- If transcript missing: Check `storage/transcripts/` for the `.txt`/`.json` pair
 - If metadata incomplete: Verify transcription completed successfully
 
 ---
@@ -183,7 +183,7 @@ This document provides step-by-step instructions for manually validating the com
 - ✅ Multiple formats work (TXT, MD, SRT, VTT, JSON, DOCX)
 
 **Troubleshooting:**
-- If 404 on download: Check transcript file exists in backend storage
+- If 404 on download: Verify the transcript file exists in `storage/transcripts/`
 - If empty file: Check transcription completed without errors
 - If corrupt file: Check backend logs during download
 - If wrong content: Verify correct job ID in URL
@@ -271,7 +271,7 @@ This document provides step-by-step instructions for manually validating the com
 **Solution:**
 - Check file size < 2GB
 - Verify file format is supported
-- Check backend storage directory permissions
+- Check `storage/` directory permissions
 
 ### Transcription Stuck
 **Symptoms:** Job stays in "processing" indefinitely  
@@ -284,7 +284,7 @@ This document provides step-by-step instructions for manually validating the com
 ### Missing Transcript
 **Symptoms:** Download fails or file empty  
 **Solution:**
-- Check backend storage directory exists: `backend/storage/transcripts/`
+- Check storage directory exists: `storage/transcripts/`
 - Verify transcription completed without errors
 - Check file permissions
 

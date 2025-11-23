@@ -10,7 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
-BASE_DIR = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = BACKEND_ROOT.parent
+STORAGE_ROOT = PROJECT_ROOT / "storage"
 
 
 class Settings(BaseSettings):
@@ -29,9 +31,9 @@ class Settings(BaseSettings):
     admin_default_password: str | None = None
 
     # Storage
-    media_storage_path: str = str(BASE_DIR / "storage" / "media")
-    transcript_storage_path: str = str(BASE_DIR / "storage" / "transcripts")
-    model_storage_path: str = str(BASE_DIR / "models")
+    media_storage_path: str = str(STORAGE_ROOT / "media")
+    transcript_storage_path: str = str(STORAGE_ROOT / "transcripts")
+    model_storage_path: str = str(BACKEND_ROOT / "models")
     nginx_ssl_cert_path: str | None = None
     nginx_ssl_key_path: str | None = None
 
@@ -39,6 +41,10 @@ class Settings(BaseSettings):
     max_concurrent_jobs: int = 3
     default_whisper_model: str = "medium"
     default_language: str = "auto"
+    default_estimated_duration_seconds: int = 600
+    stall_timeout_multiplier: float = 2.0
+    stall_timeout_min_seconds: int = 300
+    stall_check_interval_seconds: int = 20
 
     # Server
     host: str = "0.0.0.0"

@@ -79,7 +79,7 @@ Invoke-Step "Database migrations (and seed if requested)" {
 
 Invoke-Step "Frontend dependencies" {
     Set-Location $FrontendDir
-    if (Test-Path .\node_modules -and -not $ForceInstall) {
+    if ((Test-Path .\node_modules) -and (-not $ForceInstall)) {
         Write-Host "node_modules exists; skipping npm install (use -ForceInstall to reinstall)."
     } else {
         attrib -R /S /D node_modules | Out-Null

@@ -5,6 +5,7 @@ interface ProgressBarProps {
   stage?: string;
   estimatedTimeLeft?: number;  // seconds
   startedAt?: string | null;
+  createdAt?: string | null;
   stalled?: boolean;
   variant?: 'default' | 'success' | 'error';
 }
@@ -14,6 +15,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   stage, 
   estimatedTimeLeft, 
   startedAt,
+  createdAt,
   stalled = false,
   variant = 'default' 
 }) => {
@@ -55,10 +57,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   };
 
   const elapsedSeconds = useMemo(() => {
-    const started = parseTimestamp(startedAt);
-    if (started === null) return null;
-    return Math.max(0, Math.floor((now - started) / 1000));
-  }, [now, startedAt]);
+    const startedTs = parseTimestamp(startedAt) ?? parseTimestamp(createdAt);
+    if (startedTs === null) return null;
+    return Math.max(0, Math.floor((now - startedTs) / 1000));
+  }, [now, startedAt, createdAt]);
 
   return (
     <div className="w-full">

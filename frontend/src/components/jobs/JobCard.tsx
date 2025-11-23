@@ -14,6 +14,8 @@ interface Job {
   estimated_time_left?: number | null;
   estimated_total_seconds?: number | null;
   stalled_at?: string | null;
+  created_at?: string;
+  started_at?: string | null;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 
@@ -74,7 +76,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
             percent={job.progress_percent}
             stage={job.progress_stage || undefined}
             estimatedTimeLeft={job.estimated_time_left || undefined}
-            startedAt={job.started_at || job.created_at || undefined}
+            startedAt={job.started_at || undefined}
+            createdAt={job.created_at || undefined}
             stalled={job.progress_stage === 'stalled' || Boolean(job.stalled_at)}
           />
         </div>

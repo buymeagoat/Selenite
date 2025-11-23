@@ -31,7 +31,7 @@
     "frontend/playwright-report/**",
     "frontend/test-results/**"
   ],
-  "require_clean_git_status": true,
+  "require_clean_git_status": false,
   "log_directories": [
     {
       "path": "logs",

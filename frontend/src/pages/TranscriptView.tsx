@@ -61,7 +61,7 @@ export const TranscriptView: React.FC = () => {
       const downloadUrl = window.URL.createObjectURL(blob);
       link.href = downloadUrl;
       const disposition = response.headers.get('Content-Disposition');
-      const match = disposition?.match(/filename=\"?(.+?)\"?$/);
+      const match = disposition?.match(/filename="?(.+?)"?(;|$)/);
       link.download = match?.[1] ?? `transcript.${format}`;
       document.body.appendChild(link);
       link.click();

@@ -117,10 +117,19 @@ if git diff --cached --name-only | grep -qE '^frontend/'; then
   echo "[LOG] Running frontend unit tests at $(date)"
   CHANGED_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/src/.*\.(ts|tsx)$' || true)
   if [ -n "$CHANGED_TS_FILES" ]; then
-    if ! npx timeout-cli 120 npm run test --silent 2>/dev/null; then
-      echo "❌ FAILED: Unit tests failed"
-      echo "   Fix tests before committing"
-      exit 1
+    if command -v timeout-cli >/dev/null 2>&1; then
+      if ! timeout-cli 120 npm run test --silent 2>/dev/null; then
+        echo "❌ FAILED: Unit tests failed"
+        echo "   Fix tests before committing"
+        exit 1
+      fi
+    else
+      # Windows/CI fallback when timeout-cli is unavailable
+      if ! npm run test --silent 2>/dev/null; then
+        echo "❌ FAILED: Unit tests failed"
+        echo "   Fix tests before committing"
+        exit 1
+      fi
     fi
     echo "  ✅ Unit tests passed"
   else

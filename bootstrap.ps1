@@ -8,7 +8,8 @@ param(
     [switch]$SkipPreflight,
     [switch]$Dev,            # Use uvicorn reload; ENVIRONMENT=development
     [switch]$Seed,           # Run app.seed
-    [switch]$ForceInstall    # Force npm install even if node_modules exists
+    [switch]$ForceInstall,   # Force npm install even if node_modules exists
+    [switch]$ResetAuth       # Clear cached auth state (frontend .auth folder)
 )
 
 Set-StrictMode -Version Latest
@@ -49,7 +50,8 @@ if (-not $SkipPreflight) {
         Get-ChildItem -Path $logRoot -Filter *.log -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
             $_.IsReadOnly = $false
         }
-        Get-Process python,node -ErrorAction SilentlyContinue | Stop-Process -Force
+        # Stop only Selenite-related processes (uvicorn/vite) if present
+        Get-Process | Where-Object { $_.ProcessName -match 'uvicorn|vite|node' -and ($_.Path -like "*Selenite*") } | Stop-Process -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -84,6 +86,13 @@ Invoke-Step "Frontend dependencies" {
     } else {
         attrib -R /S /D node_modules | Out-Null
         npm install
+    }
+    if ($ResetAuth) {
+        $authDir = Join-Path $FrontendDir '.auth'
+        if (Test-Path $authDir) {
+            Remove-Item -Recurse -Force $authDir -ErrorAction SilentlyContinue
+            Write-Host "Cleared frontend cached auth state (.auth folder)." -ForegroundColor Yellow
+        }
     }
 }
 

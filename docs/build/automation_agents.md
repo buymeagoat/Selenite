@@ -17,6 +17,9 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
 - CI (separate workflows):
   - `hygiene.yml` runs the hygiene script.
   - `docs-api.yml` regenerates OpenAPI (`docs/openapi.json`) and fails if out of date; checks API/docs drift.
+  - `coverage-report.yml` posts frontend coverage summary on PRs.
+  - `report.yml` posts bundle size on PRs.
+  - `nightly-audit.yml` runs daily audits (pip/npm) and a perf probe.
   - `security.yml` runs gitleaks + pip-audit + npm audit (high+).
   - `tests.yml` runs test suites; retries flakies once.
   - `quality.yml` runs build + bundle budget (placeholder for accessibility/perf smokes).

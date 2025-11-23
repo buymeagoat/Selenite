@@ -13,5 +13,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-minimal.txt
       - name: Check migrations folder
         run: python scripts/check_migrations.py
+      - name: Run alembic upgrade head (SQLite)
+        run: python scripts/run_migrations_upgrade.py

@@ -51,7 +51,15 @@ if (-not $SkipPreflight) {
             $_.IsReadOnly = $false
         }
         # Stop only Selenite-related processes (uvicorn/vite) if present
-        Get-Process | Where-Object { $_.ProcessName -match 'uvicorn|vite|node' -and ($_.Path -like "*Selenite*") } | Stop-Process -Force -ErrorAction SilentlyContinue
+        $pids = Get-Process | Where-Object { $_.ProcessName -match 'uvicorn|vite|node' -and ($_.Path -like "*Selenite*") }
+        if ($pids) {
+            $pids | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+        # Close any lingering PowerShell windows that were spawned by this bootstrap (title contains Selenite)
+        Get-Process | Where-Object { $_.MainWindowTitle -match 'Selenite' -and $_.ProcessName -match 'pwsh|powershell' } | ForEach-Object {
+            try { $_.CloseMainWindow() | Out-Null } catch {}
+            try { $_.Kill() | Out-Null } catch {}
+        }
     }
 }
 

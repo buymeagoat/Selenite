@@ -22,7 +22,7 @@ jobs:
         run: |
           cd frontend
           npm ci
-          npm run test:coverage
+          npm run test:coverage -- --config vitest.config.coverage.mjs
       - name: Read coverage summary
         id: cov
         run: |

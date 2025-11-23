@@ -32,6 +32,7 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
 - Perf probe: GET /health (or PERF_PROBE_URL) with 200 ms budget by default.
 - Tool versions: Python 3.10, Node 20.
 - Accessibility smokes: target Dashboard and Transcript pages (add more as needed).
+- E2E flow: create → complete → export → delete (desktop + mobile viewport).
 
 ## Branch Protection (set these as required)
 - hygiene

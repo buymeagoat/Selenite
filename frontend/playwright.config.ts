@@ -52,6 +52,14 @@ export default defineConfig({
         storageState: '.auth/admin.json'
       },
       dependencies: ['setup']
+    },
+    {
+      name: 'mobile-chromium',
+      use: {
+        ...devices['Pixel 7'],
+        storageState: '.auth/admin.json'
+      },
+      dependencies: ['setup']
     }
   ],
   outputDir: 'test-results'

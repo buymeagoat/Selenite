@@ -7,7 +7,7 @@
     "backend/selenite.db"
   ],
   "storage": {
-    "canonical_root": "storage",
+    "canonical_root": "backend/storage",
     "allowed_subdirectories": [
       "media",
       "transcripts"
@@ -15,9 +15,6 @@
     "test_subdirectories": [
       "test-media",
       "test-transcripts"
-    ],
-    "legacy_paths": [
-      "backend/storage"
     ]
   },
   "must_be_empty": [

@@ -84,6 +84,8 @@ export const Dashboard: React.FC = () => {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
+    timestampTimezone: 'local' | 'utc';
+    timestampFormat: 'date-time' | 'time-date' | 'time-only';
   }) => {
     try {
       const response = await createJob({
@@ -92,6 +94,8 @@ export const Dashboard: React.FC = () => {
         language: jobData.language,
         enable_timestamps: jobData.enableTimestamps,
         enable_speaker_detection: jobData.enableSpeakerDetection,
+        timestamp_timezone: jobData.timestampTimezone,
+        timestamp_format: jobData.timestampFormat,
       });
       
       showSuccess(`Job created successfully: ${response.original_filename}`);

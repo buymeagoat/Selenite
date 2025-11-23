@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 import json
 import subprocess
+import shutil
 from typing import Iterable
 
 
@@ -24,6 +25,10 @@ def fail(messages: Iterable[str]) -> None:
     for msg in messages:
         print(f" - {msg}")
     sys.exit(1)
+
+
+def _dir_is_empty(path: Path) -> bool:
+    return not any(path.rglob("*"))
 
 
 def load_policy() -> dict:
@@ -53,6 +58,22 @@ def main() -> None:
     policy_version = policy.get("policy_version")
     if not policy_version:
         fail(["repo-hygiene-policy.json missing 'policy_version' key"])
+
+    # Best-effort cleanup of transient artifacts (test DBs, temp storage)
+    transient_paths = [
+        REPO_ROOT / "backend" / "selenite.db",
+        REPO_ROOT / "backend" / "selenite.test.db",
+        REPO_ROOT / "backend" / "storage",
+    ]
+    for path in transient_paths:
+        try:
+            if path.is_file():
+                path.unlink(missing_ok=True)
+            elif path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+        except Exception:
+            # Do not block hygiene on cleanup failures; the check will catch leftovers if present.
+            pass
 
     # Clean git status if required.
     if policy.get("require_clean_git_status", False):

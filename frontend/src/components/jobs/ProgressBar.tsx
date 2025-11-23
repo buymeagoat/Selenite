@@ -44,8 +44,12 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   const parseTimestamp = (value?: string | null) => {
     if (!value) return null;
-    // Support both ISO strings and DB-style "YYYY-MM-DD HH:MM:SS" without a T separator
-    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    // Normalize "YYYY-MM-DD HH:MM:SS.ssssss" -> "YYYY-MM-DDTHH:MM:SS.sssZ"
+    let normalized = value.replace(' ', 'T');
+    normalized = normalized.replace(/(\.\d{3})\d+/, '$1'); // trim microseconds to milliseconds
+    if (!/Z$/i.test(normalized) && !/[+-]\d{2}:\d{2}$/.test(normalized)) {
+        normalized = `${normalized}Z`;
+    }
     const ts = Date.parse(normalized);
     return Number.isNaN(ts) ? null : ts;
   };

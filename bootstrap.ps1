@@ -58,6 +58,13 @@ if (-not $SkipPreflight) {
         if ($pids) {
             $pids | Stop-Process -Force -ErrorAction SilentlyContinue
         }
+        # Kill any process bound to common ports (8100 backend, 5173 frontend)
+        foreach ($port in 8100,5173) {
+            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            foreach ($c in $conns) {
+                try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue } catch {}
+            }
+        }
         # Close any lingering PowerShell windows that were spawned by this bootstrap (title contains Selenite)
         Get-Process | Where-Object { $_.MainWindowTitle -match 'Selenite' -and $_.ProcessName -match 'pwsh|powershell' } | ForEach-Object {
             try { $_.CloseMainWindow() | Out-Null } catch {}

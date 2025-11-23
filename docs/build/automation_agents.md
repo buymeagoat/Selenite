@@ -33,6 +33,17 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
 - Tool versions: Python 3.10, Node 20.
 - Accessibility smokes: target Dashboard and Transcript pages (add more as needed).
 
+## Branch Protection (set these as required)
+- hygiene
+- docs_api
+- memorialization
+- migrations
+- tests
+- security
+- quality
+- bundle-report (job in report workflow)
+- coverage (job in coverage-report workflow)
+
 ## Developer/Author Flow
 1) Run pre-commit; fix issues locally.
 2) Add a short memorialization note (changelog or docs) for any code change.

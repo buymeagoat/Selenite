@@ -23,6 +23,12 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
   - `memorialization.yml` enforces changelog/docs note + PR template completion.
 - Nightly/weekly: dep audit, flaky detection report, coverage/bundle trend report.
 
+## Defaults and Budgets
+- Bundle budget: 4 MB total for the frontend build (override with BUNDLE_MAX_BYTES).
+- Perf probe: GET /health (or PERF_PROBE_URL) with 200 ms budget by default.
+- Tool versions: Python 3.10, Node 20.
+- Accessibility smokes: target Dashboard and Transcript pages (add more as needed).
+
 ## Developer/Author Flow
 1) Run pre-commit; fix issues locally.
 2) Add a short memorialization note (changelog or docs) for any code change.

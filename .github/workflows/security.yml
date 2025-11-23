@@ -10,13 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Use repo gitleaks config
+        run: cp .gitleaks.toml /tmp/gitleaks.toml
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Secrets scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         with:
-          config: ""
+          config: /tmp/gitleaks.toml
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE || '' }}
       - name: Env samples sanity

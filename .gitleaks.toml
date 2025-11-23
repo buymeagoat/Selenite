@@ -1,0 +1,10 @@
+# Minimal gitleaks configuration: allow common test/sample patterns.
+title = "Selenite gitleaks config"
+
+[allowlist]
+  description = "Allow common sample/test keys"
+  regexes = [
+    '''(?i)sample(_|-)key''',
+    '''(?i)dummy(_|-)secret''',
+    '''(?i)test(_|-)token''',
+  ]

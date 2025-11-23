@@ -13,20 +13,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Secrets scan (git history)
-        run: |
-          python - <<'PY'
-import subprocess, sys
-result = subprocess.run(["git", "grep", "-n", "API_KEY"], capture_output=True, text=True)
-print("Secrets scan placeholder (no specific findings enforced).")
-sys.exit(0)
-PY
+      - name: Secrets scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config: ""
+        env:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE || '' }}
       - name: Dependency audit (pip)
         run: |
           python -m pip install --upgrade pip pip-audit
-          pip-audit --progress-spinner off || true
+          pip-audit --progress-spinner off
       - name: Dependency audit (npm)
         run: |
           cd frontend
           npm ci
-          npm audit --audit-level=high || true
+          npm audit --audit-level=high

@@ -30,3 +30,8 @@ jobs:
       - name: Perf probe (optional, requires PERF_PROBE_URL)
         run: |
           python scripts/perf_probe.py
+      - name: Playwright accessibility/perf smokes
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+          BASE_URL=http://localhost:5173 npm run test:e2e -- --project=chromium --grep "Accessibility smokes|Health endpoint responds quickly"

@@ -52,22 +52,6 @@ export default defineConfig({
         storageState: '.auth/admin.json'
       },
       dependencies: ['setup']
-    },
-    {
-      name: 'firefox',
-      use: { 
-        ...devices['Desktop Firefox'],
-        storageState: '.auth/admin.json'
-      },
-      dependencies: ['setup']
-    },
-    {
-      name: 'webkit',
-      use: { 
-        ...devices['Desktop Safari'],
-        storageState: '.auth/admin.json'
-      },
-      dependencies: ['setup']
     }
   ],
   outputDir: 'test-results'

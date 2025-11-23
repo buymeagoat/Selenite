@@ -5,7 +5,10 @@
 #>
 
 param(
-    [switch]$SkipPreflight
+    [switch]$SkipPreflight,
+    [switch]$Dev,            # Use uvicorn reload; ENVIRONMENT=development
+    [switch]$Seed,           # Run app.seed
+    [switch]$ForceInstall    # Force npm install even if node_modules exists
 )
 
 Set-StrictMode -Version Latest
@@ -31,7 +34,13 @@ function Invoke-Step {
         [scriptblock]$Action
     )
     Write-Section $Message
-    & $Action
+    try {
+        & $Action
+    } catch {
+        Write-Host "Step failed: $Message" -ForegroundColor Red
+        Write-Host $_ -ForegroundColor Red
+        exit 1
+    }
 }
 
 if (-not $SkipPreflight) {
@@ -58,31 +67,39 @@ Invoke-Step "Backend dependencies" {
     .\.venv\Scripts\python.exe -m pip install -r requirements-minimal.txt
 }
 
-Invoke-Step "Database migrations and seed" {
+Invoke-Step "Database migrations (and seed if requested)" {
     Set-Location $BackendDir
     if (Test-Path .\alembic.ini) {
         .\.venv\Scripts\python.exe -m alembic upgrade head
     }
-    .\.venv\Scripts\python.exe -m app.seed
+    if ($Seed) {
+        .\.venv\Scripts\python.exe -m app.seed
+    }
 }
 
 Invoke-Step "Frontend dependencies" {
     Set-Location $FrontendDir
-    if (Test-Path .\node_modules) {
+    if (Test-Path .\node_modules -and -not $ForceInstall) {
+        Write-Host "node_modules exists; skipping npm install (use -ForceInstall to reinstall)."
+    } else {
         attrib -R /S /D node_modules | Out-Null
+        npm install
     }
-    npm install
 }
 
 Invoke-Step "Start backend API (new window)" {
-$backendCmd = @"
-cd "$BackendDir"
+    $envBlock = @"
 `$env:DISABLE_FILE_LOGS = '1'
-`$env:ENVIRONMENT = 'production'
+`$env:ENVIRONMENT = '$([bool]$Dev -eq $true ? 'development' : 'production')'
 `$env:ALLOW_LOCALHOST_CORS = '1'
 `$env:MEDIA_STORAGE_PATH = '$MediaDir'
 `$env:TRANSCRIPT_STORAGE_PATH = '$TranscriptDir'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
+"@
+    $uvicornArgs = $Dev ? "--reload" : ""
+$backendCmd = @"
+cd "$BackendDir"
+$envBlock
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app $uvicornArgs
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $backendCmd
     Write-Host "Backend starting on http://127.0.0.1:8100 (check new window)." -ForegroundColor Green

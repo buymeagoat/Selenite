@@ -64,12 +64,12 @@ if (-not $SkipPreflight) {
                     if ($attempt -eq 0) {
                         Write-Host "Found existing listeners on port $port; stopping them (PIDs: $($pids -join ', '))..." -ForegroundColor Yellow
                     }
-                    foreach ($pid in $pids) {
+                    foreach ($targetPid in $pids) {
                         try {
                             # Try taskkill to ensure child processes die too
-                            taskkill /PID $pid /F /T *> $null 2>&1
+                            taskkill /PID $targetPid /F /T *> $null 2>&1
                         } catch {}
-                        try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
+                        try { Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue } catch {}
                     }
                     Start-Sleep -Seconds 1
                     $attempt++

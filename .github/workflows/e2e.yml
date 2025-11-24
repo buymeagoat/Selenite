@@ -1,6 +1,6 @@
 name: E2E
 
-on:
+'on':
   push:
     branches: [ main ]
   pull_request:

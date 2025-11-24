@@ -54,6 +54,17 @@ if (-not $SkipPreflight) {
         Get-ChildItem -Path $logRoot -Filter *.log -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
             $_.IsReadOnly = $false
         }
+        function Test-PortBindable {
+            param([string]$Host, [int]$Port)
+            try {
+                $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Parse($Host), $Port)
+                $listener.Start()
+                $listener.Stop()
+                return $true
+            } catch {
+                return $false
+            }
+        }
         function Get-FreePort {
             $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
             $listener.Start()
@@ -84,6 +95,14 @@ if (-not $SkipPreflight) {
                 } while ($attempt -lt 10)
                 $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                 if ($remaining) {
+                    # If no process exists for the remaining listener, treat as zombie and probe bindability
+                    $live = $remaining | ForEach-Object { Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue } | Where-Object { $_ }
+                    if (-not $live) {
+                        if (Test-PortBindable -Host $BindIP -Port $port) {
+                            Write-Host "Port $port was held by a zombie entry but is now bindable; continuing." -ForegroundColor Yellow
+                            continue
+                        }
+                    }
                     Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
                     foreach ($r in $remaining) {
                         try {
@@ -117,14 +136,17 @@ if (-not $SkipPreflight) {
         # Kill any process bound to common ports (8100 backend, 5173 frontend)
         Stop-PortListeners -Ports @($BindPort, 5173)
 
-        # If backend port is still busy after cleanup, fall back to a free port to keep boot moving
+        # If backend port is still busy after cleanup, confirm bindability; if not, fall back to free port
         $stillBusy = Get-NetTCPConnection -LocalPort $BindPort -State Listen -ErrorAction SilentlyContinue
-        if ($stillBusy) {
+        $canBind = Test-PortBindable -Host $BindIP -Port $BindPort
+        if ($stillBusy -and -not $canBind) {
             Write-Host "Backend port $BindPort is still busy after cleanup; selecting a free port instead." -ForegroundColor Yellow
             $oldPort = $BindPort
             $BindPort = Get-FreePort
             $ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
             Write-Host "Using backend port $BindPort for this run (was $oldPort)." -ForegroundColor Yellow
+        } elseif ($canBind -and $stillBusy) {
+            Write-Host "Backend port $BindPort appears bindable despite lingering entries; proceeding." -ForegroundColor Yellow
         }
 
         # Close any lingering PowerShell windows that were spawned by this bootstrap (title contains Selenite)

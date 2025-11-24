@@ -173,7 +173,18 @@ $envBlock
 }
 
 Invoke-Step "Start frontend production preview (new window)" {
-    $frontendCmd = "cd `"$FrontendDir`"; `$env:VITE_API_URL='$ApiBaseResolved'; npm run start:prod -- --host $BindIP --port 5173 --strictPort"
+    $frontendCmd = @"
+cd "$FrontendDir"
+Write-Host ''
+Write-Host '  _____      _             _ _     ' -ForegroundColor Cyan
+Write-Host ' |  ___|   _| | ___  _ __ (_) |___ ' -ForegroundColor Cyan
+Write-Host ' | |_ | | | | |/ _ \| `_ \| | / __|' -ForegroundColor Cyan
+Write-Host ' |  _|| |_| | | (_) | | | | | \__ \ ' -ForegroundColor Cyan
+Write-Host ' |_|   \__,_|_|\___/|_| |_|_|_|___/ ' -ForegroundColor Cyan
+Write-Host '              S E L E N I T E      ' -ForegroundColor Green
+`$env:VITE_API_URL='$ApiBaseResolved'
+npm run start:prod -- --host $BindIP --port 5173 --strictPort
+"@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd
     Write-Host "Frontend starting on http://$BindIP`:5173 (check new window)." -ForegroundColor Green
 }

@@ -53,18 +53,45 @@ if (-not $SkipPreflight) {
         Get-ChildItem -Path $logRoot -Filter *.log -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
             $_.IsReadOnly = $false
         }
-        # Stop only Selenite-related processes (uvicorn/vite) if present
-        $pids = Get-Process | Where-Object { $_.ProcessName -match 'uvicorn|vite|node' -and ($_.Path -like "*Selenite*") }
-        if ($pids) {
-            $pids | Stop-Process -Force -ErrorAction SilentlyContinue
-        }
-        # Kill any process bound to common ports (8100 backend, 5173 frontend)
-        foreach ($port in 8100,5173) {
-            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-            foreach ($c in $conns) {
-                try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue } catch {}
+        function Stop-PortListeners {
+            param([int[]]$Ports)
+            foreach ($port in $Ports) {
+                $attempt = 0
+                do {
+                    $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+                    if (-not $conns) { break }
+                    if ($attempt -eq 0) {
+                        Write-Host "Found existing listeners on port $port; stopping them..." -ForegroundColor Yellow
+                    }
+                    foreach ($c in $conns) {
+                        try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue } catch {}
+                    }
+                    Start-Sleep -Seconds 1
+                    $attempt++
+                } while ($attempt -lt 5)
+                $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+                if ($remaining) {
+                    Write-Host "Warning: Port $port is still in use; manual cleanup may be required." -ForegroundColor Red
+                }
             }
         }
+
+        # Stop Selenite-related processes by command line (uvicorn/vite/node launched from repo)
+        $repoPattern = [regex]::Escape($Root)
+        $procQuery = Get-CimInstance Win32_Process | Where-Object {
+            ($_."CommandLine" -match "uvicorn" -or $_."CommandLine" -match "vite" -or $_."CommandLine" -match "npm run start:prod" -or $_."CommandLine" -match "python.exe.*app.main") -and
+            ($_.CommandLine -match $repoPattern)
+        }
+        if ($procQuery) {
+            Write-Host "Stopping existing Selenite processes..." -ForegroundColor Yellow
+            $procQuery | ForEach-Object {
+                try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+            }
+        }
+
+        # Kill any process bound to common ports (8100 backend, 5173 frontend)
+        Stop-PortListeners -Ports @(8100, 5173)
+
         # Close any lingering PowerShell windows that were spawned by this bootstrap (title contains Selenite)
         Get-Process | Where-Object { $_.MainWindowTitle -match 'Selenite' -and $_.ProcessName -match 'pwsh|powershell' } | ForEach-Object {
             try { $_.CloseMainWindow() | Out-Null } catch {}

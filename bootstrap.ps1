@@ -73,34 +73,24 @@ if (-not $SkipPreflight) {
                 } while ($attempt -lt 10)
                 $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                 if ($remaining) {
-                    # If all remaining connections are tied to exited processes, wait briefly and re-check once.
-                    $live = @()
+                    # Filter only live processes still listening
+                    $liveRemaining = @()
                     foreach ($r in $remaining) {
-                        $p = $null
-                        try { $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue } catch {}
-                        if ($p) { $live += $p }
+                        try {
+                            $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
+                            if ($p) { $liveRemaining += @{ proc = $p; conn = $r } }
+                        } catch {}
                     }
-                    if (-not $live -and $remaining.Count -gt 0) {
-                        Start-Sleep -Seconds 2
-                        $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-                        $live = @()
-                        foreach ($r in $remaining) {
-                            $p = $null
-                            try { $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue } catch {}
-                            if ($p) { $live += $p }
-                        }
+                    if (-not $liveRemaining -and $remaining.Count -gt 0) {
+                        # Only zombie entries; treat as transient and do not warn
+                        Write-Host "Port $port previously held by exited process; continuing." -ForegroundColor Yellow
+                        continue
                     }
-                    if ($remaining) {
+                    if ($liveRemaining) {
                         Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
-                        foreach ($r in $remaining) {
-                            try {
-                                $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
-                                if ($p) {
-                                    Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
-                                } else {
-                                    Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
-                                }
-                            } catch {}
+                        foreach ($item in $liveRemaining) {
+                            $p = $item.proc
+                            Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
                         }
                         Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
                     }
@@ -195,11 +185,16 @@ Invoke-Step "Start frontend production preview (new window)" {
     $frontendCmd = @"
 cd "$FrontendDir"
 Write-Host ''
-Write-Host '  ______     ______     __         ______     __   __     __     ______    ' -ForegroundColor Cyan
-Write-Host ' /\  ___\   /\  == \   /\ \       /\  == \   /\ "-.\ \   /\ \   /\  == \   ' -ForegroundColor Cyan
-Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \  __<   ' -ForegroundColor Cyan
-Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
-Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
+Write-Host '  █████████  ██████████ █████       ██████████ ██████   █████ █████ ███████████ ██████████' -ForegroundColor Cyan
+Write-Host ' ███▒▒▒▒▒███▒▒███▒▒▒▒▒█▒▒███       ▒▒███▒▒▒▒▒█▒▒██████ ▒▒███ ▒▒███ ▒█▒▒▒███▒▒▒█▒▒███▒▒▒▒▒█' -ForegroundColor Cyan
+Write-Host '▒███    ▒▒▒  ▒███  █ ▒  ▒███        ▒███  █ ▒  ▒███▒███ ▒███  ▒███ ▒   ▒███  ▒  ▒███  █ ▒ ' -ForegroundColor Cyan
+Write-Host '▒▒█████████  ▒██████    ▒███        ▒██████    ▒███▒▒███▒███  ▒███     ▒███     ▒██████   ' -ForegroundColor Cyan
+Write-Host ' ▒▒▒▒▒▒▒▒███ ▒███▒▒█    ▒███        ▒███▒▒█    ▒███ ▒▒██████  ▒███     ▒███     ▒███▒▒█   ' -ForegroundColor Cyan
+Write-Host ' ███    ▒███ ▒███ ▒   █ ▒███      █ ▒███ ▒   █ ▒███  ▒▒█████  ▒███     ▒███     ▒███ ▒   █' -ForegroundColor Cyan
+Write-Host '▒▒█████████  ██████████ ███████████ ██████████ █████  ▒▒█████ █████    █████    ██████████' -ForegroundColor Cyan
+Write-Host ' ▒▒▒▒▒▒▒▒▒  ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒▒ ' -ForegroundColor Cyan
+Write-Host '' -ForegroundColor Cyan
+Write-Host '' -ForegroundColor Cyan
 `$env:VITE_API_URL='$ApiBaseResolved'
 npm run start:prod -- --host $BindIP --port 5173 --strictPort
 "@

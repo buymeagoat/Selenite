@@ -176,12 +176,11 @@ Invoke-Step "Start frontend production preview (new window)" {
     $frontendCmd = @"
 cd "$FrontendDir"
 Write-Host ''
-Write-Host '  _____      _             _ _     ' -ForegroundColor Cyan
-Write-Host ' |  ___|   _| | ___  _ __ (_) |___ ' -ForegroundColor Cyan
-Write-Host ' | |_ | | | | |/ _ \| `_ \| | / __|' -ForegroundColor Cyan
-Write-Host ' |  _|| |_| | | (_) | | | | | \__ \ ' -ForegroundColor Cyan
-Write-Host ' |_|   \__,_|_|\___/|_| |_|_|_|___/ ' -ForegroundColor Cyan
-Write-Host '              S E L E N I T E      ' -ForegroundColor Green
+Write-Host '  ______     ______     __         ______     __   __     __     ______    ' -ForegroundColor Cyan
+Write-Host ' /\  ___\   /\  == \   /\ \       /\  == \   /\ "-.\ \   /\ \   /\  == \   ' -ForegroundColor Cyan
+Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \  __<   ' -ForegroundColor Cyan
+Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
+Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
 `$env:VITE_API_URL='$ApiBaseResolved'
 npm run start:prod -- --host $BindIP --port 5173 --strictPort
 "@

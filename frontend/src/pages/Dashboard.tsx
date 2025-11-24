@@ -230,6 +230,54 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const toggleSelect = (jobId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(jobId);
+      } else {
+        next.delete(jobId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    try {
+      for (const id of ids) {
+        await deleteJob(id);
+      }
+      showSuccess(`Deleted ${ids.length} job(s)`);
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      clearSelection();
+    } catch (error) {
+      console.error('Bulk delete failed:', error);
+      showError('Failed to delete selected jobs. Please try again.');
+    }
+  };
+
+  const handleBulkTag = async () => {
+    if (!bulkTagId || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    try {
+      for (const id of ids) {
+        await assignTag(id, bulkTagId as number);
+      }
+      showSuccess(`Applied tag to ${ids.length} job(s)`);
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      clearSelection();
+    } catch (error) {
+      console.error('Bulk tag failed:', error);
+      showError('Failed to apply tag to selected jobs.');
+    }
+  };
+
   const handleViewTranscript = (jobId: string) => {
     const token = localStorage.getItem('auth_token') || '';
     const url = new URL(window.location.origin + `/transcripts/${jobId}`);

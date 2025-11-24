@@ -21,9 +21,18 @@ interface JobCardProps {
   job: Job;
   onClick: (jobId: string) => void;
   onQuickAction?: (jobId: string, action: string) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onSelectToggle?: (jobId: string, checked: boolean) => void;
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
+export const JobCard: React.FC<JobCardProps> = ({
+  job,
+  onClick,
+  selectionMode = false,
+  selected = false,
+  onSelectToggle
+}) => {
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -32,9 +41,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
 
   const formatDate = (isoString: string): string => {
     const date = new Date(isoString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
       minute: '2-digit'
@@ -50,7 +59,17 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-lg">🎵</span>
+          {selectionMode && (
+            <input
+              type="checkbox"
+              className="h-4 w-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+              checked={selected}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onSelectToggle?.(job.id, e.target.checked)}
+              aria-label={`Select job ${job.original_filename}`}
+            />
+          )}
+          <span className="text-lg">🎧</span>
           <h3 className="font-medium text-pine-deep truncate">{job.original_filename}</h3>
         </div>
         <StatusBadge status={job.status} />
@@ -61,7 +80,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick }) => {
         <span>{formatDate(job.created_at)}</span>
         {job.duration && job.status === 'completed' && (
           <>
-            <span>•</span>
+            <span>⏱</span>
             <span>Duration: {formatDuration(job.duration)}</span>
           </>
         )}

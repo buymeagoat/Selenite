@@ -15,6 +15,8 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTagId, setBulkTagId] = useState<number | ''>('' as any);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
   const { showError, showSuccess } = useToast();
@@ -51,6 +53,7 @@ export const Dashboard: React.FC = () => {
     try {
       const response = await fetchJobs();
       setJobs(response.items);
+      setSelectedIds(new Set());
     } catch (error) {
       console.error('Failed to poll job updates:', error);
       // Continue polling on error (don't stop polling for temporary failures)
@@ -178,6 +181,11 @@ export const Dashboard: React.FC = () => {
       // Remove from local state
       setJobs(prev => prev.filter(j => j.id !== jobId));
       setSelectedJob(null);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
     } catch (error) {
       console.error('Failed to delete job:', error);
       if (error instanceof ApiError) {
@@ -387,6 +395,46 @@ export const Dashboard: React.FC = () => {
               onReset={handleResetFilters}
             />
           </div>
+          {selectedIds.size > 0 && (
+            <div className="flex flex-col md:flex-row gap-3 md:items-center bg-sage-light border border-sage-mid rounded-md p-3">
+              <span className="text-sm text-pine-deep">{selectedIds.size} selected</span>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                >
+                  Delete selected
+                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="px-3 py-2 border border-gray-300 rounded"
+                    value={bulkTagId}
+                    onChange={(e) => setBulkTagId(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">Apply tag…</option>
+                    {availableTags.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        #{t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleBulkTag}
+                    className="px-3 py-2 bg-forest-green text-white rounded hover:bg-pine-deep text-sm disabled:opacity-50"
+                    disabled={!bulkTagId}
+                  >
+                    Apply
+                  </button>
+                </div>
+                <button
+                  onClick={clearSelection}
+                  className="text-sm text-pine-deep underline"
+                >
+                  Clear selection
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {filteredJobs.length === 0 ? (
           <div className="text-center py-12 border border-sage-mid rounded-lg bg-white">
@@ -401,7 +449,14 @@ export const Dashboard: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredJobs.map(job => (
-              <JobCard key={job.id} job={job} onClick={handleJobClick} />
+              <JobCard
+                key={job.id}
+                job={job}
+                onClick={handleJobClick}
+                selectionMode
+                selected={selectedIds.has(job.id)}
+                onSelectToggle={toggleSelect}
+              />
             ))}
           </div>
         )}

@@ -87,12 +87,28 @@ if (-not $SkipPreflight) {
                         continue
                     }
                     if ($liveRemaining) {
-                        Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
+                        $pids = ($liveRemaining | ForEach-Object { $_.proc.Id }) -join ', '
+                        Write-Host "Port $port still in use; forcing stop of PIDs: $pids" -ForegroundColor Yellow
                         foreach ($item in $liveRemaining) {
-                            $p = $item.proc
-                            Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
+                            try { Stop-Process -Id $item.proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+                            try { Wait-Process -Id $item.proc.Id -Timeout 3 -ErrorAction SilentlyContinue } catch {}
                         }
-                        Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
+                        Start-Sleep -Seconds 1
+                        $postCheck = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+                        if ($postCheck) {
+                            Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
+                            foreach ($r in $postCheck) {
+                                try {
+                                    $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
+                                    if ($p) {
+                                        Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
+                                    } else {
+                                        Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
+                                    }
+                                } catch {}
+                            }
+                            Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
+                        }
                     }
                 }
             }
@@ -110,6 +126,7 @@ if (-not $SkipPreflight) {
                 try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
             }
         }
+        # If port is still in use later, we will kill by port regardless of repo match
 
         # Kill any process bound to common ports (8100 backend, 5173 frontend)
         Stop-PortListeners -Ports @(8100, 5173)

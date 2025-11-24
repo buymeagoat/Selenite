@@ -14,8 +14,6 @@ interface Job {
   estimated_time_left?: number | null;
   estimated_total_seconds?: number | null;
   stalled_at?: string | null;
-  created_at?: string;
-  started_at?: string | null;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 

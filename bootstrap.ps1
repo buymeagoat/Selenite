@@ -73,18 +73,37 @@ if (-not $SkipPreflight) {
                 } while ($attempt -lt 10)
                 $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                 if ($remaining) {
-                    Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
+                    # If all remaining connections are tied to exited processes, wait briefly and re-check once.
+                    $live = @()
                     foreach ($r in $remaining) {
-                        try {
-                            $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
-                            if ($p) {
-                                Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
-                            } else {
-                                Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
-                            }
-                        } catch {}
+                        $p = $null
+                        try { $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue } catch {}
+                        if ($p) { $live += $p }
                     }
-                    Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
+                    if (-not $live -and $remaining.Count -gt 0) {
+                        Start-Sleep -Seconds 2
+                        $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+                        $live = @()
+                        foreach ($r in $remaining) {
+                            $p = $null
+                            try { $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue } catch {}
+                            if ($p) { $live += $p }
+                        }
+                    }
+                    if ($remaining) {
+                        Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
+                        foreach ($r in $remaining) {
+                            try {
+                                $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
+                                if ($p) {
+                                    Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
+                                } else {
+                                    Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
+                                }
+                            } catch {}
+                        }
+                        Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
+                    }
                 }
             }
         }

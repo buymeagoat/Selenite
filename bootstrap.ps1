@@ -55,9 +55,9 @@ if (-not $SkipPreflight) {
             $_.IsReadOnly = $false
         }
         function Test-PortBindable {
-            param([string]$Host, [int]$Port)
+            param([string]$BindHost, [int]$Port)
             try {
-                $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Parse($Host), $Port)
+                $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Parse($BindHost), $Port)
                 $listener.Start()
                 $listener.Stop()
                 return $true
@@ -98,7 +98,7 @@ if (-not $SkipPreflight) {
                     # If no process exists for the remaining listener, treat as zombie and probe bindability
                     $live = $remaining | ForEach-Object { Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue } | Where-Object { $_ }
                     if (-not $live) {
-                        if (Test-PortBindable -Host $BindIP -Port $port) {
+                        if (Test-PortBindable -BindHost $BindIP -Port $port) {
                             Write-Host "Port $port was held by a zombie entry but is now bindable; continuing." -ForegroundColor Yellow
                             continue
                         }
@@ -138,7 +138,7 @@ if (-not $SkipPreflight) {
 
         # If backend port is still busy after cleanup, confirm bindability; if not, fall back to free port
         $stillBusy = Get-NetTCPConnection -LocalPort $BindPort -State Listen -ErrorAction SilentlyContinue
-        $canBind = Test-PortBindable -Host $BindIP -Port $BindPort
+        $canBind = Test-PortBindable -BindHost $BindIP -Port $BindPort
         if ($stillBusy -and -not $canBind) {
             Write-Host "Backend port $BindPort is still busy after cleanup; selecting a free port instead." -ForegroundColor Yellow
             $oldPort = $BindPort

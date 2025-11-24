@@ -17,15 +17,23 @@ def wait_for_health(base_url: str, timeout: int) -> None:
     """Poll the /health endpoint until it returns HTTP 200 or timeout expires."""
     url = f"{base_url.rstrip('/')}/health"
     deadline = time.time() + timeout
+    first_attempt = True
     while True:
         try:
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
                 print(f"[smoke] Health check OK: {url}")
                 return
-            print(f"[smoke] Health check returned {response.status_code}, retrying…")
+            if first_attempt:
+                print("[smoke] Waiting for backend to start...")
+                first_attempt = False
+            print(f"[smoke] Health check returned {response.status_code}, retrying.")
         except requests.RequestException as exc:
-            print(f"[smoke] Health check failed: {exc}")
+            if first_attempt:
+                print("[smoke] Waiting for backend to start...")
+                first_attempt = False
+            else:
+                print(f"[smoke] Health check failed: {exc}")
 
         if time.time() > deadline:
             raise SystemExit(

@@ -64,14 +64,27 @@ if (-not $SkipPreflight) {
                         Write-Host "Found existing listeners on port $port; stopping them..." -ForegroundColor Yellow
                     }
                     foreach ($c in $conns) {
-                        try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue } catch {}
+                        try {
+                            Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+                        } catch {}
                     }
                     Start-Sleep -Seconds 1
                     $attempt++
-                } while ($attempt -lt 5)
+                } while ($attempt -lt 10)
                 $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                 if ($remaining) {
-                    Write-Host "Warning: Port $port is still in use; manual cleanup may be required." -ForegroundColor Red
+                    Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
+                    foreach ($r in $remaining) {
+                        try {
+                            $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
+                            if ($p) {
+                                Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
+                            } else {
+                                Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
+                            }
+                        } catch {}
+                    }
+                    Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
                 }
             }
         }
@@ -79,7 +92,7 @@ if (-not $SkipPreflight) {
         # Stop Selenite-related processes by command line (uvicorn/vite/node launched from repo)
         $repoPattern = [regex]::Escape($Root)
         $procQuery = Get-CimInstance Win32_Process | Where-Object {
-            ($_."CommandLine" -match "uvicorn" -or $_."CommandLine" -match "vite" -or $_."CommandLine" -match "npm run start:prod" -or $_."CommandLine" -match "python.exe.*app.main") -and
+            ($_."CommandLine" -match "uvicorn" -or $_."CommandLine" -match "vite" -or $_."CommandLine" -match "npm run start:prod" -or $_."CommandLine" -match "python.exe.*app.main" -or $_."CommandLine" -match "vite preview") -and
             ($_.CommandLine -match $repoPattern)
         }
         if ($procQuery) {

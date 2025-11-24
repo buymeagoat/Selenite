@@ -163,7 +163,7 @@ Invoke-Step "Start frontend production preview (new window)" {
     $frontendCmd = @"
 cd "$FrontendDir"
 $env:VITE_API_URL="$ApiBaseResolved"
-npm run start:prod -- --host $BindIP --port 5173
+npm run start:prod -- --host $BindIP --port 5173 --strictPort
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd
     Write-Host "Frontend starting on http://$BindIP`:5173 (check new window)." -ForegroundColor Green

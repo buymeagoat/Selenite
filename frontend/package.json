@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev:backend": "node ./node_modules/cross-env/src/bin/cross-env.js DISABLE_FILE_LOGS=1 ENVIRONMENT=production ALLOW_LOCALHOST_CORS=1 uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir ../backend/app",
-    "start:prod": "npm run build && node ./node_modules/cross-env/src/bin/cross-env.js VITE_API_URL=http://127.0.0.1:8100 vite preview --host 127.0.0.1 --port 5173 --strictPort",
-    "e2e:full": "concurrently -k --success first --names backend,frontend,tests \"node ../scripts/start-backend-e2e.js\" \"npm run start:prod\" \"npm run e2e:wait-and-run\"",
+    "start:prod": "npm run build && vite preview",
+    "e2e:full": "concurrently -k --success first --names backend,frontend,tests \"node ../scripts/start-backend-e2e.js\" \"npm run start:prod -- --host 127.0.0.1 --port 5173 --strictPort\" \"npm run e2e:wait-and-run\"",
     "e2e:wait-and-run": "wait-on http-get://127.0.0.1:8100/health http-get://127.0.0.1:5173/ && npm run e2e:playwright",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

@@ -60,56 +60,34 @@ if (-not $SkipPreflight) {
                 do {
                     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                     if (-not $conns) { break }
+                    $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
                     if ($attempt -eq 0) {
-                        Write-Host "Found existing listeners on port $port; stopping them..." -ForegroundColor Yellow
+                        Write-Host "Found existing listeners on port $port; stopping them (PIDs: $($pids -join ', '))..." -ForegroundColor Yellow
                     }
-                    foreach ($c in $conns) {
+                    foreach ($pid in $pids) {
                         try {
-                            Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+                            # Try taskkill to ensure child processes die too
+                            taskkill /PID $pid /F /T *> $null 2>&1
                         } catch {}
+                        try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
                     }
                     Start-Sleep -Seconds 1
                     $attempt++
                 } while ($attempt -lt 10)
                 $remaining = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
                 if ($remaining) {
-                    # Filter only live processes still listening
-                    $liveRemaining = @()
+                    Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
                     foreach ($r in $remaining) {
                         try {
                             $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
-                            if ($p) { $liveRemaining += @{ proc = $p; conn = $r } }
+                            if ($p) {
+                                Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
+                            } else {
+                                Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
+                            }
                         } catch {}
                     }
-                    if (-not $liveRemaining -and $remaining.Count -gt 0) {
-                        # Only zombie entries; treat as transient and do not warn
-                        Write-Host "Port $port previously held by exited process; continuing." -ForegroundColor Yellow
-                        continue
-                    }
-                    if ($liveRemaining) {
-                        $pids = ($liveRemaining | ForEach-Object { $_.proc.Id }) -join ', '
-                        Write-Host "Port $port still in use; forcing stop of PIDs: $pids" -ForegroundColor Yellow
-                        foreach ($item in $liveRemaining) {
-                            try { Stop-Process -Id $item.proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-                            try { Wait-Process -Id $item.proc.Id -Timeout 3 -ErrorAction SilentlyContinue } catch {}
-                        }
-                        Start-Sleep -Seconds 1
-                        $postCheck = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-                        if ($postCheck) {
-                            Write-Host "Warning: Port $port is still in use after cleanup attempts:" -ForegroundColor Red
-                            foreach ($r in $postCheck) {
-                                try {
-                                    $p = Get-Process -Id $r.OwningProcess -ErrorAction SilentlyContinue
-                                    if ($p) {
-                                        Write-Host (" - PID {0} ({1}) CmdLine: {2}" -f $p.Id, $p.ProcessName, ($p.Path)) -ForegroundColor Red
-                                    } else {
-                                        Write-Host (" - PID {0} (process exited)" -f $r.OwningProcess) -ForegroundColor Red
-                                    }
-                                } catch {}
-                            }
-                            Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
-                        }
-                    }
+                    Write-Host "Please kill the above processes or free the port, then rerun bootstrap." -ForegroundColor Red
                 }
             }
         }

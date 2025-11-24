@@ -117,7 +117,7 @@ export const Dashboard: React.FC = () => {
     console.log('Play job:', jobId);
   };
 
-  const handleDownload = (jobId: string, format: string) => {
+  const handleDownload = async (jobId: string, format: string) => {
     // Trigger download via export endpoint
     const token = localStorage.getItem('auth_token');
     const url = `${API_BASE_URL}/jobs/${jobId}/export?format=${format}`;
@@ -125,34 +125,32 @@ export const Dashboard: React.FC = () => {
     // Create temporary anchor element to trigger download
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', ''); // Let browser use Content-Disposition filename
-    
-    // Add auth header by opening in new window with fetch
-    fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Download failed');
+    // Add auth header by fetching manually so we can honor Content-Disposition filename
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-        return response.blob();
-      })
-      .then(blob => {
-        // Extract filename from Content-Disposition or use default
-        const downloadUrl = window.URL.createObjectURL(blob);
-        link.href = downloadUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(downloadUrl);
-        showSuccess(`Transcript downloaded as ${format.toUpperCase()}`);
-      })
-      .catch(error => {
-        console.error('Download failed:', error);
-        showError(`Failed to download transcript: ${error.message}`);
       });
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      const blob = await response.blob();
+      const cd = response.headers.get('Content-Disposition') || '';
+      const match = cd.match(/filename="?([^";]+)"?/i);
+      const filename = match ? match[1] : `transcript.${format}`;
+      const downloadUrl = window.URL.createObjectURL(blob);
+      link.href = downloadUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      showSuccess(`Transcript downloaded as ${filename}`);
+    } catch (error: any) {
+      console.error('Download failed:', error);
+      showError(`Failed to download transcript: ${error?.message || 'Unknown error'}`);
+    }
   };
 
   const handleRestart = async (jobId: string) => {

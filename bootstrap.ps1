@@ -10,6 +10,7 @@ param(
     [switch]$Seed,           # Run app.seed
     [switch]$ForceInstall,   # Force npm install even if node_modules exists
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
+    [int]$BindPort = 8100,   # Backend port
     [string]$BindIP = "127.0.0.1",  # Bind address for backend/frontend (use 0.0.0.0 or Tailscale IP)
     [string]$ApiBase = ""           # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
 )
@@ -23,7 +24,7 @@ $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $MediaDir = Join-Path $Root 'storage\media'
 $TranscriptDir = Join-Path $Root 'storage\transcripts'
-$ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:8100" }
+$ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
 
@@ -52,6 +53,13 @@ if (-not $SkipPreflight) {
         $logRoot = Join-Path $Root 'logs'
         Get-ChildItem -Path $logRoot -Filter *.log -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
             $_.IsReadOnly = $false
+        }
+        function Get-FreePort {
+            $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+            $listener.Start()
+            $port = $listener.LocalEndpoint.Port
+            $listener.Stop()
+            return $port
         }
         function Stop-PortListeners {
             param([int[]]$Ports)
@@ -107,7 +115,17 @@ if (-not $SkipPreflight) {
         # If port is still in use later, we will kill by port regardless of repo match
 
         # Kill any process bound to common ports (8100 backend, 5173 frontend)
-        Stop-PortListeners -Ports @(8100, 5173)
+        Stop-PortListeners -Ports @($BindPort, 5173)
+
+        # If backend port is still busy after cleanup, fall back to a free port to keep boot moving
+        $stillBusy = Get-NetTCPConnection -LocalPort $BindPort -State Listen -ErrorAction SilentlyContinue
+        if ($stillBusy) {
+            Write-Host "Backend port $BindPort is still busy after cleanup; selecting a free port instead." -ForegroundColor Yellow
+            $oldPort = $BindPort
+            $BindPort = Get-FreePort
+            $ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
+            Write-Host "Using backend port $BindPort for this run (was $oldPort)." -ForegroundColor Yellow
+        }
 
         # Close any lingering PowerShell windows that were spawned by this bootstrap (title contains Selenite)
         Get-Process | Where-Object { $_.MainWindowTitle -match 'Selenite' -and $_.ProcessName -match 'pwsh|powershell' } | ForEach-Object {
@@ -170,26 +188,21 @@ Invoke-Step "Start backend API (new window)" {
 $backendCmd = @"
 cd "$BackendDir"
 $envBlock
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host $BindIP --port 8100 --app-dir app $uvicornArgs
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host $BindIP --port $BindPort --app-dir app $uvicornArgs
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $backendCmd
-    Write-Host "Backend starting on http://$BindIP`:8100 (check new window)." -ForegroundColor Green
+    Write-Host "Backend starting on http://$BindIP`:$BindPort (check new window)." -ForegroundColor Green
 }
 
 Invoke-Step "Start frontend production preview (new window)" {
     $frontendCmd = @"
 cd "$FrontendDir"
 Write-Host ''
-Write-Host '  █████████  ██████████ █████       ██████████ ██████   █████ █████ ███████████ ██████████' -ForegroundColor Cyan
-Write-Host ' ███▒▒▒▒▒███▒▒███▒▒▒▒▒█▒▒███       ▒▒███▒▒▒▒▒█▒▒██████ ▒▒███ ▒▒███ ▒█▒▒▒███▒▒▒█▒▒███▒▒▒▒▒█' -ForegroundColor Cyan
-Write-Host '▒███    ▒▒▒  ▒███  █ ▒  ▒███        ▒███  █ ▒  ▒███▒███ ▒███  ▒███ ▒   ▒███  ▒  ▒███  █ ▒ ' -ForegroundColor Cyan
-Write-Host '▒▒█████████  ▒██████    ▒███        ▒██████    ▒███▒▒███▒███  ▒███     ▒███     ▒██████   ' -ForegroundColor Cyan
-Write-Host ' ▒▒▒▒▒▒▒▒███ ▒███▒▒█    ▒███        ▒███▒▒█    ▒███ ▒▒██████  ▒███     ▒███     ▒███▒▒█   ' -ForegroundColor Cyan
-Write-Host ' ███    ▒███ ▒███ ▒   █ ▒███      █ ▒███ ▒   █ ▒███  ▒▒█████  ▒███     ▒███     ▒███ ▒   █' -ForegroundColor Cyan
-Write-Host '▒▒█████████  ██████████ ███████████ ██████████ █████  ▒▒█████ █████    █████    ██████████' -ForegroundColor Cyan
-Write-Host ' ▒▒▒▒▒▒▒▒▒  ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒▒ ' -ForegroundColor Cyan
-Write-Host '' -ForegroundColor Cyan
-Write-Host '' -ForegroundColor Cyan
+Write-Host '  ______     ______     __         ______     __   __     __     ______    ' -ForegroundColor Cyan
+Write-Host ' /\  ___\   /\  == \   /\ \       /\  == \   /\ "-.\ \   /\ \   /\  == \   ' -ForegroundColor Cyan
+Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \  __<   ' -ForegroundColor Cyan
+Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
+Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
 `$env:VITE_API_URL='$ApiBaseResolved'
 npm run start:prod -- --host $BindIP --port 5173 --strictPort
 "@
@@ -201,7 +214,7 @@ Invoke-Step "Verify backend via smoke test" {
     Set-Location $Root
     $pythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
     $smokeScript = Join-Path $Root 'scripts\smoke_test.py'
-    & $pythonExe $smokeScript --base-url http://127.0.0.1:8100 --health-timeout 90
+    & $pythonExe $smokeScript --base-url http://127.0.0.1:$BindPort --health-timeout 90
 }
 
 Write-Section "All done"

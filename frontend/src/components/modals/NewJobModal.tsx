@@ -11,8 +11,6 @@ interface NewJobModalProps {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
-    timestampTimezone: 'local' | 'utc';
-    timestampFormat: 'date-time' | 'time-date' | 'time-only';
   }) => Promise<void>;
   defaultModel?: string;
   defaultLanguage?: string;
@@ -29,10 +27,6 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [model, setModel] = useState(defaultModel);
   const [language, setLanguage] = useState(defaultLanguage);
   const [enableTimestamps, setEnableTimestamps] = useState(true);
-  const [timestampTimezone, setTimestampTimezone] = useState<'local' | 'utc'>('local');
-  const [timestampFormat, setTimestampFormat] = useState<'date-time' | 'time-date' | 'time-only'>(
-    'date-time'
-  );
   // Speaker detection is not implemented; keep disabled until diarization is added.
   const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,9 +76,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         model,
         language,
         enableTimestamps,
-        enableSpeakerDetection,
-        timestampTimezone,
-        timestampFormat
+        enableSpeakerDetection
       });
       
       // Reset form on success
@@ -92,8 +84,6 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setModel(defaultModel);
       setLanguage(defaultLanguage);
       setEnableTimestamps(true);
-      setTimestampTimezone('local');
-      setTimestampFormat('date-time');
       setEnableSpeakerDetection(false);
       onClose();
     } catch (err) {
@@ -216,35 +206,6 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
               </label>
 
-              {enableTimestamps && (
-                <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
-                  <select
-                    value={timestampTimezone}
-                    onChange={(e) => setTimestampTimezone(e.target.value as 'local' | 'utc')}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                    data-testid="timestamp-timezone-select"
-                  >
-                    <option value="local">Local time</option>
-                    <option value="utc">UTC</option>
-                  </select>
-                  <select
-                    value={timestampFormat}
-                    onChange={(e) =>
-                      setTimestampFormat(
-                        e.target.value as 'date-time' | 'time-date' | 'time-only'
-                      )
-                    }
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                    data-testid="timestamp-format-select"
-                  >
-                    <option value="date-time">Date / Time</option>
-                    <option value="time-date">Time / Date</option>
-                    <option value="time-only">Time only</option>
-                  </select>
-                </div>
-              )}
             </div>
 
             <label className="flex items-center">

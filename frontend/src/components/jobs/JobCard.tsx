@@ -22,6 +22,14 @@ interface JobCardProps {
   onClick: (jobId: string) => void;
   onQuickAction?: (jobId: string, action: string) => void;
   onPlay?: (jobId: string) => void;
+  onStop?: (jobId: string) => void;
+  onSeek?: (jobId: string, percent: number) => void;
+  onSpeed?: (jobId: string) => void;
+  isActive?: boolean;
+  isPlaying?: boolean;
+  currentTime?: number;
+  duration?: number;
+  playbackRate?: number;
   onDownload?: (jobId: string) => void;
   onView?: (jobId: string) => void;
   selectionMode?: boolean;
@@ -33,6 +41,14 @@ export const JobCard: React.FC<JobCardProps> = ({
   job,
   onClick,
   onPlay,
+  onStop,
+  onSeek,
+  onSpeed,
+  isActive = false,
+  isPlaying = false,
+  currentTime = 0,
+  duration = 0,
+  playbackRate = 1,
   onDownload,
   onView,
   selectionMode = false,
@@ -123,34 +139,72 @@ export const JobCard: React.FC<JobCardProps> = ({
 
       {/* Quick Actions (for completed jobs) */}
       {job.status === 'completed' && (
-        <div className="flex gap-2 pt-3 border-t border-gray-100">
-          <button
-            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPlay?.(job.id);
-            }}
-          >
-            Play
-          </button>
-          <button
-            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDownload?.(job.id);
-            }}
-          >
-            Download
-          </button>
-          <button
-            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
-            onClick={(e) => {
-              e.stopPropagation();
-              onView?.(job.id);
-            }}
-          >
-            View
-          </button>
+        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPlay?.(job.id);
+              }}
+            >
+              {isActive && isPlaying ? 'Pause' : 'Play'}
+            </button>
+            <button
+              className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStop?.(job.id);
+              }}
+              disabled={!isActive}
+            >
+              Stop
+            </button>
+            <button
+              className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSpeed?.(job.id);
+              }}
+              disabled={!isActive}
+            >
+              {playbackRate}x
+            </button>
+            <button
+              className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload?.(job.id);
+              }}
+            >
+              Download
+            </button>
+            <button
+              className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+              onClick={(e) => {
+                e.stopPropagation();
+                onView?.(job.id);
+              }}
+            >
+              View
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={duration ? Math.floor((currentTime / duration) * 100) : 0}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onSeek?.(job.id, Number(e.target.value))}
+              className="w-full accent-forest-green"
+              disabled={!isActive || !duration}
+              aria-label={`Seek ${job.original_filename}`}
+            />
+            <span className="text-xs text-pine-mid">
+              {Math.floor(currentTime)}/{duration ? Math.floor(duration) : '0'}s
+            </span>
+          </div>
         </div>
       )}
     </div>

@@ -20,6 +20,11 @@ export const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioJobId, setAudioJobId] = useState<string | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioPosition, setAudioPosition] = useState(0);
+  const [audioRate, setAudioRate] = useState(1);
   const { showError, showSuccess } = useToast();
 
   useEffect(() => {
@@ -114,7 +119,32 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const cleanupAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      URL.revokeObjectURL(audioRef.current.src);
+      audioRef.current = null;
+    }
+    setIsAudioPlaying(false);
+    setAudioJobId(null);
+    setAudioPosition(0);
+    setAudioDuration(0);
+  };
+
   const handlePlay = async (jobId: string) => {
+    // Toggle if same job
+    if (audioJobId === jobId && audioRef.current) {
+      if (audioRef.current.paused) {
+        await audioRef.current.play();
+        setIsAudioPlaying(true);
+      } else {
+        audioRef.current.pause();
+        setIsAudioPlaying(false);
+      }
+      return;
+    }
+
+    cleanupAudio();
     const token = localStorage.getItem('auth_token');
     const url = `${API_BASE_URL}/jobs/${jobId}/media`;
     try {
@@ -128,18 +158,53 @@ export const Dashboard: React.FC = () => {
       }
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
-      }
       const audio = new Audio(objectUrl);
+      audio.playbackRate = audioRate;
+      audio.addEventListener('timeupdate', () => {
+        setAudioPosition(audio.currentTime);
+        setAudioDuration(audio.duration || 0);
+      });
+      audio.addEventListener('loadedmetadata', () => {
+        setAudioDuration(audio.duration || 0);
+      });
+      audio.addEventListener('ended', () => {
+        setIsAudioPlaying(false);
+      });
       audioRef.current = audio;
+      setAudioJobId(jobId);
       await audio.play();
+      setIsAudioPlaying(true);
       showSuccess('Playing media');
     } catch (error: any) {
       console.error('Play failed:', error);
       showError(error?.message || 'Failed to play media');
     }
+  };
+
+  const handleStopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsAudioPlaying(false);
+    setAudioPosition(0);
+  };
+
+  const handleSeekAudio = (jobId: string, percent: number) => {
+    if (audioRef.current && audioJobId === jobId && audioDuration) {
+      const newTime = (percent / 100) * audioDuration;
+      audioRef.current.currentTime = newTime;
+      setAudioPosition(newTime);
+    }
+  };
+
+  const handleSpeedAudio = (jobId: string) => {
+    if (!audioRef.current || audioJobId !== jobId) return;
+    const speeds = [0.5, 1, 2, 4];
+    const next = speeds[(speeds.indexOf(audioRate) + 1) % speeds.length];
+    setAudioRate(next);
+    audioRef.current.playbackRate = next;
+    showSuccess(`Speed: ${next}x`);
   };
 
   const handleDownload = async (jobId: string, format: string) => {
@@ -530,6 +595,14 @@ export const Dashboard: React.FC = () => {
                 selected={selectedIds.has(job.id)}
                 onSelectToggle={toggleSelect}
                 onPlay={handlePlay}
+                onStop={handleStopAudio}
+                onSeek={handleSeekAudio}
+                onSpeed={handleSpeedAudio}
+                isActive={audioJobId === job.id}
+                isPlaying={isAudioPlaying && audioJobId === job.id}
+                currentTime={audioJobId === job.id ? audioPosition : 0}
+                duration={audioJobId === job.id ? audioDuration : 0}
+                playbackRate={audioJobId === job.id ? audioRate : 1}
                 onDownload={handleDownloadDefault}
                 onView={handleViewTranscript}
               />

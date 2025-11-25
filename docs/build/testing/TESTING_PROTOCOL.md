@@ -25,7 +25,7 @@ Optional switches:
 | `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` | Skip that portion of the suite (e.g., `.\run-tests.ps1 -SkipE2E`). |
 | `-ForceBackendInstall`, `-ForceFrontendInstall` | Reinstall dependencies even if `.venv` / `node_modules` already exist. |
 
-Use this script for AI workflows so they don’t need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required. If you run tests manually (e.g., `npm run e2e:full` by itself), copy the resulting logs/coverage/Playwright report into `docs/memorialization/test-runs/<timestamp>-manual` to keep the historical record complete.
+Use this script for workflows so you don't need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required. If you run tests manually (e.g., `npm run e2e:full` by itself), copy the resulting logs/coverage/Playwright report into `docs/memorialization/test-runs/<timestamp>-manual` to keep the historical record complete.
 
 `run-tests.ps1` also ensures the production ports are free before the Playwright run by killing any process bound to `8100` (API) or `5173` (frontend). That guarantees the concurrent bootstrap script doesn’t immediately crash with “port already in use” errors.
 

@@ -1,6 +1,6 @@
 # Repository Hygiene Directive
 
-Our repository is the canonical reflection of the product. Everything that is tracked must be intentional, necessary to build or operate Selenite, and owned by a maintainer. Everything transient—artifacts, caches, generated logs, temporary databases—belongs outside of git and must be aggressively removed or ignored so contributors never inherit surprise state. Environment defaults must point to the same canonical locations so code and tests never fork paths silently. Automated guardrails (scripts, CI jobs, and local hooks) must fail fast when the repo drifts, and cleanup steps need to run as part of every workflow. Hygiene is ultimately about predictability: a deterministic, reproducible workspace that every engineer (human or AI) can trust.
+Our repository is the canonical reflection of the product. Everything that is tracked must be intentional, necessary to build or operate Selenite, and owned by a maintainer. Everything transient—artifacts, caches, generated logs, temporary databases—belongs outside of git and must be aggressively removed or ignored so contributors never inherit surprise state. Environment defaults must point to the same canonical locations so code and tests never fork paths silently. Automated guardrails (scripts, CI jobs, and local hooks) must fail fast when the repo drifts, and cleanup steps need to run as part of every workflow. Hygiene is ultimately about predictability: a deterministic, reproducible workspace that every engineer can trust.
 
 ## Common Hygiene Failures & Mitigations
 

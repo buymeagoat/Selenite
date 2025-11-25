@@ -17,7 +17,7 @@
 6. **Future-scope items stay parked.** Anything marked "Moved to Future Enhancements" remains untouched until re-prioritized here.
 7. **Mandate manual evaluation checkpoints.** For substantial changes (e.g., system probe/ASR/diarization/model work), stop after each milestone and perform a manual verification before proceeding; prompt the administrator for these checkpoints in the workflow.
 
-Compliance with these directives is mandatory for humans and AI collaborators alike.
+Compliance with these directives is mandatory.
 
 ---
 

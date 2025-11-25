@@ -57,7 +57,7 @@ npm install
 
 4. **Start the application (production stack only)**:
 
-The fastest way—especially for AI assistants—is to run the automated bootstrap script from the repository root:
+The fastest way is to run the automated bootstrap script from the repository root:
 
 ```powershell
 # PowerShell (Windows)

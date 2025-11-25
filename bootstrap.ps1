@@ -10,6 +10,7 @@ param(
     [switch]$Seed,           # Run app.seed
     [switch]$ForceInstall,   # Force npm install even if node_modules exists
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
+    [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8100,   # Backend port
     [string]$BindIP = "127.0.0.1",  # Bind address for backend/frontend (use 0.0.0.0 or Tailscale IP)
     [string]$ApiBase = ""           # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
@@ -24,9 +25,11 @@ $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $MediaDir = Join-Path $Root 'storage\media'
 $TranscriptDir = Join-Path $Root 'storage\transcripts'
+$BackupDir = Join-Path $Root 'storage\backups'
 $ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
+New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
 function Write-Section($Message) {
     Write-Host ""
@@ -71,6 +74,18 @@ if (-not $SkipPreflight) {
             $port = $listener.LocalEndpoint.Port
             $listener.Stop()
             return $port
+        }
+        function Backup-Database {
+            param([string]$DbPath, [string]$BackupRoot)
+            if (-not (Test-Path $DbPath)) { return }
+            try {
+                $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+                $backupFile = Join-Path $BackupRoot ("selenite-{0}.db" -f $timestamp)
+                Copy-Item -Path $DbPath -Destination $backupFile -Force
+                Write-Host "Database backup created: $backupFile" -ForegroundColor Yellow
+            } catch {
+                Write-Host "Warning: failed to create DB backup: $_" -ForegroundColor Red
+            }
         }
         function Stop-PortListeners {
             param([int[]]$Ports)
@@ -169,6 +184,15 @@ Invoke-Step "Backend dependencies" {
     Set-Location $BackendDir
     .\.venv\Scripts\python.exe -m pip install --upgrade pip
     .\.venv\Scripts\python.exe -m pip install -r requirements-minimal.txt
+}
+
+Invoke-Step "Database backup" {
+    if ($BackupDb) {
+        $dbPath = Join-Path $BackendDir 'selenite.db'
+        Backup-Database -DbPath $dbPath -BackupRoot $BackupDir
+    } else {
+        Write-Host "Skipping DB backup (use -BackupDb to enable)." -ForegroundColor Yellow
+    }
 }
 
 Invoke-Step "Database migrations (and seed if requested)" {

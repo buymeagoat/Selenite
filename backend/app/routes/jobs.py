@@ -426,46 +426,38 @@ async def delete_job(
         )
 
     # Delete associated files
-    files_to_delete = []
+    files_to_delete = set()
+    backend_dir = Path(__file__).parent.parent.parent
 
-    # Media file
+    def resolve_path(p: Path) -> Path:
+        return p if p.is_absolute() else (backend_dir / p).resolve()
+
+    # Media file from stored path
     if job.file_path:
-        media_path = Path(job.file_path)
-        if media_path.is_absolute():
-            files_to_delete.append(media_path)
-        else:
-            # Relative to backend directory
-            backend_dir = Path(__file__).parent.parent.parent
-            files_to_delete.append((backend_dir / media_path).resolve())
+        files_to_delete.add(resolve_path(Path(job.file_path)))
+    # Media file by saved_filename under storage root (in case file_path missing)
+    if job.saved_filename:
+        files_to_delete.add(Path(settings.media_storage_path) / job.saved_filename)
 
-    # Transcript file
+    # Transcript file from stored path
     if job.transcript_path:
-        transcript_path = Path(job.transcript_path)
-        if transcript_path.is_absolute():
-            files_to_delete.append(transcript_path)
-            files_to_delete.append(transcript_path.with_suffix(".json"))
-        else:
-            backend_dir = Path(__file__).parent.parent.parent
-            resolved = (backend_dir / transcript_path).resolve()
-            files_to_delete.append(resolved)
-            files_to_delete.append(resolved.with_suffix(".json"))
+        tp = resolve_path(Path(job.transcript_path))
+        files_to_delete.add(tp)
+        files_to_delete.add(tp.with_suffix(".json"))
 
-    # Also check default transcript location
-    default_transcript = Path(settings.transcript_storage_path) / f"{job.id}.txt"
-    if default_transcript.is_absolute():
-        files_to_delete.append(default_transcript)
-        files_to_delete.append(default_transcript.with_suffix(".json"))
-    else:
-        backend_dir = Path(__file__).parent.parent.parent
-        resolved_default = (backend_dir / default_transcript).resolve()
-        files_to_delete.append(resolved_default)
-        files_to_delete.append(resolved_default.with_suffix(".json"))
+    # Also clear any transcript artifacts matching job.id.* in transcript storage
+    transcript_root = Path(settings.transcript_storage_path)
+    files_to_delete.add(transcript_root / f"{job.id}.txt")
+    files_to_delete.add((transcript_root / f"{job.id}.txt").with_suffix(".json"))
+    for ext in [".md", ".srt", ".vtt", ".json", ".docx"]:
+        files_to_delete.add(transcript_root / f"{job.id}{ext}")
 
     # Delete files (silently ignore missing files)
     for file_path in files_to_delete:
         try:
-            if file_path.exists() and file_path.is_file():
-                os.remove(file_path)
+            fp = resolve_path(file_path)
+            if fp.exists() and fp.is_file():
+                os.remove(fp)
         except Exception:
             # Log but don't fail deletion if file removal fails
             pass

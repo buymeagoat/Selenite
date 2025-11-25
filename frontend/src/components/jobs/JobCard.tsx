@@ -21,6 +21,9 @@ interface JobCardProps {
   job: Job;
   onClick: (jobId: string) => void;
   onQuickAction?: (jobId: string, action: string) => void;
+  onPlay?: (jobId: string) => void;
+  onDownload?: (jobId: string) => void;
+  onView?: (jobId: string) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onSelectToggle?: (jobId: string, checked: boolean) => void;
@@ -29,6 +32,9 @@ interface JobCardProps {
 export const JobCard: React.FC<JobCardProps> = ({
   job,
   onClick,
+  onPlay,
+  onDownload,
+  onView,
   selectionMode = false,
   selected = false,
   onSelectToggle
@@ -118,13 +124,31 @@ export const JobCard: React.FC<JobCardProps> = ({
       {/* Quick Actions (for completed jobs) */}
       {job.status === 'completed' && (
         <div className="flex gap-2 pt-3 border-t border-gray-100">
-          <button className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep">
+          <button
+            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPlay?.(job.id);
+            }}
+          >
             Play
           </button>
-          <button className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep">
+          <button
+            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownload?.(job.id);
+            }}
+          >
             Download
           </button>
-          <button className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep">
+          <button
+            className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
+            onClick={(e) => {
+              e.stopPropagation();
+              onView?.(job.id);
+            }}
+          >
             View
           </button>
         </div>

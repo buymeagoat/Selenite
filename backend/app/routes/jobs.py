@@ -4,9 +4,11 @@ from app.schemas.tag import JobTagsResponse, TagBasic
 
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -217,6 +219,31 @@ async def get_job(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
     return JobResponse.model_validate(job)
+
+
+@router.get("/{job_id}/media")
+async def download_media(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download the original media file for a job."""
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if not job.file_path or not Path(job.file_path).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found")
+
+    filename = Path(job.original_filename).name
+    media_type = job.mime_type or "application/octet-stream"
+    return FileResponse(
+        path=job.file_path,
+        media_type=media_type,
+        filename=filename,
+    )
 
 
 @router.post("/{job_id}/cancel", response_model=JobStatusResponse)

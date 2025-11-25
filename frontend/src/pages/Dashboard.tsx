@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { JobCard } from '../components/jobs/JobCard';
 import { NewJobModal } from '../components/modals/NewJobModal';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
@@ -19,6 +19,7 @@ export const Dashboard: React.FC = () => {
   const [bulkTagId, setBulkTagId] = useState<number | ''>('' as any);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { showError, showSuccess } = useToast();
 
   useEffect(() => {
@@ -113,8 +114,32 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handlePlay = (jobId: string) => {
-    console.log('Play job:', jobId);
+  const handlePlay = async (jobId: string) => {
+    const token = localStorage.getItem('auth_token');
+    const url = `${API_BASE_URL}/jobs/${jobId}/media`;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Unable to fetch media');
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+      const audio = new Audio(objectUrl);
+      audioRef.current = audio;
+      await audio.play();
+      showSuccess('Playing media');
+    } catch (error: any) {
+      console.error('Play failed:', error);
+      showError(error?.message || 'Failed to play media');
+    }
   };
 
   const handleDownload = async (jobId: string, format: string) => {
@@ -152,6 +177,8 @@ export const Dashboard: React.FC = () => {
       showError(`Failed to download transcript: ${error?.message || 'Unknown error'}`);
     }
   };
+
+  const handleDownloadDefault = (jobId: string) => handleDownload(jobId, 'txt');
 
   const handleRestart = async (jobId: string) => {
     try {
@@ -502,6 +529,9 @@ export const Dashboard: React.FC = () => {
                 selectionMode
                 selected={selectedIds.has(job.id)}
                 onSelectToggle={toggleSelect}
+                onPlay={handlePlay}
+                onDownload={handleDownloadDefault}
+                onView={handleViewTranscript}
               />
             ))}
           </div>

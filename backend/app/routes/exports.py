@@ -124,6 +124,7 @@ async def export_transcript(
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Cache-Control": "no-cache",
+                "Access-Control-Expose-Headers": "Content-Disposition",
             },
         )
 

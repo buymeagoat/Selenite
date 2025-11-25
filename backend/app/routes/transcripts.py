@@ -168,5 +168,6 @@ async def export_transcript(
     filename = f"{title}.{fmt}"
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
     }
     return Response(content=content, media_type=content_type, headers=headers)

@@ -243,6 +243,7 @@ async def download_media(
         path=job.file_path,
         media_type=media_type,
         filename=filename,
+        headers={"Access-Control-Expose-Headers": "Content-Disposition"},
     )
 
 

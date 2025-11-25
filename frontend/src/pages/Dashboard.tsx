@@ -93,6 +93,7 @@ export const Dashboard: React.FC = () => {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
+    speakerCount?: number | null;
   }) => {
     try {
       const response = await createJob({
@@ -101,6 +102,7 @@ export const Dashboard: React.FC = () => {
         language: jobData.language,
         enable_timestamps: jobData.enableTimestamps,
         enable_speaker_detection: jobData.enableSpeakerDetection,
+        speaker_count: jobData.speakerCount ?? undefined,
       });
       
       showSuccess(`Job created successfully: ${response.original_filename}`);

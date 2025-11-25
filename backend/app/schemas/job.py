@@ -33,6 +33,7 @@ class JobCreate(BaseModel):
     language: str = Field(default="auto", max_length=10)
     enable_timestamps: bool = Field(default=True)
     enable_speaker_detection: bool = Field(default=False)
+    speaker_count: Optional[int] = None
 
 
 class JobResponse(BaseModel):

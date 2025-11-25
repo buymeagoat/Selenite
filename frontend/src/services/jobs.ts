@@ -57,6 +57,7 @@ export interface CreateJobParams {
   language?: string;
   enable_timestamps?: boolean;
   enable_speaker_detection?: boolean;
+  speaker_count?: number;
   timestamp_timezone?: 'local' | 'utc';
   timestamp_format?: 'date-time' | 'time-date' | 'time-only';
 }
@@ -103,6 +104,9 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobRespo
   
   if (params.enable_speaker_detection !== undefined) {
     formData.append('enable_speaker_detection', String(params.enable_speaker_detection));
+  }
+  if (params.speaker_count !== undefined) {
+    formData.append('speaker_count', String(params.speaker_count));
   }
 
   if (params.timestamp_timezone) {

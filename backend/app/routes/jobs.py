@@ -44,6 +44,7 @@ async def create_job(
     enable_timestamps: bool = Form(default=True),
     # Speaker detection is not implemented; the flag is ignored and forced off.
     enable_speaker_detection: bool = Form(default=False),
+    speaker_count: Optional[int] = Form(default=None),
     should_fail: bool = Query(False, alias="fail"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -75,6 +76,14 @@ async def create_job(
     # Generate secure filename and get UUID
     secure_filename, job_uuid = generate_secure_filename(file.filename)
 
+    # Validate speaker_count if provided
+    if speaker_count is not None:
+        if speaker_count < 2 or speaker_count > 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="speaker_count must be between 2 and 8, or omitted for auto-detect",
+            )
+
     # Resolve defaults from user settings if omitted
     # Lazy-load settings; if none exist fallback to global defaults
     # Explicitly load user settings to avoid async lazy-load MissingGreenlet errors
@@ -98,6 +107,7 @@ async def create_job(
         model_used=resolved_model,
         has_timestamps=enable_timestamps,
         has_speaker_labels=False,
+        speaker_count=speaker_count,
         created_at=datetime.utcnow(),
     )
 

@@ -11,6 +11,7 @@ interface NewJobModalProps {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
+    speakerCount?: number | null;
   }) => Promise<void>;
   defaultModel?: string;
   defaultLanguage?: string;
@@ -27,8 +28,8 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [model, setModel] = useState(defaultModel);
   const [language, setLanguage] = useState(defaultLanguage);
   const [enableTimestamps, setEnableTimestamps] = useState(true);
-  // Speaker detection is not implemented; keep disabled until diarization is added.
   const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
+  const [speakerCount, setSpeakerCount] = useState<number | 'auto'>('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
@@ -76,7 +77,12 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         model,
         language,
         enableTimestamps,
-        enableSpeakerDetection
+        enableSpeakerDetection,
+        speakerCount: enableSpeakerDetection
+          ? speakerCount === 'auto'
+            ? null
+            : speakerCount
+          : null
       });
       
       // Reset form on success
@@ -193,34 +199,58 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
           {/* Options */}
           <div className="mb-6 space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={enableTimestamps}
-                  onChange={(e) => setEnableTimestamps(e.target.checked)}
-                  disabled={isSubmitting}
-                  className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
-                  data-testid="timestamps-checkbox"
-                />
-                <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
-              </label>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={enableTimestamps}
+                    onChange={(e) => setEnableTimestamps(e.target.checked)}
+                    disabled={isSubmitting}
+                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                    data-testid="timestamps-checkbox"
+                  />
+                  <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
+                </label>
+              </div>
 
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={enableSpeakerDetection}
+                    onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
+                    disabled={isSubmitting}
+                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                    data-testid="speakers-checkbox"
+                  />
+                  <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
+                </label>
+                {enableSpeakerDetection && (
+                  <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
+                    <label className="text-sm text-pine-mid">Speakers:</label>
+                    <select
+                      value={speakerCount}
+                      onChange={(e) =>
+                        setSpeakerCount(
+                          e.target.value === 'auto' ? 'auto' : Number(e.target.value)
+                        )
+                      }
+                      disabled={isSubmitting}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                      data-testid="speaker-count-select"
+                    >
+                      <option value="auto">Auto-detect</option>
+                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                        <option key={n} value={n}>
+                          {n} speakers
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
-
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={enableSpeakerDetection}
-                onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-                disabled
-                className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green opacity-50 cursor-not-allowed"
-                data-testid="speakers-checkbox"
-              />
-              <span className="ml-2 text-sm text-pine-deep">
-                Detect speakers (coming soon)
-              </span>
-            </label>
           </div>
 
           {/* Error Message */}

@@ -15,7 +15,8 @@ Set-Location $repo
 
 $bind = $BindIPOverride
 if (-not $bind -or $bind -eq "") {
-    $bind = "127.0.0.1"
+    # Default to all interfaces so LAN/Tailscale clients can reach it
+    $bind = "0.0.0.0"
 }
 
 pwsh -NoLogo -NoProfile -Command "& '$repo/bootstrap.ps1' -Dev -ResetAuth -BindIP $bind"

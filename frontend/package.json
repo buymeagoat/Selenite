@@ -43,6 +43,7 @@
     "@types/node": "^20.14.10",
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
+    "axe-playwright": "^2.1.1",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^1.6.1",
     "autoprefixer": "^10.4.20",

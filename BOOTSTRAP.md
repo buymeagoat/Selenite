@@ -10,6 +10,7 @@ This file is the single source of truth for getting the Selenite dev stack runni
    .\bootstrap.ps1
    ```
    This performs the pre-flight cleanup, installs dependencies, and launches backend + frontend production servers (the frontend command builds before serving). Watch those windows for live logs.
+   - Default binding is now `0.0.0.0` (all interfaces). The script picks an advertised API host automatically (prefers Tailscale IP, then LAN). Ensure Windows Firewall allows inbound 8100/5173 if you want LAN/Tailscale access.
 
 If you cannot run PowerShell scripts (policy, different shell, etc.), follow the manual steps below.
 
@@ -41,6 +42,7 @@ if (-not (Test-Path .\.venv)) { python -m venv .venv }
 .\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe -m app.seed
 ```
+> Seed is idempotent and will not overwrite existing user passwords. If you need to reset the admin password intentionally, run `python scripts/reset_admin_password.py --password changeme` from the repo root instead of rerunning seed.
 
 Then launch the API in production mode (disabling file logs avoids Windows log-lock issues):
 

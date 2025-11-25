@@ -53,8 +53,14 @@ def verify_login(base_url: str, username: str, password: str) -> None:
         raise SystemExit(f"[smoke] Login request failed: {exc}") from exc
 
     if response.status_code != 200:
+        hint = (
+            "Hint: if this is local/dev and admin password drifted, run "
+            "`python scripts/reset_admin_password.py --password changeme` from repo root, "
+            "then rerun bootstrap."
+        )
         raise SystemExit(
-            f"[smoke] Login failed ({response.status_code}): {response.text.strip()}"
+            f"[smoke] Login failed ({response.status_code}): "
+            f"{response.text.strip()} | {hint}"
         )
     print("[smoke] Login succeeded")
 

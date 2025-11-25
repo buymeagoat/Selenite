@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test';
 import { uiLogin } from './fixtures/auth';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const SAMPLE_FILE = path.join(__dirname, 'fixtures', 'sample.mp3');
 
 test.describe('Create → Complete → Export → Delete flow', () => {

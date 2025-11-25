@@ -12,7 +12,7 @@ param(
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8100,   # Backend port
-    [string]$BindIP = "127.0.0.1",  # Bind address for backend/frontend (use 0.0.0.0 or Tailscale IP)
+    [string]$BindIP = "0.0.0.0",  # Bind address for backend/frontend (0.0.0.0 listens on all)
     [string]$ApiBase = ""           # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
 )
 
@@ -26,7 +26,7 @@ $FrontendDir = Join-Path $Root 'frontend'
 $MediaDir = Join-Path $Root 'storage\media'
 $TranscriptDir = Join-Path $Root 'storage\transcripts'
 $BackupDir = Join-Path $Root 'storage\backups'
-$ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
+$ApiBaseResolved = $null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
@@ -49,6 +49,23 @@ function Invoke-Step {
         Write-Host $_ -ForegroundColor Red
         exit 1
     }
+}
+
+function Get-AdvertiseHost {
+    param([string]$BindHost)
+    # When binding to all interfaces, pick a concrete IP to advertise for VITE_API_URL.
+    $candidates = Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual, Dhcp -ErrorAction SilentlyContinue | Where-Object {
+        $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*'
+    }
+    if (-not $candidates) { return "http://127.0.0.1`:$BindPort" }
+    $ordered = $candidates | Sort-Object -Property @{ Expression = {
+            $ip = $_.IPAddress
+            if ($_.InterfaceAlias -match 'Tailscale') { return 0 }
+            if ($ip -like '10.*' -or $ip -like '192.168.*' -or $ip -like '172.16.*') { return 1 }
+            return 2
+        } }
+    $ipPick = $ordered[0].IPAddress
+    return "http://$ipPick`:$BindPort"
 }
 
 if (-not $SkipPreflight) {
@@ -172,6 +189,17 @@ if (-not $SkipPreflight) {
     }
 }
 
+if ($ApiBase -ne "") {
+    $ApiBaseResolved = $ApiBase
+} else {
+    if ($BindIP -eq "0.0.0.0") {
+        $ApiBaseResolved = Get-AdvertiseHost -BindHost $BindIP
+        Write-Host "Binding to all interfaces; advertising API as $ApiBaseResolved" -ForegroundColor Yellow
+    } else {
+        $ApiBaseResolved = "http://$BindIP`:$BindPort"
+    }
+}
+
 Invoke-Step "Backend virtualenv" {
     Set-Location $BackendDir
     if (-not (Test-Path .\.venv\Scripts\python.exe)) {
@@ -260,7 +288,7 @@ Invoke-Step "Verify backend via smoke test" {
     Set-Location $Root
     $pythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
     $smokeScript = Join-Path $Root 'scripts\smoke_test.py'
-    & $pythonExe $smokeScript --base-url http://127.0.0.1:$BindPort --health-timeout 90
+    & $pythonExe $smokeScript --base-url $ApiBaseResolved --health-timeout 90
 }
 
 Write-Section "All done"

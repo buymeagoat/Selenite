@@ -14,6 +14,8 @@ interface Job {
   estimated_time_left?: number | null;
   estimated_total_seconds?: number | null;
   stalled_at?: string | null;
+  speaker_count?: number | null;
+  has_speaker_labels?: boolean;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 
@@ -72,6 +74,12 @@ export const JobCard: React.FC<JobCardProps> = ({
     });
   };
 
+  const speakerLabel = () => {
+    if (job.speaker_count === null || job.speaker_count === undefined) return null;
+    const mode = job.has_speaker_labels ? 'Detected' : 'Requested';
+    return `${mode} ${job.speaker_count}`;
+  };
+
   return (
     <div
       data-testid="job-card"
@@ -102,8 +110,14 @@ export const JobCard: React.FC<JobCardProps> = ({
         <span>{formatDate(job.created_at)}</span>
         {job.duration && job.status === 'completed' && (
           <>
-            <span>⏱</span>
+            <span>•</span>
             <span>Duration: {formatDuration(job.duration)}</span>
+          </>
+        )}
+        {speakerLabel() && (
+          <>
+            <span>•</span>
+            <span>Speakers: {speakerLabel()}</span>
           </>
         )}
       </div>

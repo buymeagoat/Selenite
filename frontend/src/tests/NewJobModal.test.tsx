@@ -130,7 +130,7 @@ describe('NewJobModal', () => {
     expect(timestampsCheckbox.checked).toBe(true);
   });
 
-  it('has speaker detection checkbox checked by default', () => {
+  it('has speaker detection checkbox unchecked by default and enabled', () => {
     render(
       <NewJobModal
         isOpen={true}
@@ -141,7 +141,7 @@ describe('NewJobModal', () => {
     
     const speakerCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
     expect(speakerCheckbox.checked).toBe(false);
-    expect(speakerCheckbox).toBeDisabled();
+    expect(speakerCheckbox).not.toBeDisabled();
   });
 
   it('allows changing model selection', () => {
@@ -186,7 +186,8 @@ describe('NewJobModal', () => {
     expect(timestampsCheckbox.checked).toBe(false);
 
     const speakersCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
-    expect(speakersCheckbox).toBeDisabled();
+    fireEvent.click(speakersCheckbox);
+    expect(speakersCheckbox.checked).toBe(true);
   });
 
   it('shows loading state during submission', async () => {

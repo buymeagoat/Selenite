@@ -103,7 +103,7 @@ def setup_logging() -> None:
                 "propagate": False,
             },
             "sqlalchemy.engine": {
-                "level": "WARNING" if settings.is_production else "INFO",
+                "level": "WARNING" if (settings.is_production or settings.is_testing) else "INFO",
                 "handlers": handler_names,
                 "propagate": False,
             },

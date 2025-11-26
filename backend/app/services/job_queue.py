@@ -105,7 +105,10 @@ class TranscriptionJobQueue:
             return
         # Ensure workers are started even if startup event didn't run (e.g., app startup)
         if not self._started:
-            if settings.is_testing:
+            from os import getenv
+
+            force_start = getenv("FORCE_QUEUE_START") == "1"
+            if settings.is_testing and not force_start:
                 # In unit tests we let fixtures explicitly start the queue to avoid
                 # background work interfering with DB state assertions.
                 return

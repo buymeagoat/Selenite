@@ -16,6 +16,7 @@
 5. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task's description so future readers can reconstruct the history.
 6. **Future-scope items stay parked.** Anything marked "Moved to Future Enhancements" remains untouched until re-prioritized here.
 7. **Mandate manual evaluation checkpoints.** For substantial changes (e.g., system probe/ASR/diarization/model work), stop after each milestone and perform a manual verification before proceeding; prompt the administrator for these checkpoints in the workflow.
+8. **SQLite guard is authoritative.** `scripts/sqlite_guard.py` auto-moves any stray `selenite.db` copies (bootstrap + run-tests call it). Never delete these manually; inspect `storage/backups` if it reports quarantined files.
 
 Compliance with these directives is mandatory.
 
@@ -34,11 +35,11 @@ Compliance with these directives is mandatory.
 ### Implement Now
 | ID | Task | Description | Owner | Target Date | Status |
 |----|------|-------------|-------|-------------|--------|
-| [SYS-PROBE] | System info probe | Add startup + on-demand probe (OS/container/host, CPU sockets/cores/threads, RAM size/speed, GPU model/VRAM/driver + CUDA/ROCm flag, storage free/used for DB/media/transcripts paths, networking interfaces/IPs/default route, Python/Node versions). Surface via API and admin System Info card with "Detect" refresh. | Owner | 2025-11-30 | TODO |
-| [ADMIN-ASR-DIAR] | Admin ASR/diarization settings | Admin toggles: diarization enable, backend select (WhisperX/Pyannote [GPU note]/VAD) with availability; ASR default select; allow-per-job-override flag; runtime fallback to default/viable option on unavailable choice (never fail job). | Owner | 2025-11-30 | TODO |
-| [AVAIL-ENDPTS] | Availability reporting | Backend endpoint to report available ASR/diarizer options based on installed deps/models (no downloads). Frontend consumes to drive admin dropdown hints. | Owner | 2025-11-30 | TODO |
+| [SYS-PROBE] | System info probe | Add startup + on-demand probe (OS/container/host, CPU sockets/cores/threads, RAM size/speed, GPU model/VRAM/driver + CUDA/ROCm flag, storage free/used for DB/media/transcripts paths, networking interfaces/IPs/default route, Python/Node versions). Surface via API and admin System Info card with "Detect" refresh. | Owner | 2025-11-30 | In Review - `/system/info` & detect endpoint plus Settings card implemented (Nov 25) |
+| [ADMIN-ASR-DIAR] | Admin ASR/diarization settings | Admin toggles: diarization enable, backend select (WhisperX/Pyannote [GPU note]/VAD) with availability; ASR default select; allow-per-job-override flag; runtime fallback to default/viable option on unavailable choice (never fail job). | Owner | 2025-11-30 | In Progress - backend persistence + Settings UI wired to capability feed; runtime fallback wiring landed Nov 25 (needs manual verification) |
+| [AVAIL-ENDPTS] | Availability reporting | Backend endpoint to report available ASR/diarizer options based on installed deps/models (no downloads). Frontend consumes to drive admin dropdown hints. | Owner | 2025-11-30 | In Review - `/system/availability` implemented (Nov 25); frontend wiring pending |
 | [ADV-OPTIONS-UI] | Advanced options in New Job modal | Add collapsible "Advanced" panel: ASR selector (if admin allows), diarization selector + speaker count (Auto/2-8) gated by admin enable, optional extra flags field (admin-controlled visibility). Default view stays simple. | Owner | 2025-11-30 | TODO |
-| [FALLBACK-POLICY] | Runtime fallback | Implement resolver: per-job choice (if allowed) → admin default → next viable; if none, transcribe without diarization; log warnings. Applies to ASR and diarization. | Owner | 2025-11-30 | TODO |
+| [FALLBACK-POLICY] | Runtime fallback | Implement resolver: per-job choice (if allowed) → admin default → next viable; if none, transcribe without diarization; log warnings. Applies to ASR and diarization. | Owner | 2025-11-30 | In Review - runtime ASR/diarization fallback implemented in Whisper service (Nov 25); request manual evaluation checkpoint |
 | [DIAR-PIPELINE] | Diarization execution | Wire actual diarization pipeline: run Whisper for ASR + selected diarizer (WhisperX/Pyannote/VAD), respect speaker_count hint (auto/2–8), tag segments/exports with speaker labels, graceful fallback to no labels if backend unavailable. | Owner | 2025-12-07 | TODO |
 
 ### Scaffold for Future Implementation

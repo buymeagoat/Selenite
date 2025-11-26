@@ -22,6 +22,7 @@ Audit-friendly list of automated tests with what they cover and what “pass/gre
 | test_search.py | `/search` | Queries return expected matches; empty/nonexistent handled |
 | test_security_headers.py / test_security.py | Security headers, auth guards | Required headers present; protected routes require auth |
 | test_settings.py | `/settings` CRUD | Read/update user settings succeeds; validation enforced |
+| test_capabilities.py | Capability reporting + runtime fallback logic | `/system/availability` reports viable options; runtime diarizer/model preference ordering behaves |
 | test_startup_checks.py | Startup health checks | Startup passes with valid config; fails cleanly on missing deps |
 | test_tag_routes.py | `/tags` CRUD and job tagging | Create/list/delete tags; tag assignments work |
 | test_transcript_routes.py | `/transcripts/{job_id}` | Transcript retrieval works; missing transcript handled |
@@ -58,11 +59,18 @@ Audit-friendly list of automated tests with what they cover and what “pass/gre
 | Services/transcripts.test.ts | transcripts API client | Fetch/export calls correct endpoints; errors handled |
 
 ## Frontend E2E (Playwright)
-| Area | What it tests | Green outcome |
+| File | What it tests | Green outcome |
 | --- | --- | --- |
-| auth.spec.ts | Login/logout flow | Can log in with valid creds; protected pages accessible; logout returns to login |
-| jobs.spec.ts | Upload → process → list | Upload succeeds; job appears; status updates visible |
-| transcript.spec.ts | Transcript view/export | Completed job transcript viewable; exports download |
+| login.spec.ts | Login/logout flow | Valid creds log in; protected pages accessible; logout returns to login |
+| new-job.spec.ts | New job creation | Modal opens, file uploads, job appears in list |
+| jobDetail.spec.ts | Job detail modal | Modal opens; metadata/actions visible; close works |
+| flow-create-complete-export-delete.spec.ts | Full job lifecycle | Create job, observe status progression, export transcript, delete job |
+| transcription.spec.ts | Transcription workflow | Queue/process/complete path with simulated transcription succeeds |
+| search.spec.ts | Search/filtering | Searches narrow results; filters apply |
+| tagManagement.spec.ts | Tag inventory/add/filter/remove (prod-parity) | Tags visible in settings; add tag from job detail; filter jobs by tag; remove tag updates UI |
+| settings.spec.ts | Settings page (e2e) | Loads current settings; saves updates; toggles persist |
+| accessibility.spec.ts | Axe accessibility scan | No critical axe violations on key pages |
+| perf-smoke.spec.ts | Lightweight performance smoke | Page loads within expected thresholds |
 
 ## Smoke (scripts/smoke_test.py)
 | What it tests | Green outcome |

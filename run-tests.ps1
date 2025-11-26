@@ -57,6 +57,17 @@ function Convert-ToSqliteUrl {
     return "sqlite+aiosqlite:///$normalized"
 }
 
+function Get-SystemPython {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) {
+        $python = Get-Command python3 -ErrorAction SilentlyContinue
+    }
+    if (-not $python) {
+        throw "Python is not installed or not on PATH."
+    }
+    return $python.Path
+}
+
 $MemorialRoot = Join-Path $RepoRoot "docs/memorialization/test-runs"
 if (-not (Test-Path $MemorialRoot)) {
     New-Item -ItemType Directory -Force -Path $MemorialRoot | Out-Null
@@ -94,6 +105,33 @@ foreach ($path in @($TestDbPath, $TestMediaPath, $TestTranscriptPath)) {
     if (Test-Path $path) {
         Remove-Item $path -Recurse -Force
     }
+}
+
+Write-Host "Ensuring SQLite database resides under backend/selenite.db..." -ForegroundColor DarkGray
+try {
+    $pythonExe = Get-SystemPython
+    $sqliteGuard = Join-Path $RepoRoot "scripts/sqlite_guard.py"
+    if (Test-Path $sqliteGuard) {
+        & $pythonExe $sqliteGuard --repo-root $RepoRoot --enforce | Write-Host
+    } else {
+        Write-Host "sqlite_guard.py not found; skipping auto-remediation." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Warning "SQLite guard failed: $_"
+}
+# Fast-fail parity: ensure only backend/selenite.db exists in repo root
+$ExpectedDb = Join-Path $BackendDir "selenite.db"
+$dbs = Get-ChildItem -Path $RepoRoot -Filter "selenite.db" -Recurse -ErrorAction SilentlyContinue
+$rogueDbs = @()
+foreach ($db in $dbs) {
+    if ($db.FullName -ne (Resolve-Path $ExpectedDb).Path) {
+        $rogueDbs += $db
+    }
+}
+if ($rogueDbs.Count -gt 0) {
+    Write-Host "Detected unexpected SQLite database(s); tests require single DB at $ExpectedDb" -ForegroundColor Red
+    foreach ($db in $rogueDbs) { Write-Host " - $($db.FullName)" -ForegroundColor Red }
+    throw "Resolve duplicate databases before running tests."
 }
 
 function Write-Section {
@@ -151,17 +189,6 @@ function Add-Summary {
         Status  = $Status
         Details = $Details
     })
-}
-
-function Get-SystemPython {
-    $python = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $python) {
-        $python = Get-Command python3 -ErrorAction SilentlyContinue
-    }
-    if (-not $python) {
-        throw "Python is not installed or not on PATH."
-    }
-    return $python.Path
 }
 
 function Ensure-BackendEnv {

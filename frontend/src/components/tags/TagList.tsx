@@ -17,7 +17,7 @@ interface TagListProps {
 export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
   if (tags.length === 0) {
     return (
-      <div className="text-center py-12 border border-sage-mid rounded-lg bg-white">
+      <div className="text-center py-12 border border-sage-mid rounded-lg bg-white" data-testid="tag-list">
         <div className="text-5xl mb-3">🏷️</div>
         <p className="text-pine-mid">No tags created yet</p>
         <p className="text-sm text-pine-mid mt-1">Create tags to organize your transcriptions</p>

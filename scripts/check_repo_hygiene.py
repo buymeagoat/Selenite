@@ -61,9 +61,9 @@ def main() -> None:
 
     # Best-effort cleanup of transient artifacts (test DBs, temp storage)
     transient_paths = [
-        REPO_ROOT / "backend" / "selenite.db",
         REPO_ROOT / "backend" / "selenite.test.db",
-        REPO_ROOT / "backend" / "storage",
+        REPO_ROOT / "storage" / "test-media",
+        REPO_ROOT / "storage" / "test-transcripts",
     ]
     for path in transient_paths:
         try:
@@ -85,9 +85,13 @@ def main() -> None:
             )
 
     # Allowed databases
-    allowed_dbs = { (REPO_ROOT / path).resolve() for path in policy.get("allowed_databases", []) }
+    allowed_dbs = {(REPO_ROOT / path).resolve() for path in policy.get("allowed_databases", [])}
+    backup_root = (REPO_ROOT / "storage" / "backups").resolve(strict=False)
     for db_path in REPO_ROOT.rglob("*.db"):
-        if db_path.resolve() not in allowed_dbs:
+        resolved = db_path.resolve()
+        if backup_root in resolved.parents:
+            continue
+        if resolved not in allowed_dbs:
             errors.append(f"Unexpected database file: {db_path}")
 
     # Storage expectations

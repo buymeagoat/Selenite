@@ -31,6 +31,29 @@ New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TranscriptDir | Out-Null
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
+function Get-SystemPython {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) {
+        $python = Get-Command python3 -ErrorAction SilentlyContinue
+    }
+    if (-not $python) {
+        throw "Python is required on PATH to run bootstrap."
+    }
+    return $python.Path
+}
+
+function Invoke-SqliteGuard {
+    param([string]$RepoRoot)
+    $guard = Join-Path $RepoRoot 'scripts\sqlite_guard.py'
+    if (-not (Test-Path $guard)) { return }
+    try {
+        $pythonExe = Get-SystemPython
+        & $pythonExe $guard --repo-root $RepoRoot --enforce | Write-Host
+    } catch {
+        Write-Warning "SQLite guard failed: $_"
+    }
+}
+
 function Write-Section($Message) {
     Write-Host ""
     Write-Host "=== $Message ===" -ForegroundColor Cyan
@@ -102,6 +125,27 @@ if (-not $SkipPreflight) {
                 Write-Host "Database backup created: $backupFile" -ForegroundColor Yellow
             } catch {
                 Write-Host "Warning: failed to create DB backup: $_" -ForegroundColor Red
+            }
+        }
+        function Assert-SingleDatabase {
+            param([string]$ExpectedPath)
+            $expectedResolved = Resolve-Path -Path $ExpectedPath -ErrorAction SilentlyContinue
+            $expectedFull = if ($expectedResolved) { $expectedResolved.Path } else { $ExpectedPath }
+            $dbs = Get-ChildItem -Path $Root -Filter "selenite.db" -Recurse -ErrorAction SilentlyContinue
+            $rogue = if ($expectedResolved) {
+                $dbs | Where-Object { $_.FullName -ne $expectedFull }
+            } else {
+                $dbs # Any existing DB is unexpected if the authoritative one does not exist yet
+            }
+            if ($rogue) {
+                Write-Host "Multiple selenite.db files detected; expected only $expectedFull" -ForegroundColor Red
+                $rogue | ForEach-Object { Write-Host " - Unexpected DB: $($_.FullName)" -ForegroundColor Red }
+                throw "Resolve duplicate databases before bootstrapping to avoid credential drift."
+            }
+            if ($expectedResolved) {
+                Write-Host "Database path: $expectedFull" -ForegroundColor DarkGray
+            } else {
+                Write-Host "Database path not created yet (will be created by migrations): $expectedFull" -ForegroundColor Yellow
             }
         }
         function Stop-PortListeners {
@@ -186,6 +230,12 @@ if (-not $SkipPreflight) {
             try { $_.CloseMainWindow() | Out-Null } catch {}
             try { $_.Kill() | Out-Null } catch {}
         }
+
+        Invoke-SqliteGuard -RepoRoot $Root
+
+        # Ensure we only have one authoritative SQLite DB
+        $primaryDb = Join-Path $BackendDir 'selenite.db'
+        Assert-SingleDatabase -ExpectedPath $primaryDb
     }
 }
 
@@ -231,6 +281,13 @@ Invoke-Step "Database migrations (and seed if requested)" {
     if ($Seed) {
         .\.venv\Scripts\python.exe -m app.seed
     }
+}
+
+Invoke-Step "Reset admin credentials (sanity)" {
+    # Run in backend directory so SQLite path resolves to backend/selenite.db
+    Set-Location $BackendDir
+    $resetScript = Join-Path $Root 'scripts\reset_admin_password.py'
+    & "$BackendDir\.venv\Scripts\python.exe" $resetScript --username admin --password changeme
 }
 
 Invoke-Step "Frontend dependencies" {

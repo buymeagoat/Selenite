@@ -84,6 +84,9 @@ class TestGetSettings:
             # Verify all settings fields
             assert data["default_model"] == "medium"
             assert data["default_language"] == "auto"
+            assert data["default_diarizer"] == "vad"
+            assert data["diarization_enabled"] is False
+            assert data["allow_job_overrides"] is False
             if "default_timestamps" in data:
                 assert data["default_timestamps"] is True
             if "default_speaker_detection" in data:
@@ -106,6 +109,9 @@ class TestGetSettings:
             # Should have default values
             assert data["default_model"] == "medium"
             assert data["default_language"] == "auto"
+            assert data["default_diarizer"] == "vad"
+            assert data["diarization_enabled"] is False
+            assert data["allow_job_overrides"] is False
             assert data["max_concurrent_jobs"] == 3
 
     async def test_get_settings_requires_auth(self, test_db):
@@ -124,6 +130,9 @@ class TestUpdateSettings:
             update_data = {
                 "default_model": "large",
                 "default_language": "en",
+                "default_diarizer": "whisperx",
+                "diarization_enabled": True,
+                "allow_job_overrides": True,
                 "default_timestamps": False,
                 "default_speaker_detection": False,
                 "max_concurrent_jobs": 5,
@@ -137,6 +146,9 @@ class TestUpdateSettings:
             if "settings" in data:
                 assert data["settings"]["default_model"] == "large"
                 assert data["settings"]["default_language"] == "en"
+                assert data["settings"]["default_diarizer"] == "whisperx"
+                assert data["settings"]["diarization_enabled"] is True
+                assert data["settings"]["allow_job_overrides"] is True
                 assert data["settings"]["default_timestamps"] is False
                 assert data["settings"]["default_speaker_detection"] is False
                 assert data["settings"]["max_concurrent_jobs"] == 5
@@ -146,6 +158,7 @@ class TestUpdateSettings:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             update_data = {
                 "default_model": "small",
+                "default_diarizer": "vad",
                 "max_concurrent_jobs": 2,
             }
             response = await client.put("/settings", json=update_data, headers=auth_headers)
@@ -155,6 +168,7 @@ class TestUpdateSettings:
             # Updated fields
             if "settings" in data:
                 assert data["settings"]["default_model"] == "small"
+                assert data["settings"]["default_diarizer"] == "vad"
                 assert data["settings"]["max_concurrent_jobs"] == 2
 
                 # Unchanged fields
@@ -172,6 +186,14 @@ class TestUpdateSettings:
                 assert any("invalid" in str(item).lower() for item in detail)
             elif isinstance(detail, str):
                 assert "invalid" in detail.lower()
+
+    async def test_update_settings_invalid_diarizer(self, test_db, auth_headers, default_settings):
+        """Invalid diarizer should be rejected."""
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.put(
+                "/settings", json={"default_diarizer": "unknown"}, headers=auth_headers
+            )
+            assert response.status_code in [400, 422]
 
     async def test_update_settings_invalid_language(self, test_db, auth_headers, default_settings):
         """Test updating with invalid language code."""
@@ -245,6 +267,16 @@ class TestSettingsValidation:
                     "/settings", json={"default_model": model}, headers=auth_headers
                 )
                 assert response.status_code == 200, f"Model {model} should be valid"
+
+    async def test_valid_diarizers(self, test_db, auth_headers, default_settings):
+        """Ensure supported diarizers are accepted."""
+        valid = ["whisperx", "pyannote", "vad"]
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            for option in valid:
+                response = await client.put(
+                    "/settings", json={"default_diarizer": option}, headers=auth_headers
+                )
+                assert response.status_code == 200, f"Diarizer {option} should be valid"
 
     async def test_valid_languages(self, test_db, auth_headers, default_settings):
         """Test that common language codes are accepted."""

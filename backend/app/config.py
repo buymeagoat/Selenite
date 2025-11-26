@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
@@ -45,6 +46,9 @@ class Settings(BaseSettings):
     stall_timeout_multiplier: float = 2.0
     stall_timeout_min_seconds: int = 300
     stall_check_interval_seconds: int = 20
+
+    # E2E/automation helpers
+    e2e_fast_transcription: bool = False
 
     # Server
     host: str = "0.0.0.0"
@@ -143,6 +147,28 @@ class Settings(BaseSettings):
         for path_attr in ["media_storage_path", "transcript_storage_path"]:
             path = Path(getattr(self, path_attr))
             path.mkdir(parents=True, exist_ok=True)
+        return self
+
+    @model_validator(mode="after")
+    def normalize_database_path(self) -> "Settings":
+        """Ensure SQLite URLs point to backend/ regardless of CWD."""
+        try:
+            url = make_url(self.database_url)
+        except Exception:
+            return self
+
+        if not url.get_backend_name().startswith("sqlite"):
+            return self
+
+        db_path = url.database
+        if not db_path:
+            return self
+
+        path_obj = Path(db_path)
+        if not path_obj.is_absolute():
+            abs_path = (BACKEND_ROOT / path_obj).resolve()
+            url = url.set(database=str(abs_path))
+            self.database_url = str(url)
         return self
 
     def generate_secure_secret(self) -> str:

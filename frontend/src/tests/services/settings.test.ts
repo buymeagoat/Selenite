@@ -24,6 +24,9 @@ describe('settings service', () => {
     const payload = {
       default_model: 'large',
       default_language: 'en',
+      default_diarizer: 'vad',
+      diarization_enabled: true,
+      allow_job_overrides: true,
       max_concurrent_jobs: 3,
     };
     await updateSettings(payload);

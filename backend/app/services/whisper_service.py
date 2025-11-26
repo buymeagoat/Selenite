@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.job import Job
+from app.models.user_settings import UserSettings
 from app.models.transcript import Transcript
+from app.services.capabilities import enforce_runtime_diarizer, get_asr_candidate_order
 
 logger = logging.getLogger(__name__)
 
@@ -215,12 +217,17 @@ class WhisperService:
             await self._finalize_cancellation(job, db, "job fetched")
             return
 
+        settings_result = await db.execute(
+            select(UserSettings).where(UserSettings.user_id == job.user_id)
+        )
+        user_settings = settings_result.scalar_one_or_none()
+
         progress_task: Optional[asyncio.Task] = None
-        progress_task: Optional[asyncio.Task] = None
+        fast_path = settings.is_testing or settings.e2e_fast_transcription
         try:
-            if settings.is_testing:
+            if fast_path:
                 await self._wait_for_processing_slot(db)
-            if settings.is_testing:
+            if fast_path:
                 await self._simulate_transcription(job, db)
                 logger.info(f"Job {job_id} completed via simulated transcription")
                 return
@@ -228,6 +235,19 @@ class WhisperService:
             if self._is_cancelled_state(job):
                 await self._finalize_cancellation(job, db, "before processing")
                 return
+
+            runtime_diarizer = enforce_runtime_diarizer(
+                requested_diarizer=job.diarizer_used,
+                diarization_requested=bool(job.has_speaker_labels),
+                user_settings=user_settings,
+            )
+            if runtime_diarizer["notes"]:
+                for note in runtime_diarizer["notes"]:
+                    logger.warning("Job %s diarization adjustment: %s", job_id, note)
+            job.has_speaker_labels = runtime_diarizer["diarization_enabled"]
+            job.diarizer_used = runtime_diarizer["diarizer"]
+            if not job.has_speaker_labels:
+                job.speaker_count = None
 
             # Stage 1: Loading model
             job.status = "processing"
@@ -248,16 +268,40 @@ class WhisperService:
                 )
                 return
 
-            model_name = job.model_used or settings.default_whisper_model
-            language = job.language_detected if job.language_detected != "auto" else None
-
-            if await self._abort_if_cancelled(job, db, "after loading model"):
+            if await self._abort_if_cancelled(job, db, "before resolving model availability"):
                 return
 
-            # Load model (will use cache if available)
-            await self.load_model(model_name)
+            candidate_models = get_asr_candidate_order(job.model_used, user_settings)
+            resolved_model: Optional[str] = None
+            last_error: Optional[Exception] = None
+            for candidate in candidate_models:
+                try:
+                    await self.load_model(candidate)
+                    resolved_model = candidate
+                    break
+                except FileNotFoundError as exc:
+                    last_error = exc
+                    logger.warning(
+                        "Job %s model '%s' unavailable; trying next candidate", job_id, candidate
+                    )
+            if resolved_model is None:
+                raise RuntimeError(
+                    "No Whisper models are available in the configured model directory."
+                ) from last_error
+            if resolved_model != job.model_used:
+                logger.warning(
+                    "Job %s model fallback applied: %s -> %s",
+                    job_id,
+                    job.model_used,
+                    resolved_model,
+                )
+                job.model_used = resolved_model
+                await db.commit()
+                await db.refresh(job)
+            model_name = resolved_model
+            language = job.language_detected if job.language_detected != "auto" else None
 
-            if await self._abort_if_cancelled(job, db, "after model load"):
+            if await self._abort_if_cancelled(job, db, "after selecting model"):
                 return
 
             # Stage 2: Transcribing

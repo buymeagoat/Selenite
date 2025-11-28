@@ -4,6 +4,14 @@ import { Settings as SettingsIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiPut, ApiError } from '../lib/api';
 import { fetchSettings, updateSettings } from '../services/settings';
 import { fetchTags, deleteTag, type Tag } from '../services/tags';
+import {
+  fetchSystemInfo,
+  refreshSystemInfo,
+  fetchCapabilities,
+  type SystemProbe,
+  type DiskUsage,
+  type CapabilityResponse,
+} from '../services/system';
 import { useToast } from '../context/ToastContext';
 
 export const Settings: React.FC = () => {
@@ -13,30 +21,55 @@ export const Settings: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [defaultModel, setDefaultModel] = useState('medium');
   const [defaultLanguage, setDefaultLanguage] = useState('auto');
+  const [defaultDiarizer, setDefaultDiarizer] = useState('vad');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
-  // Speaker detection not implemented yet; keep disabled.
-  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
+  const [diarizationEnabled, setDiarizationEnabled] = useState(false);
+  const [allowJobOverrides, setAllowJobOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [systemInfo, setSystemInfo] = useState<SystemProbe | null>(null);
+  const [isSystemLoading, setIsSystemLoading] = useState(true);
+  const [isDetectingSystem, setIsDetectingSystem] = useState(false);
+  const [capabilities, setCapabilities] = useState<CapabilityResponse | null>(null);
+  const [isLoadingCapabilities, setIsLoadingCapabilities] = useState(true);
+  const broadcastSettingsUpdated = () => {
+    window.dispatchEvent(new CustomEvent('selenite:settings-updated'));
+  };
 
   const [passwordMessage, setPasswordMessage] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string>('');
 
   // Load settings and tags on mount
   useEffect(() => {
+    let isMounted = true;
     const loadData = async () => {
       try {
-        const [settingsData, tagsData] = await Promise.all([
+        const [settingsData, tagsData, systemData, capabilityData] = await Promise.all([
           fetchSettings(),
-          fetchTags()
+          fetchTags(),
+          fetchSystemInfo(),
+          fetchCapabilities()
         ]);
         
+        if (!isMounted) {
+          return;
+        }
         setDefaultModel(settingsData.default_model);
         setDefaultLanguage(settingsData.default_language);
+        setDefaultDiarizer(settingsData.default_diarizer);
+        setDiarizationEnabled(settingsData.diarization_enabled);
+        setAllowJobOverrides(settingsData.allow_job_overrides);
+        setEnableTimestamps(settingsData.enable_timestamps);
         setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
         setTags(tagsData.items);
+        setTagsLoaded(true);
+        setSystemInfo(systemData);
+        setIsSystemLoading(false);
+        setCapabilities(capabilityData);
+        setIsLoadingCapabilities(false);
       } catch (error) {
         console.error('Failed to load settings:', error);
         if (error instanceof ApiError) {
@@ -45,11 +78,20 @@ export const Settings: React.FC = () => {
           showError('Failed to load settings. Please refresh the page.');
         }
       } finally {
+        if (!isMounted) {
+          return;
+        }
         setIsLoadingSettings(false);
+        setTagsLoaded(true);
+        setIsSystemLoading(false);
+        setIsLoadingCapabilities(false);
       }
     };
 
     loadData();
+    return () => {
+      isMounted = false;
+    };
   }, [showError]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -89,14 +131,21 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const buildSettingsPayload = () => ({
+    default_model: defaultModel,
+    default_language: defaultLanguage,
+    default_diarizer: defaultDiarizer,
+    diarization_enabled: diarizationEnabled,
+    allow_job_overrides: allowJobOverrides,
+    enable_timestamps: enableTimestamps,
+    max_concurrent_jobs: maxConcurrentJobs,
+  });
+
   const handleSaveDefaults = async () => {
     try {
-      await updateSettings({
-        default_model: defaultModel,
-        default_language: defaultLanguage,
-        max_concurrent_jobs: maxConcurrentJobs
-      });
+      await updateSettings(buildSettingsPayload());
       showSuccess('Default transcription settings saved');
+      broadcastSettingsUpdated();
     } catch (error) {
       console.error('Failed to save defaults:', error);
       if (error instanceof ApiError) {
@@ -109,12 +158,9 @@ export const Settings: React.FC = () => {
 
   const handleSavePerformance = async () => {
     try {
-      await updateSettings({
-        default_model: defaultModel,
-        default_language: defaultLanguage,
-        max_concurrent_jobs: maxConcurrentJobs
-      });
+      await updateSettings(buildSettingsPayload());
       showSuccess('Performance settings saved');
+      broadcastSettingsUpdated();
     } catch (error) {
       console.error('Failed to save performance:', error);
       if (error instanceof ApiError) {
@@ -166,6 +212,74 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleDetectSystem = async () => {
+    setIsDetectingSystem(true);
+    try {
+      const data = await refreshSystemInfo();
+      setSystemInfo(data);
+      showSuccess('System information refreshed');
+    } catch (error) {
+      console.error('Failed to refresh system info:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to refresh system info: ${error.message}`);
+      } else {
+        showError('Failed to refresh system info. Please try again.');
+      }
+    } finally {
+      setIsDetectingSystem(false);
+    }
+  };
+
+  const formatGb = (value?: number | null) => {
+    if (value === undefined || value === null) {
+      return 'Unknown';
+    }
+    return `${value.toFixed(1)} GB`;
+  };
+
+  const renderDiskUsage = (label: string, usage?: DiskUsage | null) => {
+    if (!usage) {
+      return (
+        <div className="p-3 border border-sage-mid rounded-lg">
+          <div className="text-sm font-medium text-pine-deep">{label}</div>
+          <div className="text-xs text-pine-mid">Not available</div>
+        </div>
+      );
+    }
+    return (
+      <div className="p-3 border border-sage-mid rounded-lg" data-testid={`storage-${label.toLowerCase()}`}>
+        <div className="text-sm font-medium text-pine-deep">{label}</div>
+        <div className="text-xs text-pine-mid font-mono truncate">{usage.path}</div>
+        <div className="text-sm text-pine-deep mt-1">
+          {formatGb(usage.used_gb)} used / {formatGb(usage.total_gb)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderInterfaces = () => {
+    if (!systemInfo || systemInfo.network.interfaces.length === 0) {
+      return <p className="text-sm text-pine-mid">No active interfaces detected</p>;
+    }
+    return (
+      <ul className="space-y-2 text-sm text-pine-deep" data-testid="system-interfaces">
+        {systemInfo.network.interfaces.map((iface) => (
+          <li key={iface.name}>
+            <span className="font-medium">{iface.name}:</span> {iface.ipv4.join(', ')}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const diarizerOptions =
+    capabilities?.diarizers ?? [
+      { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
+      { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: false, notes: ['GPU required'] },
+      { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+    ];
+  const selectedDiarizer = diarizerOptions.find((opt) => opt.key === defaultDiarizer);
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -188,6 +302,7 @@ export const Settings: React.FC = () => {
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
               data-testid="current-password"
+              autoComplete="current-password"
             />
           </div>
           <div>
@@ -201,6 +316,7 @@ export const Settings: React.FC = () => {
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
               data-testid="new-password"
+              autoComplete="new-password"
             />
           </div>
           <div>
@@ -214,6 +330,7 @@ export const Settings: React.FC = () => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
               data-testid="confirm-password"
+              autoComplete="new-password"
             />
           </div>
           {passwordError && (
@@ -255,7 +372,8 @@ export const Settings: React.FC = () => {
               <option value="base">Base (74M)</option>
               <option value="small">Small (244M)</option>
               <option value="medium">Medium (769M)</option>
-              <option value="large">Large (1550M)</option>
+              <option value="large">Large (1550M v2)</option>
+              <option value="large-v3">Large-v3 (latest)</option>
             </select>
           </div>
           <div>
@@ -283,30 +401,37 @@ export const Settings: React.FC = () => {
               <option value="ko">Korean</option>
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="default-timestamps"
-              type="checkbox"
-              checked={enableTimestamps}
-              onChange={(e) => setEnableTimestamps(e.target.checked)}
-              className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
-            />
-            <label htmlFor="default-timestamps" className="text-sm text-pine-deep">
-              Enable Timestamps
+          <div>
+            <label htmlFor="default-diarizer" className="block text-sm font-medium text-pine-deep mb-1">
+              Default Diarizer
             </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="default-speaker-detection"
-              type="checkbox"
-              checked={enableSpeakerDetection}
-              onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-              disabled
-              className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green opacity-50 cursor-not-allowed"
-            />
-            <label htmlFor="default-speaker-detection" className="text-sm text-pine-deep">
-              Enable Speaker Detection (coming soon)
-            </label>
+            <select
+              id="default-diarizer"
+              value={defaultDiarizer}
+              onChange={(e) => setDefaultDiarizer(e.target.value)}
+              disabled={isLoadingCapabilities}
+              className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              data-testid="default-diarizer"
+            >
+              {diarizerOptions.map((option) => (
+                <option key={option.key} value={option.key} disabled={!option.available}>
+                  {option.display_name}
+                  {!option.available
+                    ? option.notes.length
+                      ? ` (${option.notes.join(', ')})`
+                      : ' (unavailable)'
+                    : ''}
+                </option>
+              ))}
+            </select>
+            {isLoadingCapabilities && (
+              <p className="text-xs text-pine-mid mt-1">Checking diarization availability...</p>
+            )}
+            {selectedDiarizer && !selectedDiarizer.available && (
+              <p className="text-xs text-terracotta mt-1">
+                {selectedDiarizer.notes.join(', ') || 'Not available on this system'}
+              </p>
+            )}
           </div>
           <button
             onClick={handleSaveDefaults}
@@ -371,26 +496,147 @@ export const Settings: React.FC = () => {
       </section>
 
       {/* Tags */}
-      <section className="mb-6 bg-white border border-sage-mid rounded-lg">
+      <section className="mb-6 bg-white border border-sage-mid rounded-lg" data-testid="settings-tags-section">
         <button
           onClick={() => setTagsExpanded(!tagsExpanded)}
           className="w-full flex items-center justify-between p-6 hover:bg-sage-light transition"
+          data-testid="settings-tags-toggle"
         >
           <h2 className="text-lg font-medium text-pine-deep">Tags</h2>
           {tagsExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
         {tagsExpanded && (
-          <div className="px-6 pb-6">
-            <TagList tags={tags} onEdit={handleEditTag} onDelete={handleDeleteTag} />
+          <div className="px-6 pb-6" data-testid="settings-tags-content">
+            {!tagsLoaded ? (
+              <div
+                data-testid="settings-tags-loading"
+                className="text-sm text-pine-mid italic"
+              >
+                Loading tags...
+              </div>
+            ) : (
+              <div data-testid="settings-tags-loaded">
+                <TagList tags={tags} onEdit={handleEditTag} onDelete={handleDeleteTag} />
+              </div>
+            )}
           </div>
         )}
       </section>
 
       {/* System */}
-      <section className="mb-6 bg-white border border-sage-mid rounded-lg p-6">
-        <h2 className="text-lg font-medium text-pine-deep mb-4">System</h2>
-        <div className="space-y-3">
-          <div className="flex gap-3">
+      <section className="mb-6 bg-white border border-sage-mid rounded-lg p-6" data-testid="system-section">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-medium text-pine-deep">System</h2>
+            <p className="text-sm text-pine-mid">Host hardware snapshot for administrator decisions</p>
+          </div>
+          <button
+            onClick={handleDetectSystem}
+            disabled={isDetectingSystem}
+            className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+            data-testid="system-detect"
+          >
+            {isDetectingSystem ? 'Detecting…' : 'Detect'}
+          </button>
+        </div>
+        {isSystemLoading ? (
+          <p className="text-sm text-pine-mid">Collecting system information…</p>
+        ) : systemInfo ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="system-summary">
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">OS</p>
+                <p className="text-sm text-pine-deep">
+                  {systemInfo.os.system} {systemInfo.os.release} ({systemInfo.os.machine})
+                </p>
+                {systemInfo.container.is_container && (
+                  <p className="text-xs text-terracotta mt-1">Running inside container</p>
+                )}
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">CPU</p>
+                <p className="text-sm text-pine-deep">
+                  {systemInfo.cpu.model || 'Unknown'} · {systemInfo.cpu.cores_physical ?? '?'}c/
+                  {systemInfo.cpu.cores_logical ?? '?'}t
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Memory</p>
+                <p className="text-sm text-pine-deep">
+                  {formatGb(systemInfo.memory.total_gb)} total · {formatGb(systemInfo.memory.available_gb)} free
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg" data-testid="system-gpu">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">GPU</p>
+                {systemInfo.gpu.has_gpu && systemInfo.gpu.devices.length > 0 ? (
+                  <ul className="text-sm text-pine-deep space-y-1">
+                    {systemInfo.gpu.devices.map((device, index) => (
+                      <li key={`${device.name}-${index}`}>
+                        {device.name} · {formatGb(device.memory_gb)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-pine-mid">No GPU detected</p>
+                )}
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg md:col-span-2 bg-sage-light/40">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Recommended defaults</p>
+                <p className="text-sm text-pine-deep">
+                  ASR: <span className="font-semibold">{systemInfo.recommendation.suggested_asr_model}</span> ·
+                  Diarization:{' '}
+                  <span className="font-semibold">{systemInfo.recommendation.suggested_diarization}</span>
+                </p>
+                {systemInfo.recommendation.basis.length > 0 && (
+                  <p className="text-xs text-pine-mid mt-1">
+                    Basis: {systemInfo.recommendation.basis.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-pine-deep mb-2">Storage</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderDiskUsage('Database', systemInfo.storage.database)}
+                {renderDiskUsage('Media', systemInfo.storage.media)}
+                {renderDiskUsage('Transcripts', systemInfo.storage.transcripts)}
+                {renderDiskUsage('Project', systemInfo.storage.project)}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-pine-deep mb-2">Network</h3>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-sm text-pine-deep">
+                  Hostname: <span className="font-mono">{systemInfo.network.hostname}</span>
+                </p>
+                <div className="mt-2">{renderInterfaces()}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Runtime</p>
+                <p className="text-sm text-pine-deep">Python: {systemInfo.runtime.python}</p>
+                <p className="text-sm text-pine-deep">
+                  Node: {systemInfo.runtime.node ?? 'Not installed'}
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Last detected</p>
+                <p className="text-sm text-pine-deep">
+                  {new Date(systemInfo.detected_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-pine-mid">System information unavailable.</p>
+        )}
+
+        <div className="mt-6 pt-4 border-t border-sage-mid space-y-3">
+          <div className="flex gap-3 flex-wrap">
             <button
               onClick={handleRestartServer}
               className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"

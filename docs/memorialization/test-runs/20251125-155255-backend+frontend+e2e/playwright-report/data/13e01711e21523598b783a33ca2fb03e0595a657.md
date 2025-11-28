@@ -1,0 +1,443 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "Selenite" [ref=e5] [cursor=pointer]
+    - button "Toggle menu" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+  - main [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - heading "Transcriptions" [level=1] [ref=e12]
+          - button "+ New Job" [ref=e13] [cursor=pointer]
+        - generic [ref=e14]:
+          - search [ref=e15]:
+            - generic [ref=e16]:
+              - img [ref=e17]
+              - searchbox "Search" [ref=e20]
+          - generic "Job filters" [ref=e21]:
+            - button "Status" [ref=e22] [cursor=pointer]:
+              - generic [ref=e23]: Status
+              - img [ref=e24]
+            - button "Date" [ref=e26] [cursor=pointer]:
+              - generic [ref=e27]: Date
+              - img [ref=e28]
+            - button "Tags" [ref=e30] [cursor=pointer]:
+              - generic [ref=e31]: Tags
+              - img [ref=e32]
+      - generic [ref=e34]:
+        - generic [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]:
+            - generic [ref=e37]:
+              - checkbox "Select job sample.wav" [ref=e38]
+              - heading "sample.wav" [level=2] [ref=e39]
+            - generic [ref=e40]: Completed
+          - generic [ref=e41]:
+            - generic [ref=e42]: Nov 25, 2025, 9:58 PM
+            - generic [ref=e43]: "|"
+            - generic [ref=e44]: "Duration: 1:00"
+            - generic [ref=e45]: "|"
+            - generic [ref=e46]: "Speakers: Requested 1"
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - button "Play" [ref=e49]
+              - button "Stop" [disabled] [ref=e50]
+              - button "1x" [disabled] [ref=e51]
+              - button "Download" [ref=e52]
+              - button "View" [ref=e53]
+            - generic [ref=e54]:
+              - slider "Seek sample.wav" [disabled] [ref=e55]: "0"
+              - generic [ref=e56]: 0/0s
+        - generic [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - checkbox "Select job sample.wav" [ref=e60]
+              - heading "sample.wav" [level=2] [ref=e61]
+            - generic [ref=e62]: Completed
+          - generic [ref=e63]:
+            - generic [ref=e64]: Nov 25, 2025, 9:58 PM
+            - generic [ref=e65]: "|"
+            - generic [ref=e66]: "Duration: 1:00"
+            - generic [ref=e67]: "|"
+            - generic [ref=e68]: "Speakers: Requested 1"
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - button "Play" [ref=e71]
+              - button "Stop" [disabled] [ref=e72]
+              - button "1x" [disabled] [ref=e73]
+              - button "Download" [ref=e74]
+              - button "View" [ref=e75]
+            - generic [ref=e76]:
+              - slider "Seek sample.wav" [disabled] [ref=e77]: "0"
+              - generic [ref=e78]: 0/0s
+        - generic [ref=e79] [cursor=pointer]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - checkbox "Select job sample.wav" [ref=e82]
+              - heading "sample.wav" [level=2] [ref=e83]
+            - generic [ref=e84]: Completed
+          - generic [ref=e85]:
+            - generic [ref=e86]: Nov 25, 2025, 9:58 PM
+            - generic [ref=e87]: "|"
+            - generic [ref=e88]: "Duration: 1:00"
+            - generic [ref=e89]: "|"
+            - generic [ref=e90]: "Speakers: Requested 1"
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - button "Play" [ref=e93]
+              - button "Stop" [disabled] [ref=e94]
+              - button "1x" [disabled] [ref=e95]
+              - button "Download" [ref=e96]
+              - button "View" [ref=e97]
+            - generic [ref=e98]:
+              - slider "Seek sample.wav" [disabled] [ref=e99]: "0"
+              - generic [ref=e100]: 0/0s
+        - generic [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]:
+            - generic [ref=e103]:
+              - checkbox "Select job sample.wav" [ref=e104]
+              - heading "sample.wav" [level=2] [ref=e105]
+            - generic [ref=e106]: Completed
+          - generic [ref=e107]:
+            - generic [ref=e108]: Nov 25, 2025, 9:57 PM
+            - generic [ref=e109]: "|"
+            - generic [ref=e110]: "Duration: 1:00"
+            - generic [ref=e111]: "|"
+            - generic [ref=e112]: "Speakers: Requested 1"
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - button "Play" [ref=e115]
+              - button "Stop" [disabled] [ref=e116]
+              - button "1x" [disabled] [ref=e117]
+              - button "Download" [ref=e118]
+              - button "View" [ref=e119]
+            - generic [ref=e120]:
+              - slider "Seek sample.wav" [disabled] [ref=e121]: "0"
+              - generic [ref=e122]: 0/0s
+        - generic [ref=e123] [cursor=pointer]:
+          - generic [ref=e124]:
+            - generic [ref=e125]:
+              - checkbox "Select job sample.wav" [ref=e126]
+              - heading "sample.wav" [level=2] [ref=e127]
+            - generic [ref=e128]: Completed
+          - generic [ref=e129]:
+            - generic [ref=e130]: Nov 25, 2025, 9:57 PM
+            - generic [ref=e131]: "|"
+            - generic [ref=e132]: "Duration: 1:00"
+            - generic [ref=e133]: "|"
+            - generic [ref=e134]: "Speakers: Requested 1"
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - button "Play" [ref=e137]
+              - button "Stop" [disabled] [ref=e138]
+              - button "1x" [disabled] [ref=e139]
+              - button "Download" [ref=e140]
+              - button "View" [ref=e141]
+            - generic [ref=e142]:
+              - slider "Seek sample.wav" [disabled] [ref=e143]: "0"
+              - generic [ref=e144]: 0/0s
+        - generic [ref=e145] [cursor=pointer]:
+          - generic [ref=e146]:
+            - generic [ref=e147]:
+              - checkbox "Select job sample.wav" [ref=e148]
+              - heading "sample.wav" [level=2] [ref=e149]
+            - generic [ref=e150]: Completed
+          - generic [ref=e151]:
+            - generic [ref=e152]: Nov 25, 2025, 9:57 PM
+            - generic [ref=e153]: "|"
+            - generic [ref=e154]: "Duration: 1:00"
+            - generic [ref=e155]: "|"
+            - generic [ref=e156]: "Speakers: Requested 1"
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - button "Play" [ref=e159]
+              - button "Stop" [disabled] [ref=e160]
+              - button "1x" [disabled] [ref=e161]
+              - button "Download" [ref=e162]
+              - button "View" [ref=e163]
+            - generic [ref=e164]:
+              - slider "Seek sample.wav" [disabled] [ref=e165]: "0"
+              - generic [ref=e166]: 0/0s
+        - generic [ref=e167] [cursor=pointer]:
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - checkbox "Select job sample.wav" [ref=e170]
+              - heading "sample.wav" [level=2] [ref=e171]
+            - generic [ref=e172]: Completed
+          - generic [ref=e173]:
+            - generic [ref=e174]: Nov 25, 2025, 9:57 PM
+            - generic [ref=e175]: "|"
+            - generic [ref=e176]: "Duration: 1:00"
+            - generic [ref=e177]: "|"
+            - generic [ref=e178]: "Speakers: Requested 1"
+          - generic [ref=e179]:
+            - generic [ref=e180]:
+              - button "Play" [ref=e181]
+              - button "Stop" [disabled] [ref=e182]
+              - button "1x" [disabled] [ref=e183]
+              - button "Download" [ref=e184]
+              - button "View" [ref=e185]
+            - generic [ref=e186]:
+              - slider "Seek sample.wav" [disabled] [ref=e187]: "0"
+              - generic [ref=e188]: 0/0s
+        - generic [ref=e189] [cursor=pointer]:
+          - generic [ref=e190]:
+            - generic [ref=e191]:
+              - checkbox "Select job sample.wav" [ref=e192]
+              - heading "sample.wav" [level=2] [ref=e193]
+            - generic [ref=e194]: Completed
+          - generic [ref=e195]:
+            - generic [ref=e196]: Nov 25, 2025, 9:57 PM
+            - generic [ref=e197]: "|"
+            - generic [ref=e198]: "Duration: 1:00"
+            - generic [ref=e199]: "|"
+            - generic [ref=e200]: "Speakers: Requested 1"
+          - generic [ref=e201]:
+            - generic [ref=e202]:
+              - button "Play" [ref=e203]
+              - button "Stop" [disabled] [ref=e204]
+              - button "1x" [disabled] [ref=e205]
+              - button "Download" [ref=e206]
+              - button "View" [ref=e207]
+            - generic [ref=e208]:
+              - slider "Seek sample.wav" [disabled] [ref=e209]: "0"
+              - generic [ref=e210]: 0/0s
+        - generic [ref=e211] [cursor=pointer]:
+          - generic [ref=e212]:
+            - generic [ref=e213]:
+              - checkbox "Select job sample.wav" [ref=e214]
+              - heading "sample.wav" [level=2] [ref=e215]
+            - generic [ref=e216]: Completed
+          - generic [ref=e217]:
+            - generic [ref=e218]: Nov 25, 2025, 9:56 PM
+            - generic [ref=e219]: "|"
+            - generic [ref=e220]: "Duration: 1:00"
+            - generic [ref=e221]: "|"
+            - generic [ref=e222]: "Speakers: Requested 1"
+          - generic [ref=e223]:
+            - generic [ref=e224]:
+              - button "Play" [ref=e225]
+              - button "Stop" [disabled] [ref=e226]
+              - button "1x" [disabled] [ref=e227]
+              - button "Download" [ref=e228]
+              - button "View" [ref=e229]
+            - generic [ref=e230]:
+              - slider "Seek sample.wav" [disabled] [ref=e231]: "0"
+              - generic [ref=e232]: 0/0s
+        - generic [ref=e233] [cursor=pointer]:
+          - generic [ref=e234]:
+            - generic [ref=e235]:
+              - checkbox "Select job podcast-episode.mp3" [ref=e236]
+              - heading "podcast-episode.mp3" [level=2] [ref=e237]
+            - generic [ref=e238]: Completed
+          - generic [ref=e239]:
+            - generic [ref=e240]: Nov 25, 2025, 9:51 PM
+            - generic [ref=e241]: "|"
+            - generic [ref=e242]: "Duration: 30:00"
+            - generic [ref=e243]: "|"
+            - generic [ref=e244]: "Speakers: Detected 1"
+          - generic [ref=e245]:
+            - generic [ref=e246]:
+              - button "Play" [ref=e247]
+              - button "Stop" [disabled] [ref=e248]
+              - button "1x" [disabled] [ref=e249]
+              - button "Download" [ref=e250]
+              - button "View" [ref=e251]
+            - generic [ref=e252]:
+              - slider "Seek podcast-episode.mp3" [disabled] [ref=e253]: "0"
+              - generic [ref=e254]: 0/0s
+        - generic [ref=e255] [cursor=pointer]:
+          - generic [ref=e256]:
+            - generic [ref=e257]:
+              - checkbox "Select job interview-1.wav" [ref=e258]
+              - heading "interview-1.wav" [level=2] [ref=e259]
+            - generic [ref=e260]: Failed
+          - generic [ref=e261]:
+            - generic [ref=e262]: Nov 25, 2025, 8:56 PM
+            - generic [ref=e263]: "|"
+            - generic [ref=e264]: "Speakers: Requested 1"
+        - generic [ref=e265] [cursor=pointer]:
+          - generic [ref=e266]:
+            - generic [ref=e267]:
+              - checkbox "Select job interview-2.wav" [ref=e268]
+              - heading "interview-2.wav" [level=2] [ref=e269]
+            - generic [ref=e270]: Failed
+          - generic [ref=e271]:
+            - generic [ref=e272]: Nov 25, 2025, 7:56 PM
+            - generic [ref=e273]: "|"
+            - generic [ref=e274]: "Speakers: Requested 1"
+        - generic [ref=e275] [cursor=pointer]:
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - checkbox "Select job corrupted-file.mp4" [ref=e278]
+              - heading "corrupted-file.mp4" [level=2] [ref=e279]
+            - generic [ref=e280]: Failed
+          - generic [ref=e282]: Nov 25, 2025, 7:56 PM
+        - generic [ref=e283] [cursor=pointer]:
+          - generic [ref=e284]:
+            - generic [ref=e285]:
+              - checkbox "Select job meeting-recording-1.mp3" [ref=e286]
+              - heading "meeting-recording-1.mp3" [level=2] [ref=e287]
+            - generic [ref=e288]: Completed
+          - generic [ref=e289]:
+            - generic [ref=e290]: Nov 24, 2025, 9:56 PM
+            - generic [ref=e291]: "|"
+            - generic [ref=e292]: "Duration: 5:00"
+            - generic [ref=e293]: "|"
+            - generic [ref=e294]: "Speakers: Detected 2"
+          - generic [ref=e295]:
+            - generic [ref=e296]: "#Meeting"
+            - generic [ref=e297]: "#Important"
+          - generic [ref=e298]:
+            - generic [ref=e299]:
+              - button "Play" [ref=e300]
+              - button "Stop" [disabled] [ref=e301]
+              - button "1x" [disabled] [ref=e302]
+              - button "Download" [ref=e303]
+              - button "View" [ref=e304]
+            - generic [ref=e305]:
+              - slider "Seek meeting-recording-1.mp3" [disabled] [ref=e306]: "0"
+              - generic [ref=e307]: 0/0s
+        - generic [ref=e308] [cursor=pointer]:
+          - generic [ref=e309]:
+            - generic [ref=e310]:
+              - checkbox "Select job meeting-recording-2.mp3" [ref=e311]
+              - heading "meeting-recording-2.mp3" [level=2] [ref=e312]
+            - generic [ref=e313]: Completed
+          - generic [ref=e314]:
+            - generic [ref=e315]: Nov 23, 2025, 9:56 PM
+            - generic [ref=e316]: "|"
+            - generic [ref=e317]: "Duration: 6:00"
+            - generic [ref=e318]: "|"
+            - generic [ref=e319]: "Speakers: Detected 2"
+          - generic [ref=e320]:
+            - generic [ref=e321]:
+              - button "Play" [ref=e322]
+              - button "Stop" [disabled] [ref=e323]
+              - button "1x" [disabled] [ref=e324]
+              - button "Download" [ref=e325]
+              - button "View" [ref=e326]
+            - generic [ref=e327]:
+              - slider "Seek meeting-recording-2.mp3" [disabled] [ref=e328]: "0"
+              - generic [ref=e329]: 0/0s
+        - generic [ref=e330] [cursor=pointer]:
+          - generic [ref=e331]:
+            - generic [ref=e332]:
+              - checkbox "Select job meeting-recording-3.mp3" [ref=e333]
+              - heading "meeting-recording-3.mp3" [level=2] [ref=e334]
+            - generic [ref=e335]: Completed
+          - generic [ref=e336]:
+            - generic [ref=e337]: Nov 22, 2025, 9:56 PM
+            - generic [ref=e338]: "|"
+            - generic [ref=e339]: "Duration: 7:00"
+            - generic [ref=e340]: "|"
+            - generic [ref=e341]: "Speakers: Detected 2"
+          - generic [ref=e343]: "#Meeting"
+          - generic [ref=e344]:
+            - generic [ref=e345]:
+              - button "Play" [ref=e346]
+              - button "Stop" [disabled] [ref=e347]
+              - button "1x" [disabled] [ref=e348]
+              - button "Download" [ref=e349]
+              - button "View" [ref=e350]
+            - generic [ref=e351]:
+              - slider "Seek meeting-recording-3.mp3" [disabled] [ref=e352]: "0"
+              - generic [ref=e353]: 0/0s
+        - generic [ref=e354] [cursor=pointer]:
+          - generic [ref=e355]:
+            - generic [ref=e356]:
+              - checkbox "Select job meeting-recording-4.mp3" [ref=e357]
+              - heading "meeting-recording-4.mp3" [level=2] [ref=e358]
+            - generic [ref=e359]: Completed
+          - generic [ref=e360]:
+            - generic [ref=e361]: Nov 21, 2025, 9:56 PM
+            - generic [ref=e362]: "|"
+            - generic [ref=e363]: "Duration: 8:00"
+            - generic [ref=e364]: "|"
+            - generic [ref=e365]: "Speakers: Detected 2"
+          - generic [ref=e367]: "#Important"
+          - generic [ref=e368]:
+            - generic [ref=e369]:
+              - button "Play" [ref=e370]
+              - button "Stop" [disabled] [ref=e371]
+              - button "1x" [disabled] [ref=e372]
+              - button "Download" [ref=e373]
+              - button "View" [ref=e374]
+            - generic [ref=e375]:
+              - slider "Seek meeting-recording-4.mp3" [disabled] [ref=e376]: "0"
+              - generic [ref=e377]: 0/0s
+        - generic [ref=e378] [cursor=pointer]:
+          - generic [ref=e379]:
+            - generic [ref=e380]:
+              - checkbox "Select job meeting-recording-5.mp3" [ref=e381]
+              - heading "meeting-recording-5.mp3" [level=2] [ref=e382]
+            - generic [ref=e383]: Completed
+          - generic [ref=e384]:
+            - generic [ref=e385]: Nov 20, 2025, 9:56 PM
+            - generic [ref=e386]: "|"
+            - generic [ref=e387]: "Duration: 9:00"
+            - generic [ref=e388]: "|"
+            - generic [ref=e389]: "Speakers: Detected 2"
+          - generic [ref=e391]: "#Meeting"
+          - generic [ref=e392]:
+            - generic [ref=e393]:
+              - button "Play" [ref=e394]
+              - button "Stop" [disabled] [ref=e395]
+              - button "1x" [disabled] [ref=e396]
+              - button "Download" [ref=e397]
+              - button "View" [ref=e398]
+            - generic [ref=e399]:
+              - slider "Seek meeting-recording-5.mp3" [disabled] [ref=e400]: "0"
+              - generic [ref=e401]: 0/0s
+    - dialog [ref=e402]:
+      - generic [ref=e404]:
+        - generic [ref=e405]:
+          - generic [ref=e406]:
+            - heading "sample.wav" [level=2] [ref=e407]
+            - generic [ref=e408]: Completed
+          - button "Close modal" [ref=e409] [cursor=pointer]:
+            - img [ref=e410]
+        - generic [ref=e413]:
+          - generic [ref=e414]:
+            - generic [ref=e415]:
+              - generic [ref=e416]: Duration
+              - generic [ref=e417]: 1:00
+            - generic [ref=e418]:
+              - generic [ref=e419]: Created
+              - generic [ref=e420]: Nov 25, 2025, 9:58 PM
+            - generic [ref=e421]:
+              - generic [ref=e422]: Model
+              - generic [ref=e423]: medium
+            - generic [ref=e424]:
+              - generic [ref=e425]: Language
+              - generic [ref=e426]: en
+            - generic [ref=e427]:
+              - generic [ref=e428]: Speakers
+              - generic [ref=e429]: Not available
+            - generic [ref=e430]:
+              - generic [ref=e431]: File Size
+              - generic [ref=e432]: 31.29 KB
+          - generic [ref=e433]:
+            - generic [ref=e434]: Tags
+            - generic [ref=e436]: No tags
+            - textbox "Add tag" [ref=e438]
+          - generic [ref=e439]:
+            - button "Play Media" [ref=e440] [cursor=pointer]:
+              - img [ref=e441]
+              - generic [ref=e443]: Play Media
+            - button "View Transcript" [ref=e444] [cursor=pointer]:
+              - img [ref=e445]
+              - generic [ref=e448]: View Transcript
+            - button "Download Transcript" [ref=e450] [cursor=pointer]:
+              - img [ref=e451]
+              - generic [ref=e454]: Download Transcript
+              - img [ref=e455]
+            - button "Restart Transcription" [ref=e457] [cursor=pointer]:
+              - img [ref=e458]
+              - generic [ref=e461]: Restart Transcription
+            - button "Delete Job" [ref=e462] [cursor=pointer]:
+              - img [ref=e463]
+              - generic [ref=e466]: Delete Job
+```

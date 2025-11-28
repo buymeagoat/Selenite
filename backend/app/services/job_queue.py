@@ -15,6 +15,9 @@ from app.services.transcription import process_transcription_job
 from app.models.job import Job
 from sqlalchemy import select
 
+# Module-level logger for standalone functions
+_logger = get_logger(__name__)
+
 
 class TranscriptionJobQueue:
     def __init__(self, concurrency: int = 3, *, enable_watchdog: bool = True):
@@ -206,10 +209,22 @@ queue = TranscriptionJobQueue(concurrency=3)
 async def resume_queued_jobs(queue_obj: TranscriptionJobQueue) -> int:
     """Re-enqueue any jobs that were left in queued status when the app restarts."""
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Job.id).where(Job.status == "queued"))
+        try:
+            result = await db.execute(select(Job.id).where(Job.status == "queued"))
+        except Exception as exc:
+            # Gracefully handle missing table or schema issues during startup.
+            from sqlalchemy.exc import OperationalError
+
+            if isinstance(exc, OperationalError) and "no such table: jobs" in str(exc):
+                _logger.warning(
+                    "Resume skipped: jobs table missing. Apply migrations then restart."
+                )
+                return 0
+            raise
+
         job_ids = result.scalars().all()
 
-    for job_id in job_ids:
-        await queue_obj.enqueue(str(job_id))
+        for job_id in job_ids:
+            await queue_obj.enqueue(str(job_id))
 
-    return len(job_ids)
+        return len(job_ids)

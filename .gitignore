@@ -61,9 +61,8 @@ frontend/test-results/
 *.sqlite
 *.sqlite3
 
-# Storage (uploaded files + memorialized test runs)
+# Storage (uploaded files)
 storage/
-docs/memorialization/
 
 # Stray nested folder created accidentally
 backend/backend/

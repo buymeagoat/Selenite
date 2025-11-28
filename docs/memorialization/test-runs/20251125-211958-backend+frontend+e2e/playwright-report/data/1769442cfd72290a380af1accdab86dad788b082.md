@@ -1,0 +1,117 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "Selenite" [ref=e5] [cursor=pointer]
+    - generic [ref=e6]:
+      - button "Settings" [active] [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+      - button "AD" [ref=e12] [cursor=pointer]
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - img [ref=e16]
+        - heading "Settings" [level=1] [ref=e19]
+      - generic [ref=e20]:
+        - heading "Account" [level=2] [ref=e21]
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]: Current Password
+            - textbox "Current Password" [ref=e25]
+          - generic [ref=e26]:
+            - generic [ref=e27]: New Password
+            - textbox "New Password" [ref=e28]
+          - generic [ref=e29]:
+            - generic [ref=e30]: Confirm Password
+            - textbox "Confirm Password" [ref=e31]
+          - button "Save" [ref=e32] [cursor=pointer]
+      - generic [ref=e33]:
+        - heading "Default Transcription Options" [level=2] [ref=e34]
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]: Default Model
+            - combobox "Default Model" [ref=e38]:
+              - option "Tiny (39M)"
+              - option "Base (74M)"
+              - option "Small (244M)"
+              - option "Medium (769M)" [selected]
+              - option "Large (1550M v2)"
+              - option "Large-v3 (latest)"
+          - generic [ref=e39]:
+            - generic [ref=e40]: Default Language
+            - combobox "Default Language" [ref=e41]:
+              - option "Auto-detect" [selected]
+              - option "English"
+              - option "Spanish"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Dutch"
+              - option "Russian"
+              - option "Chinese"
+              - option "Japanese"
+              - option "Korean"
+          - generic [ref=e42]:
+            - checkbox "Enable Timestamps" [checked] [ref=e43]
+            - generic [ref=e44]: Enable Timestamps
+          - generic [ref=e45]:
+            - checkbox "Enable Speaker Detection (coming soon)" [disabled] [ref=e46]
+            - generic [ref=e47]: Enable Speaker Detection (coming soon)
+          - generic [ref=e48]:
+            - checkbox "Enable diarization (speaker labels)" [ref=e49]
+            - generic [ref=e50]: Enable diarization (speaker labels)
+          - generic [ref=e51]:
+            - generic [ref=e52]: Default Diarizer
+            - combobox "Default Diarizer" [disabled] [ref=e53]:
+              - option "WhisperX"
+              - option "Pyannote (unavailable)" [disabled]
+              - option "VAD + clustering" [selected]
+          - generic [ref=e54]:
+            - checkbox "Allow per-job overrides (advanced options)" [ref=e55]
+            - generic [ref=e56]: Allow per-job overrides (advanced options)
+          - button "Save" [ref=e57] [cursor=pointer]
+      - generic [ref=e58]:
+        - heading "Performance" [level=2] [ref=e59]
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: "Max Concurrent Jobs: 3"
+            - 'slider "Max Concurrent Jobs: 3" [ref=e63] [cursor=pointer]': "3"
+            - generic [ref=e64]:
+              - generic [ref=e65]: "1"
+              - generic [ref=e66]: "2"
+              - generic [ref=e67]: "3"
+              - generic [ref=e68]: "4"
+              - generic [ref=e69]: "5"
+          - button "Save" [ref=e70] [cursor=pointer]
+      - generic [ref=e71]:
+        - heading "Storage" [level=2] [ref=e72]
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]: "Used Space:"
+            - generic [ref=e76]: 2.3 GB / 50 GB
+          - generic [ref=e79]:
+            - generic [ref=e80]: "Location:"
+            - generic [ref=e81]: /storage
+      - generic [ref=e82]:
+        - button "Tags" [ref=e83] [cursor=pointer]:
+          - heading "Tags" [level=2] [ref=e84]
+          - img [ref=e85]
+        - generic [ref=e89]:
+          - generic [ref=e90]: 🏷️
+          - paragraph [ref=e91]: No tags created yet
+          - paragraph [ref=e92]: Create tags to organize your transcriptions
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - heading "System" [level=2] [ref=e96]
+            - paragraph [ref=e97]: Host hardware snapshot for administrator decisions
+          - button "Detect" [ref=e98] [cursor=pointer]
+        - paragraph [ref=e99]: System information unavailable.
+        - generic [ref=e100]:
+          - generic [ref=e101]:
+            - button "Restart Server" [ref=e102] [cursor=pointer]
+            - button "Shutdown Server" [ref=e103] [cursor=pointer]
+          - paragraph [ref=e104]: "Warning: System operations require administrator password and may interrupt ongoing transcriptions."
+```

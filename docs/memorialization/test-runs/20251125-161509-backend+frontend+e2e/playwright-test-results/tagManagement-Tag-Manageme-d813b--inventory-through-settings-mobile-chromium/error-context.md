@@ -1,0 +1,92 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "Selenite" [ref=e5] [cursor=pointer]
+    - button "Toggle menu" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+  - main [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - heading "Settings" [level=1] [ref=e14]
+      - generic [ref=e15]:
+        - heading "Account" [level=2] [ref=e16]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: Current Password
+            - textbox "Current Password" [ref=e20]
+          - generic [ref=e21]:
+            - generic [ref=e22]: New Password
+            - textbox "New Password" [ref=e23]
+          - generic [ref=e24]:
+            - generic [ref=e25]: Confirm Password
+            - textbox "Confirm Password" [ref=e26]
+          - button "Save" [ref=e27] [cursor=pointer]
+      - generic [ref=e28]:
+        - heading "Default Transcription Options" [level=2] [ref=e29]
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: Default Model
+            - combobox "Default Model" [ref=e33]:
+              - option "Tiny (39M)"
+              - option "Base (74M)"
+              - option "Small (244M)"
+              - option "Medium (769M)" [selected]
+              - option "Large (1550M)"
+          - generic [ref=e34]:
+            - generic [ref=e35]: Default Language
+            - combobox "Default Language" [ref=e36]:
+              - option "Auto-detect" [selected]
+              - option "English"
+              - option "Spanish"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Dutch"
+              - option "Russian"
+              - option "Chinese"
+              - option "Japanese"
+              - option "Korean"
+          - generic [ref=e37]:
+            - checkbox "Enable Timestamps" [checked] [ref=e38]
+            - generic [ref=e39]: Enable Timestamps
+          - generic [ref=e40]:
+            - checkbox "Enable Speaker Detection (coming soon)" [disabled] [ref=e41]
+            - generic [ref=e42]: Enable Speaker Detection (coming soon)
+          - button "Save" [ref=e43] [cursor=pointer]
+      - generic [ref=e44]:
+        - heading "Performance" [level=2] [ref=e45]
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]: "Max Concurrent Jobs: 3"
+            - 'slider "Max Concurrent Jobs: 3" [ref=e49] [cursor=pointer]': "3"
+            - generic [ref=e50]:
+              - generic [ref=e51]: "1"
+              - generic [ref=e52]: "2"
+              - generic [ref=e53]: "3"
+              - generic [ref=e54]: "4"
+              - generic [ref=e55]: "5"
+          - button "Save" [ref=e56] [cursor=pointer]
+      - generic [ref=e57]:
+        - heading "Storage" [level=2] [ref=e58]
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - generic [ref=e61]: "Used Space:"
+            - generic [ref=e62]: 2.3 GB / 50 GB
+          - generic [ref=e65]:
+            - generic [ref=e66]: "Location:"
+            - generic [ref=e67]: /storage
+      - button "Tags" [active] [ref=e69] [cursor=pointer]:
+        - heading "Tags" [level=2] [ref=e70]
+        - img [ref=e71]
+      - generic [ref=e73]:
+        - heading "System" [level=2] [ref=e74]
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - button "Restart Server" [ref=e77] [cursor=pointer]
+            - button "Shutdown Server" [ref=e78] [cursor=pointer]
+          - paragraph [ref=e79]: "Warning: System operations require administrator password and may interrupt ongoing transcriptions."
+```

@@ -3,6 +3,7 @@ import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle 
 import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Job } from '../../services/jobs';
+import { createTag, type Tag } from '../../services/tags';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface JobDetailModalProps {
   onStop: (jobId: string) => void;
   onViewTranscript: (jobId: string) => void;
   onUpdateTags: (jobId: string, tagIds: number[]) => void;
+  availableTags?: Tag[];
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -27,7 +29,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onDelete,
   onStop,
   onViewTranscript,
-  onUpdateTags: _onUpdateTags
+  onUpdateTags,
+  availableTags = []
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
@@ -84,24 +87,35 @@ const canStop = job.status === 'processing' || job.status === 'queued';
     setShowDownloadMenu(false);
   };
 
-  const handleAddTag = (name: string) => {
-    if (!name.trim()) return;
-    // Avoid duplicates by name
-    if (editableTags.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+  const handleAddTag = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    // Already on job
+    if (editableTags.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) {
       setTagInputValue('');
       return;
     }
-    const newTag = {
-      id: Date.now(),
-      name,
-      color: '#0F3D2E'
-    };
-    setEditableTags([...editableTags, newTag]);
+    // Reuse existing tag if available globally
+    let tagToUse = availableTags.find(t => t.name.toLowerCase() === trimmed.toLowerCase());
+    if (!tagToUse) {
+      try {
+        tagToUse = await createTag({ name: trimmed, color: '#0F3D2E' });
+      } catch (err) {
+        console.error('Failed to create tag', err);
+        setTagInputValue('');
+        return;
+      }
+    }
+    const next = [...editableTags, tagToUse];
+    setEditableTags(next);
     setTagInputValue('');
+    onUpdateTags(job.id, next.map(t => t.id));
   };
 
-  const handleRemoveTag = (id: number) => {
-    setEditableTags(editableTags.filter(t => t.id !== id));
+  const handleRemoveTag = async (id: number) => {
+    const next = editableTags.filter(t => t.id !== id);
+    setEditableTags(next);
+    onUpdateTags(job.id, next.map(t => t.id));
   };
 
   return (
@@ -176,9 +190,9 @@ const canStop = job.status === 'processing' || job.status === 'queued';
             </div>
 
             {/* Tags Section (view & edit) */}
-            <div className="mb-6" data-testid="job-tags">
-              <div className="text-sm text-pine-mid mb-2">Tags</div>
-              <div className="flex flex-wrap gap-2 mb-3">
+            <div className="mb-6" data-testid="job-tags-section">
+              <div className="text-sm text-pine-mid mb-2" data-testid="tags-section-title">Tags</div>
+              <div className="flex flex-wrap gap-2 mb-3" data-testid="job-tags">
                 {editableTags.map((tag) => (
                   <span
                     key={tag.id}
@@ -204,11 +218,11 @@ const canStop = job.status === 'processing' || job.status === 'queued';
               </div>
               <div className="relative max-w-xs">
                 <input
+                  data-testid="tag-input"
                   type="text"
                   value={tagInputValue}
                   onChange={(e) => setTagInputValue(e.target.value)}
                   placeholder="Add tag"
-                  data-testid="tag-input"
                   className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none text-sm"
                 />
                 {tagInputValue.trim() && (
@@ -219,7 +233,7 @@ const canStop = job.status === 'processing' || job.status === 'queued';
                       onClick={() => handleAddTag(tagInputValue.trim())}
                       className="px-3 py-2 text-sm cursor-pointer hover:bg-sage-light"
                     >
-                      Add “{tagInputValue.trim()}”
+                      Add #{tagInputValue.trim()}
                     </div>
                   </div>
                 )}
@@ -346,3 +360,4 @@ const canStop = job.status === 'processing' || job.status === 'queued';
     </>
   );
 };
+

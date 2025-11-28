@@ -6,12 +6,24 @@ import { SearchBar } from '../components/common/SearchBar';
 import { JobFilters } from '../components/jobs/JobFilters';
 import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
-import { fetchJobs, createJob, restartJob, cancelJob, deleteJob, assignTag, removeTag, type Job } from '../services/jobs';
+import {
+  fetchJobs,
+  createJob,
+  restartJob,
+  cancelJob,
+  deleteJob,
+  assignTag,
+  removeTag,
+  type Job,
+} from '../services/jobs';
+import { fetchTags, type Tag } from '../services/tags';
 import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
+import { useAdminSettings } from '../context/SettingsContext';
 
 export const Dashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -26,14 +38,31 @@ export const Dashboard: React.FC = () => {
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioRate, setAudioRate] = useState(1);
   const { showError, showSuccess } = useToast();
+  const {
+    settings: adminSettings,
+    status: adminSettingsStatus,
+    error: adminSettingsError,
+  } = useAdminSettings();
+  const settingsErrorNotified = useRef(false);
+
+  useEffect(() => {
+    if (adminSettingsError && !settingsErrorNotified.current) {
+      showError(`Failed to load admin settings: ${adminSettingsError}`);
+      settingsErrorNotified.current = true;
+    }
+    if (!adminSettingsError) {
+      settingsErrorNotified.current = false;
+    }
+  }, [adminSettingsError, showError]);
 
   useEffect(() => {
     // Load jobs from API
     const loadJobs = async () => {
       setIsLoading(true);
       try {
-        const response = await fetchJobs();
-        setJobs(response.items);
+        const [jobResp, tagResp] = await Promise.all([fetchJobs(), fetchTags()]);
+        setJobs(jobResp.items);
+        setTags(tagResp.items);
       } catch (error) {
         console.error('Failed to load jobs:', error);
         if (error instanceof ApiError) {
@@ -43,6 +72,7 @@ export const Dashboard: React.FC = () => {
         }
         // Set empty array on error to show empty state
         setJobs([]);
+        setTags([]);
       } finally {
         setIsLoading(false);
       }
@@ -93,6 +123,7 @@ export const Dashboard: React.FC = () => {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
+    diarizer?: string | null;
     speakerCount?: number | null;
   }) => {
     try {
@@ -102,6 +133,7 @@ export const Dashboard: React.FC = () => {
         language: jobData.language,
         enable_timestamps: jobData.enableTimestamps,
         enable_speaker_detection: jobData.enableSpeakerDetection,
+        diarizer: jobData.diarizer ?? undefined,
         speaker_count: jobData.speakerCount ?? undefined,
       });
       
@@ -390,8 +422,10 @@ export const Dashboard: React.FC = () => {
       const tagsToRemove = currentTagIds.filter(id => !tagIds.includes(id));
       
       // Add new tags
-      for (const tagId of tagsToAdd) {
-        await assignTag(jobId, tagId);
+      if (tagsToAdd.length) {
+        for (const tagId of tagsToAdd) {
+          await assignTag(jobId, tagId);
+        }
       }
       
       // Remove tags
@@ -399,9 +433,17 @@ export const Dashboard: React.FC = () => {
         await removeTag(jobId, tagId);
       }
       
-      // Refresh job list to get updated tags
-      const jobsResponse = await fetchJobs();
+      // Refresh job list and tag catalog to get updated tags
+      const [jobsResponse, tagsResponse] = await Promise.all([fetchJobs(), fetchTags()]);
       setJobs(jobsResponse.items);
+      setTags(tagsResponse.items);
+
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJob = jobsResponse.items.find(j => j.id === jobId);
+        if (updatedJob) {
+          setSelectedJob(updatedJob);
+        }
+      }
       
       showSuccess('Tags updated successfully');
     } catch (error) {
@@ -414,11 +456,7 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const availableTags = useMemo(() => {
-    const tagMap: Record<number, {id:number; name:string; color:string}> = {};
-    jobs.forEach(j => j.tags.forEach(t => { tagMap[t.id] = t; }));
-    return Object.values(tagMap);
-  }, [jobs]);
+  const availableTags = tags;
 
   const filteredJobs = useMemo(() => {
     let data = [...jobs];
@@ -624,12 +662,16 @@ export const Dashboard: React.FC = () => {
           onStop={handleStop}
           onViewTranscript={handleViewTranscript}
           onUpdateTags={handleUpdateTags}
+          availableTags={availableTags}
         />
       )}
       <NewJobModal
         isOpen={isNewJobModalOpen}
         onClose={() => setIsNewJobModalOpen(false)}
         onSubmit={handleNewJob}
+        defaultModel={adminSettings?.default_model}
+        defaultLanguage={adminSettings?.default_language}
+        defaultDiarizer={adminSettings?.default_diarizer}
       />
     </>
   );

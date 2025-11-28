@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Dashboard } from '../pages/Dashboard';
 import { ApiError } from '../lib/api';
+import { SettingsProvider } from '../context/SettingsContext';
 
 const fetchJobsMock = vi.fn();
 const createJobMock = vi.fn();
@@ -11,6 +12,8 @@ const cancelJobMock = vi.fn();
 const deleteJobMock = vi.fn();
 const assignTagMock = vi.fn();
 const removeTagMock = vi.fn();
+const fetchTagsMock = vi.fn();
+const fetchSettingsMock = vi.fn();
 
 vi.mock('../services/jobs', () => ({
   fetchJobs: (...args: any[]) => fetchJobsMock(...args),
@@ -20,6 +23,14 @@ vi.mock('../services/jobs', () => ({
   deleteJob: (...args: any[]) => deleteJobMock(...args),
   assignTag: (...args: any[]) => assignTagMock(...args),
   removeTag: (...args: any[]) => removeTagMock(...args),
+}));
+
+vi.mock('../services/tags', () => ({
+  fetchTags: (...args: any[]) => fetchTagsMock(...args),
+}));
+
+vi.mock('../services/settings', () => ({
+  fetchSettings: (...args: any[]) => fetchSettingsMock(...args),
 }));
 
 const toastMock = {
@@ -101,9 +112,23 @@ vi.mock('../components/modals/JobDetailModal', () => ({
   JobDetailModal: () => null,
 }));
 
+const settingsCacheKey = 'dashboard_test_settings';
+
+const renderDashboard = () =>
+  render(
+    <SettingsProvider
+      fetcher={(options) => fetchSettingsMock(options)}
+      cacheKey={settingsCacheKey}
+    >
+      <Dashboard />
+    </SettingsProvider>
+  );
+
 describe('Dashboard', () => {
   beforeEach(() => {
     fetchJobsMock.mockReset();
+    fetchTagsMock.mockReset();
+    fetchSettingsMock.mockReset();
     createJobMock.mockReset();
     restartJobMock.mockReset();
     cancelJobMock.mockReset();
@@ -112,14 +137,24 @@ describe('Dashboard', () => {
     removeTagMock.mockReset();
     toastMock.showError.mockReset();
     toastMock.showSuccess.mockReset();
+    localStorage.removeItem(settingsCacheKey);
   });
 
   it('loads jobs and filters with the search bar', async () => {
     const jobA = buildJob({ id: 'a', original_filename: 'Quarterly Review' });
     const jobB = buildJob({ id: 'b', original_filename: 'All Hands Recording' });
     fetchJobsMock.mockResolvedValue(jobsResponse([jobA, jobB]));
+    fetchTagsMock.mockResolvedValue({ total: 1, items: [{ id: 1, name: 'General', color: '#1D8348', job_count: 2, created_at: new Date().toISOString() }] });
+    fetchSettingsMock.mockResolvedValue({
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer: 'vad',
+      diarization_enabled: true,
+      allow_job_overrides: true,
+      max_concurrent_jobs: 3,
+    });
 
-    render(<Dashboard />);
+    renderDashboard();
 
     await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/Quarterly Review/i)).toBeInTheDocument());
@@ -134,8 +169,17 @@ describe('Dashboard', () => {
 
   it('shows empty-state and surfaces toast errors when fetching jobs fails', async () => {
     fetchJobsMock.mockRejectedValueOnce(new ApiError('Boom', 500));
+    fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
+    fetchSettingsMock.mockResolvedValue({
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer: 'vad',
+      diarization_enabled: false,
+      allow_job_overrides: false,
+      max_concurrent_jobs: 3,
+    });
 
-    render(<Dashboard />);
+    renderDashboard();
     await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/no transcriptions yet/i)).toBeInTheDocument());
     expect(toastMock.showError).toHaveBeenCalledWith(expect.stringContaining('Boom'));

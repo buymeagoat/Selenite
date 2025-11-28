@@ -4,6 +4,15 @@ import App from './App';
 import { Login } from './pages/Login';
 import { TranscriptView } from './pages/TranscriptView';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { SettingsProvider } from './context/SettingsContext';
+
+const ProtectedApp: React.FC = () => (
+  <ProtectedRoute>
+    <SettingsProvider>
+      <App />
+    </SettingsProvider>
+  </ProtectedRoute>
+);
 
 const router = createBrowserRouter([
   {
@@ -12,11 +21,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: (
-      <ProtectedRoute>
-        <App />
-      </ProtectedRoute>
-    ),
+    element: <ProtectedApp />,
+  },
+  {
+    path: '/settings',
+    element: <ProtectedApp />,
   },
   {
     path: '/transcripts/:jobId',

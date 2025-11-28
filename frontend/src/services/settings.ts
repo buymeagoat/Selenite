@@ -4,25 +4,36 @@
  * Functions for managing user settings and preferences.
  */
 
-import { apiGet, apiPut } from '../lib/api';
+import { apiFetch, apiPut } from '../lib/api';
 
 export interface UserSettings {
   default_model: string;
   default_language: string;
+  default_diarizer: string;
+  diarization_enabled: boolean;
+  allow_job_overrides: boolean;
+  enable_timestamps: boolean;
   max_concurrent_jobs: number;
 }
 
 export interface UpdateSettingsParams {
   default_model: string;
   default_language: string;
+  default_diarizer: string;
+  diarization_enabled: boolean;
+  allow_job_overrides: boolean;
+  enable_timestamps: boolean;
   max_concurrent_jobs: number;
 }
 
 /**
  * Fetch current user settings
  */
-export async function fetchSettings(): Promise<UserSettings> {
-  return apiGet<UserSettings>('/settings');
+export async function fetchSettings(options?: { signal?: AbortSignal }): Promise<UserSettings> {
+  return apiFetch<UserSettings>('/settings', {
+    method: 'GET',
+    signal: options?.signal,
+  });
 }
 
 /**

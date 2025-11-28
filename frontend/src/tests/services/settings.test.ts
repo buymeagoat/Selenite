@@ -27,6 +27,7 @@ describe('settings service', () => {
       default_diarizer: 'vad',
       diarization_enabled: true,
       allow_job_overrides: true,
+      enable_timestamps: true,
       max_concurrent_jobs: 3,
     };
     await updateSettings(payload);

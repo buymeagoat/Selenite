@@ -87,8 +87,7 @@ class TestGetSettings:
             assert data["default_diarizer"] == "vad"
             assert data["diarization_enabled"] is False
             assert data["allow_job_overrides"] is False
-            if "default_timestamps" in data:
-                assert data["default_timestamps"] is True
+            assert data["enable_timestamps"] is True
             if "default_speaker_detection" in data:
                 assert data["default_speaker_detection"] is True
             assert data["max_concurrent_jobs"] == 3
@@ -133,7 +132,7 @@ class TestUpdateSettings:
                 "default_diarizer": "whisperx",
                 "diarization_enabled": True,
                 "allow_job_overrides": True,
-                "default_timestamps": False,
+                "enable_timestamps": False,
                 "default_speaker_detection": False,
                 "max_concurrent_jobs": 5,
             }
@@ -149,7 +148,7 @@ class TestUpdateSettings:
                 assert data["settings"]["default_diarizer"] == "whisperx"
                 assert data["settings"]["diarization_enabled"] is True
                 assert data["settings"]["allow_job_overrides"] is True
-                assert data["settings"]["default_timestamps"] is False
+                assert data["settings"]["enable_timestamps"] is False
                 assert data["settings"]["default_speaker_detection"] is False
                 assert data["settings"]["max_concurrent_jobs"] == 5
 
@@ -173,7 +172,7 @@ class TestUpdateSettings:
 
                 # Unchanged fields
                 assert data["settings"]["default_language"] == "auto"
-                assert data["settings"]["default_timestamps"] is True
+                assert data["settings"]["enable_timestamps"] is True
 
     async def test_update_settings_invalid_model(self, test_db, auth_headers, default_settings):
         """Test updating with invalid model name."""

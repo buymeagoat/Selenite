@@ -35,6 +35,10 @@ async def get_settings(
     return SettingsResponse(
         default_model=user_settings.default_model,
         default_language=user_settings.default_language,
+        default_diarizer=user_settings.default_diarizer,
+        diarization_enabled=user_settings.diarization_enabled,
+        allow_job_overrides=user_settings.allow_job_overrides,
+        enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
     )
 
@@ -48,6 +52,10 @@ async def update_settings(
     user_settings = await _get_or_create_settings(current_user, db)
     user_settings.default_model = payload.default_model
     user_settings.default_language = payload.default_language
+    user_settings.default_diarizer = payload.default_diarizer
+    user_settings.diarization_enabled = payload.diarization_enabled
+    user_settings.allow_job_overrides = payload.allow_job_overrides
+    user_settings.enable_timestamps = payload.enable_timestamps
     user_settings.max_concurrent_jobs = payload.max_concurrent_jobs
     user_settings.touch()
     await db.commit()
@@ -60,5 +68,9 @@ async def update_settings(
     return SettingsResponse(
         default_model=user_settings.default_model,
         default_language=user_settings.default_language,
+        default_diarizer=user_settings.default_diarizer,
+        diarization_enabled=user_settings.diarization_enabled,
+        allow_job_overrides=user_settings.allow_job_overrides,
+        enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
     )

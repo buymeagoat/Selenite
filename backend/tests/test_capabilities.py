@@ -51,6 +51,19 @@ def test_get_capabilities(monkeypatch):
     assert diarizers["pyannote"]["available"] is False
 
 
+def test_get_capabilities_handles_missing_parent_module(monkeypatch):
+    """Modules that are not installed should not cause crashes."""
+
+    def raising_find_spec(name):
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(importlib.util, "find_spec", raising_find_spec)
+    result = get_capabilities()
+    diarizers = {d["key"]: d for d in result["diarizers"]}
+    assert diarizers["pyannote"]["available"] is False
+    assert diarizers["whisperx"]["available"] is False
+
+
 @pytest.mark.asyncio
 async def test_capabilities_endpoint(monkeypatch):
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: True)
@@ -73,7 +86,7 @@ def test_enforce_runtime_diarizer_prefers_job(monkeypatch):
             ],
         },
     )
-    user_settings = SimpleNamespace(diarization_enabled=True, default_diarizer="vad")
+    user_settings = SimpleNamespace(default_diarizer="vad")
     result = enforce_runtime_diarizer(
         requested_diarizer="whisperx",
         diarization_requested=True,
@@ -96,7 +109,7 @@ def test_enforce_runtime_diarizer_fallback_to_admin(monkeypatch):
             ],
         },
     )
-    user_settings = SimpleNamespace(diarization_enabled=True, default_diarizer="whisperx")
+    user_settings = SimpleNamespace(default_diarizer="whisperx")
     result = enforce_runtime_diarizer(
         requested_diarizer="pyannote",
         diarization_requested=True,
@@ -120,7 +133,7 @@ def test_enforce_runtime_diarizer_disables_when_none_available(monkeypatch):
             ],
         },
     )
-    user_settings = SimpleNamespace(diarization_enabled=True, default_diarizer="whisperx")
+    user_settings = SimpleNamespace(default_diarizer="whisperx")
     result = enforce_runtime_diarizer(
         requested_diarizer="whisperx",
         diarization_requested=True,

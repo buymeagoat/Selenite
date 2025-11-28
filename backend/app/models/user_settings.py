@@ -1,7 +1,7 @@
 """User settings model for default transcription preferences and concurrency."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -23,6 +23,10 @@ class UserSettings(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     default_model = Column(String(20), nullable=False, default="medium")
     default_language = Column(String(10), nullable=False, default="auto")
+    default_diarizer = Column(String(20), nullable=False, default="vad")
+    diarization_enabled = Column(Boolean, nullable=False, default=False)
+    allow_job_overrides = Column(Boolean, nullable=False, default=False)
+    enable_timestamps = Column(Boolean, nullable=False, default=True)
     max_concurrent_jobs = Column(Integer, nullable=False, default=3)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)

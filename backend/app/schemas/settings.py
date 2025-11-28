@@ -9,6 +9,7 @@ class SettingsResponse(BaseModel):
     default_diarizer: str
     diarization_enabled: bool
     allow_job_overrides: bool
+    enable_timestamps: bool
     max_concurrent_jobs: int
 
 
@@ -20,4 +21,5 @@ class SettingsUpdateRequest(BaseModel):
     default_diarizer: str = Field(default="vad", pattern="^(whisperx|pyannote|vad)$")
     diarization_enabled: bool = Field(default=False)
     allow_job_overrides: bool = Field(default=False)
+    enable_timestamps: bool = Field(default=True)
     max_concurrent_jobs: int = Field(default=3, ge=1, le=10)

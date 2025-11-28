@@ -17,16 +17,17 @@ from app.routes import settings as settings_routes
 from app.schemas.settings import SettingsUpdateRequest
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def test_db():
-    """Create test database."""
+    """Create test database for each test function."""
+    # Clean up before creating to ensure fresh state
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
-        # Create test user with explicit ID
+        # Create test user - will get ID=1 as first user
         test_user = User(
-            id=1,
             username="testuser",
             email="test@example.com",
             hashed_password=hash_password("testpass123"),
@@ -36,13 +37,15 @@ async def test_db():
 
     yield
 
+    # Clean up after test
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture
-def auth_token():
+def auth_token(test_db):
     """Create valid JWT token for test user."""
+    # User ID is 1 as it's the first user created in the test database
     return create_access_token({"user_id": 1, "username": "testuser"})
 
 

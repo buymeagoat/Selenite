@@ -12,20 +12,27 @@ from app.models.job import Job
 from app.utils.security import hash_password, create_access_token
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def test_db():
+    """Create test database for each test function."""
+    # Clean up before creating to ensure fresh state
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
     async with AsyncSessionLocal() as session:
+        # Create test user - will get ID=1 as first user
         user = User(
-            id=1,
             username="jobactions",
             email="jobactions@example.com",
             hashed_password=hash_password("InitialPass123"),
         )
         session.add(user)
         await session.commit()
+
     yield
+
+    # Clean up after test
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 

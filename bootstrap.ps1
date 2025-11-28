@@ -54,6 +54,35 @@ function Invoke-SqliteGuard {
     }
 }
 
+function Get-CorsOriginList {
+    param(
+        [string]$AdvertisedApi,
+        [string]$BindHost
+    )
+    $origins = [System.Collections.Generic.List[string]]::new()
+    foreach ($origin in @("http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000")) {
+        if (-not $origins.Contains($origin)) { $origins.Add($origin) }
+    }
+    $customHosts = @()
+    if ($AdvertisedApi) {
+        try {
+            $uri = [Uri]$AdvertisedApi
+            if ($uri.Host) { $customHosts += $uri.Host }
+        } catch {}
+    }
+    if ($BindHost -and $BindHost -ne "0.0.0.0" -and $BindHost -ne "127.0.0.1" -and $BindHost -ne "localhost") {
+        $customHosts += $BindHost
+    }
+    $customHosts = $customHosts | Where-Object { $_ } | Select-Object -Unique
+    foreach ($customHost in $customHosts) {
+        foreach ($port in 5173,3000) {
+            $origin = "http://$customHost`:$port"
+            if (-not $origins.Contains($origin)) { $origins.Add($origin) }
+        }
+    }
+    return ($origins -join ",")
+}
+
 function Write-Section($Message) {
     Write-Host ""
     Write-Host "=== $Message ===" -ForegroundColor Cyan
@@ -220,6 +249,7 @@ if (-not $SkipPreflight) {
             $oldPort = $BindPort
             $BindPort = Get-FreePort
             $ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
+            $CorsOrigins = Get-CorsOriginList -AdvertisedApi $ApiBaseResolved -BindHost $BindIP
             Write-Host "Using backend port $BindPort for this run (was $oldPort)." -ForegroundColor Yellow
         } elseif ($canBind -and $stillBusy) {
             Write-Host "Backend port $BindPort appears bindable despite lingering entries; proceeding." -ForegroundColor Yellow
@@ -248,6 +278,15 @@ if ($ApiBase -ne "") {
     } else {
         $ApiBaseResolved = "http://$BindIP`:$BindPort"
     }
+}
+$CorsOrigins = Get-CorsOriginList -AdvertisedApi $ApiBaseResolved -BindHost $BindIP
+$FrontendApiBase = $null
+if ($ApiBase -ne "") {
+    $FrontendApiBase = $ApiBaseResolved
+} elseif ($BindIP -ne "0.0.0.0") {
+    $FrontendApiBase = $ApiBaseResolved
+} else {
+    $FrontendApiBase = ""
 }
 
 Invoke-Step "Backend virtualenv" {
@@ -314,6 +353,7 @@ Invoke-Step "Start backend API (new window)" {
 `$env:ALLOW_LOCALHOST_CORS = '1'
 `$env:MEDIA_STORAGE_PATH = '$MediaDir'
 `$env:TRANSCRIPT_STORAGE_PATH = '$TranscriptDir'
+`$env:CORS_ORIGINS = '$CorsOrigins'
 "@
     $uvicornArgs = $Dev ? "--reload" : ""
 $backendCmd = @"
@@ -326,6 +366,11 @@ $envBlock
 }
 
 Invoke-Step "Start frontend production preview (new window)" {
+    $viteEnvLine = if ($FrontendApiBase -and $FrontendApiBase.Trim().Length -gt 0) {
+        "`$env:VITE_API_URL='$FrontendApiBase'"
+    } else {
+        "if (Test-Path Env:VITE_API_URL) { Remove-Item Env:VITE_API_URL -ErrorAction SilentlyContinue }"
+    }
     $frontendCmd = @"
 cd "$FrontendDir"
 Write-Host ''
@@ -334,7 +379,7 @@ Write-Host ' /\  ___\   /\  == \   /\ \       /\  == \   /\ "-.\ \   /\ \   /\  
 Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \  __<   ' -ForegroundColor Cyan
 Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
 Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
-`$env:VITE_API_URL='$ApiBaseResolved'
+$viteEnvLine
 npm run start:prod -- --host $BindIP --port 5173 --strictPort
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd

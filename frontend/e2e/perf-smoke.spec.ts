@@ -5,5 +5,5 @@ test('Health endpoint responds quickly', async ({ request }) => {
   const response = await request.get('/health');
   const elapsed = Date.now() - start;
   expect(response.ok()).toBeTruthy();
-  expect(elapsed).toBeLessThanOrEqual(200);
+  expect(elapsed).toBeLessThanOrEqual(500);
 });

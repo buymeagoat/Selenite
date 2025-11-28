@@ -1,138 +1,123 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
-/**
- * Tag Management Tests
- * 
- * Tests tag creation, assignment to jobs, and filtering by tags.
- */
-
-test.describe('Tag Management', () => {
-  test('view tag inventory through settings', async ({ page }) => {
-    await page.goto('/');
-    
-    // Access the Settings page where tag management lives today
-    const settingsButton = page.getByLabel('Settings');
-    await expect(settingsButton).toBeVisible();
+// Helpers
+const openSettings = async (page: Page) => {
+  await page.goto('/');
+  const settingsButton = page.getByLabel('Settings').first();
+  if (await settingsButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await settingsButton.click();
+    return;
+  }
+  const toggle = page.getByLabel(/toggle menu/i);
+  await toggle.click();
+  const mobileSettings = page.getByRole('button', { name: /^settings$/i }).last();
+  await expect(mobileSettings).toBeVisible();
+  await mobileSettings.click();
+};
+
+test.describe('Tag Management (prod-parity)', () => {
+  test('view tag inventory through settings', async ({ page }) => {
+    await openSettings(page);
     await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
-    
-    // Expand the Tags accordion if collapsed
+
     const tagsSection = page.getByRole('button', { name: /tags/i });
-    await expect(tagsSection).toBeVisible();
-    const tagsContent = page.locator('[data-testid="tag-list"]');
-    try {
-      await expect(tagsContent).toBeVisible({ timeout: 8000 });
-    } catch {
+    await expect(tagsSection).toBeVisible({ timeout: 8000 });
+    const tagsContentLocator = page.locator('[data-testid="settings-tags-content"]').first();
+    const contentCount = await tagsContentLocator.count();
+    const isContentVisible = contentCount > 0 ? await tagsContentLocator.isVisible() : false;
+    if (!isContentVisible) {
       await tagsSection.click();
-      await expect(tagsContent).toBeVisible({ timeout: 8000 });
     }
-    
-    await expect(tagsContent.locator('[data-testid="tag-name"]').first()).toBeVisible({ timeout: 10000 });
+    await page.waitForSelector('[data-testid="settings-tags-loaded"]', { timeout: 10000 });
+
+    const tagsContent = page.locator('[data-testid="settings-tags-loaded"] [data-testid="tag-list"]').first();
+    // Accept either populated list or empty-state rendered inside the tags section
+    await tagsContent.scrollIntoViewIfNeeded();
+    await expect(tagsContent).toBeVisible({ timeout: 10000 });
+    const tagName = tagsContent.locator('[data-testid="tag-name"]').first();
+    const tagCount = await tagName.count();
+    if (tagCount > 0) {
+      await expect(tagName).toBeVisible({ timeout: 10000 });
+    } else {
+      await expect(tagsContent).toContainText(/No tags created yet/i, { timeout: 5000 });
+    }
   });
 
-  test('assign tag to job', async ({ page }) => {
+  test('assign tag to job from job detail', async ({ page }) => {
     await page.goto('/');
-    
-    // Open a job detail modal
+
     const jobCard = page.locator('[data-testid="job-card"]').first();
     await expect(jobCard).toBeVisible({ timeout: 10000 });
     await jobCard.click();
-    
+
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
-    
-    // Find tag input/selector in job detail
-    const tagInput = modal.locator('[data-testid="tag-input"]')
-      .or(modal.getByPlaceholder(/add tag|search tags/i));
-    
-    if (await tagInput.isVisible()) {
-      // Type to search/create tag
-      await tagInput.fill('TestTag');
-      
-      // Select from dropdown or create new
-      const tagOption = page.getByRole('option', { name: /TestTag/i })
-        .or(page.getByText(/TestTag/i).first());
-      
-      if (await tagOption.isVisible({ timeout: 2000 })) {
-        await tagOption.click();
-        
-        // Tag should be assigned and visible
-        await expect(modal.getByText(/TestTag/i)).toBeVisible();
-      }
-    }
+
+    const tagInput = modal.locator('[data-testid="tag-input"]');
+    await expect(tagInput).toBeVisible();
+
+    const newTagName = `TestTag-${Date.now()}`;
+    await tagInput.fill(newTagName);
+
+    const tagOption = page.getByRole('option', { name: newTagName });
+    await expect(tagOption).toBeVisible({ timeout: 3000 });
+    await tagOption.click();
+
+    await expect(modal.locator('[data-testid="tag-chip"]', { hasText: newTagName })).toBeVisible();
   });
 
   test('filter jobs by tag', async ({ page }) => {
     await page.goto('/');
-    
     await expect(page.locator('[data-testid="job-card"]').first()).toBeVisible({ timeout: 10000 });
-    
-    // Find tag filter UI
-    const tagFilter = page.locator('[data-testid="tag-filter"]')
-      .or(page.getByLabel(/filter.*tag/i))
-      .or(page.getByRole('button', { name: /tags/i }));
-    
-    if (await tagFilter.isVisible()) {
-      await tagFilter.click();
-      
-      // Select a tag from the list
-      const firstTag = page.locator('[data-testid="tag-option"]').first()
-        .or(page.getByRole('option').first());
-      
-      if (await firstTag.isVisible({ timeout: 2000 })) {
-        const tagText = await firstTag.textContent();
-        await firstTag.click();
-        
-        await page.waitForTimeout(500);
-        
-        // Jobs should be filtered
-        const visibleJobs = page.locator('[data-testid="job-card"]');
-        const count = await visibleJobs.count();
-        
-        // All visible jobs should have the selected tag
-        if (count > 0 && tagText) {
-          for (let i = 0; i < Math.min(count, 3); i++) {
-            const jobTags = visibleJobs.nth(i).locator('[data-testid="job-tags"]')
-              .or(visibleJobs.nth(i).getByText(tagText));
-            // At least verify the jobs exist when filtered
-            await expect(visibleJobs.nth(i)).toBeVisible();
-          }
-        }
-      }
+
+    const tagFilterBtn = page.locator('[data-testid="tag-filter-button"]');
+    await expect(tagFilterBtn).toBeVisible({ timeout: 5000 });
+    await tagFilterBtn.click();
+
+    const firstTagOption = page.locator('[data-testid="tag-filter-option"]').first();
+    await expect(firstTagOption).toBeVisible({ timeout: 5000 });
+    const optionLabel = await firstTagOption.evaluate((el) => (el as HTMLInputElement).ariaLabel);
+    await firstTagOption.click();
+
+    await page.waitForTimeout(500);
+
+    const visibleJobs = page.locator('[data-testid="job-card"]');
+    const count = await visibleJobs.count();
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < Math.min(count, 3); i++) {
+      await expect(visibleJobs.nth(i).locator('[data-testid="job-tags"]')).toContainText(optionLabel ?? '', { timeout: 2000 });
     }
   });
 
   test('remove tag from job', async ({ page }) => {
     await page.goto('/');
-    
+
     const jobCard = page.locator('[data-testid="job-card"]').first();
     await expect(jobCard).toBeVisible({ timeout: 10000 });
     await jobCard.click();
-    
+
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
-    
-    // Find assigned tags
-    const tagChips = modal.locator('[data-testid="tag-chip"]')
-      .or(modal.locator('.tag-chip'))
-      .or(modal.locator('[data-testid="job-tags"] button'));
-    
-    const tagCount = await tagChips.count();
-    
-    if (tagCount > 0) {
-      // Click remove button on first tag
-      const removeButton = tagChips.first().locator('[data-testid="remove-tag"]')
-        .or(tagChips.first().getByRole('button', { name: /remove|delete|×/i }));
-      
-      if (await removeButton.isVisible()) {
-        await removeButton.click();
-        
-        // Tag count should decrease
-        await expect(async () => {
-          const newCount = await tagChips.count();
-          expect(newCount).toBeLessThan(tagCount);
-        }).toPass({ timeout: 3000 });
-      }
-    }
+
+    // Ensure at least one tag exists by creating one, then remove it
+    const tagInput = modal.locator('[data-testid="tag-input"]');
+    await expect(tagInput).toBeVisible();
+    const tempTag = `Removable-${Date.now()}`;
+    await tagInput.fill(tempTag);
+    const addOption = page.getByRole('option', { name: tempTag });
+    await expect(addOption).toBeVisible({ timeout: 3000 });
+    await addOption.click();
+
+    const tagChips = modal.locator('[data-testid="tag-chip"]');
+    await expect(tagChips.filter({ hasText: tempTag }).first()).toBeVisible({ timeout: 10000 });
+
+    const removeButton = tagChips.filter({ hasText: tempTag }).first().locator('[data-testid="remove-tag"]');
+    await expect(removeButton).toBeVisible({ timeout: 2000 });
+    await removeButton.click();
+
+    await expect(async () => {
+      const texts = await tagChips.allTextContents();
+      expect(texts.some(t => t.includes(tempTag))).toBe(false);
+    }).toPass({ timeout: 3000 });
   });
 });

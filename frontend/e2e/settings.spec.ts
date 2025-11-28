@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * Settings Page Tests
@@ -7,25 +7,31 @@ import { test, expect } from '@playwright/test';
  * default transcription options, and system controls.
  */
 
+async function openSettings(page: Page) {
+  await page.goto('/');
+  const settingsButton = page.getByLabel('Settings').first();
+  if (await settingsButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await settingsButton.click();
+    return;
+  }
+
+  const menuToggle = page.getByLabel(/toggle menu/i);
+  await menuToggle.click();
+  const mobileSettings = page.getByRole('button', { name: /^settings$/i }).last();
+  await expect(mobileSettings).toBeVisible();
+  await mobileSettings.click();
+}
+
 test.describe('Settings Page', () => {
   test('navigate to settings page', async ({ page }) => {
-    await page.goto('/');
-    
-    // Find Settings icon button in navbar (has aria-label="Settings")
-    const settingsButton = page.getByLabel('Settings');
-    
-    await expect(settingsButton).toBeVisible();
-    await settingsButton.click();
+    await openSettings(page);
     
     // Settings page should load (spa navigation, no URL change needed)
     await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
   });
 
   test('change password successfully (UI only, backend mocked)', async ({ page }) => {
-    await page.goto('/');
-    
-    // Navigate to settings
-    await page.getByLabel('Settings').click();
+    await openSettings(page);
     await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
 
     // Mock password change endpoint so we don't mutate the shared admin account.
@@ -73,8 +79,7 @@ test.describe('Settings Page', () => {
 
   test('password change requires current password', async ({ page }) => {
     // Navigate via dashboard to ensure SPA route loads
-    await page.goto('/');
-    await page.getByLabel('Settings').click();
+    await openSettings(page);
     
     const currentPasswordInput = page.getByLabel(/current password/i)
       .or(page.locator('[data-testid="current-password"]'));
@@ -97,8 +102,7 @@ test.describe('Settings Page', () => {
   });
 
   test('password change validates confirmation match', async ({ page }) => {
-    await page.goto('/');
-    await page.getByLabel('Settings').click();
+    await openSettings(page);
     
     const currentPasswordInput = page.getByLabel(/current password/i)
       .or(page.locator('[data-testid="current-password"]'));

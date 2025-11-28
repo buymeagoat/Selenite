@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SAMPLE_FILE = path.join(__dirname, 'fixtures', 'sample.mp3');
+const SAMPLE_FILE = path.resolve(process.cwd(), 'e2e', 'fixtures', 'media', 'sample.wav');
 
 test.describe('Create → Complete → Export → Delete flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -18,29 +18,38 @@ test.describe('Create → Complete → Export → Delete flow', () => {
 
     // Start a new job
     await page.getByRole('button', { name: /new job/i }).click();
-    const fileInput = page.getByLabel(/Audio\/Video File/i);
+    const fileInput = page.getByTestId('file-input');
     await fileInput.setInputFiles(SAMPLE_FILE);
     await page.getByRole('button', { name: /Start Transcription/i }).click();
 
-    // Wait for job card to show completed
-    const jobCard = page.getByTestId('job-card').first();
+    // Wait for this job to show completed
+    const jobCard = page.getByTestId('job-card').filter({ hasText: 'sample.wav' }).first();
     await expect(jobCard.getByText(/Completed/i)).toBeVisible({ timeout: 90_000 });
 
     // Download transcript TXT
-    const downloadBtn = jobCard.getByRole('button', { name: /Download/i }).first();
-    await downloadBtn.click();
+    const downloadPromise = page.waitForEvent('download');
+    await jobCard.getByRole('button', { name: /Download/i }).first().click();
+    await downloadPromise;
 
     // Open transcript view and verify
-    const viewBtn = jobCard.getByRole('button', { name: /View/i });
-    await viewBtn.click();
-    await expect(page.getByText(/Transcript/)).toBeVisible();
-    await page.getByRole('button', { name: /Download TXT/i }).click();
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      jobCard.getByRole('button', { name: /View/i }).click()
+    ]);
+    await popup.waitForLoadState('domcontentloaded');
+    await expect(popup.getByRole('heading', { name: /transcript/i })).toBeVisible();
+    await popup.getByRole('button', { name: /Download TXT/i }).click();
+    await popup.close();
 
     // Delete job
-    await page.goto('/', { waitUntil: 'networkidle' });
-    await jobCard.getByRole('button', { name: /Delete/i }).click();
-    await page.getByRole('button', { name: /Confirm/i }).click();
-    await expect(jobCard).toBeHidden({ timeout: 10_000 });
+    await jobCard.click();
+    const detailModal = page.getByRole('dialog');
+    await expect(detailModal).toBeVisible();
+    await detailModal.getByRole('button', { name: /delete job/i }).click();
+    const confirmDialog = page.getByRole('dialog', { name: /delete job/i });
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByRole('button', { name: /^delete$/i }).click();
+    await expect(detailModal).toBeHidden({ timeout: 10_000 });
   });
 
   test('mobile flow', async ({ page, browser }) => {
@@ -50,19 +59,23 @@ test.describe('Create → Complete → Export → Delete flow', () => {
 
     // Start a new job
     await mobile.getByRole('button', { name: /new job/i }).click();
-    const fileInput = mobile.getByLabel(/Audio\/Video File/i);
+    const fileInput = mobile.getByTestId('file-input');
     await fileInput.setInputFiles(SAMPLE_FILE);
     await mobile.getByRole('button', { name: /Start Transcription/i }).click();
 
     // Wait for job to complete
-    const jobCard = mobile.getByTestId('job-card').first();
+    const jobCard = mobile.getByTestId('job-card').filter({ hasText: 'sample.wav' }).first();
     await expect(jobCard.getByText(/Completed/i)).toBeVisible({ timeout: 90_000 });
 
-    // Delete job to clean up
-    await mobile.goto('/', { waitUntil: 'networkidle' });
-    await jobCard.getByRole('button', { name: /Delete/i }).click();
-    await mobile.getByRole('button', { name: /Confirm/i }).click();
-    await expect(jobCard).toBeHidden({ timeout: 10_000 });
+    // Delete job to clean up via detail modal
+    await jobCard.click();
+    const detailModal = mobile.getByRole('dialog');
+    await expect(detailModal).toBeVisible();
+    await detailModal.getByRole('button', { name: /delete job/i }).click();
+    const confirmDialog = mobile.getByRole('dialog', { name: /delete job/i });
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByRole('button', { name: /^delete$/i }).click();
+    await expect(detailModal).toBeHidden({ timeout: 10_000 });
     await mobile.close();
   });
 });

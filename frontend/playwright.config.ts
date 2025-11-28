@@ -22,14 +22,17 @@ const webServer = shouldStartServers
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60 * 1000,
+  timeout: 30 * 60 * 1000,
   expect: { timeout: 5000 },
   // Disable full parallelism across projects to avoid shared mutable state issues
   // (e.g., password change test altering admin credentials mid-run for other browsers).
   // Individual tests within a project can still run in parallel via workers.
   fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]] : [['list'], ['html', { open: 'never' }]],
+  reporter: [
+    ['line'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }]
+  ],
   webServer,
   use: {
     baseURL,

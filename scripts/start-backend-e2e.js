@@ -35,15 +35,19 @@ const uvicornArgs = [
   port,
   '--app-dir',
   path.join(backendRoot, 'app'),
+  '--no-access-log',
 ];
 
-const envEnvironment = process.env.ENVIRONMENT || 'production';
+const envEnvironment = process.env.E2E_ENVIRONMENT || process.env.ENVIRONMENT || 'production';
 const disableFileLogs = process.env.DISABLE_FILE_LOGS || '1';
 const childEnv = {
   ...process.env,
   ENVIRONMENT: envEnvironment,
   DISABLE_FILE_LOGS: disableFileLogs,
   ALLOW_LOCALHOST_CORS: process.env.ALLOW_LOCALHOST_CORS || '1',
+  E2E_FAST_TRANSCRIPTION: process.env.E2E_FAST_TRANSCRIPTION || '1',
+  FORCE_QUEUE_START: process.env.FORCE_QUEUE_START || '1',
+  DISABLE_RATE_LIMIT: process.env.DISABLE_RATE_LIMIT || '1',
   PYTHONPATH: backendRoot,
 };
 

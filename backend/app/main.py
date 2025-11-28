@@ -1,6 +1,7 @@
 """FastAPI application."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,7 +17,9 @@ from app.routes import tags as tags_module
 from app.routes import search as search_module
 from app.routes import settings as settings_module
 from app.routes import exports as exports_module
+from app.routes import system as system_module
 from app.services.job_queue import queue, resume_queued_jobs
+from app.services.system_probe import SystemProbeService
 
 # Initialize logging
 setup_logging()
@@ -30,6 +33,7 @@ job_tags_router = tags_module.job_tags_router
 search_router = search_module.router
 settings_router = settings_module.router
 exports_router = exports_module.router
+system_router = system_module.router
 
 
 @asynccontextmanager
@@ -60,7 +64,8 @@ async def lifespan(app: FastAPI):
 
     # Expose queue via app state; only auto-start outside of unit tests
     app.state.queue = queue
-    if settings.is_testing:
+    force_queue_start = os.getenv("FORCE_QUEUE_START") == "1"
+    if settings.is_testing and not force_queue_start:
         logger.info("Testing mode detected; job queue will be started by tests as needed")
     else:
         await queue.start()
@@ -69,6 +74,12 @@ async def lifespan(app: FastAPI):
             logger.info("Job queue started and resumed %s queued job(s)", resumed)
         else:
             logger.info("Job queue started")
+
+    # Prime the system probe cache so the admin UI has data immediately
+    try:
+        SystemProbeService.refresh_probe()
+    except Exception as exc:
+        logger.warning("System probe failed during startup: %s", exc)
 
     yield
 
@@ -111,6 +122,7 @@ app.include_router(job_tags_router)
 app.include_router(search_router)
 app.include_router(settings_router)
 app.include_router(exports_router)
+app.include_router(system_router)
 
 
 @app.get("/health")

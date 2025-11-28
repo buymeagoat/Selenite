@@ -17,7 +17,18 @@ DIARIZER_PRIORITY = ["whisperx", "pyannote", "vad"]
 
 
 def _has_module(module_name: str) -> bool:
-    return importlib.util.find_spec(module_name) is not None
+    """
+    Safely determine whether a Python module is importable.
+
+    importlib.find_spec raises ModuleNotFoundError when the parent package is missing,
+    so guard against that to prevent capability checks from crashing.
+    """
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except ModuleNotFoundError:
+        return False
+    except ImportError:
+        return False
 
 
 def _max_gpu_memory_gb(probe: Dict[str, Any]) -> float:
@@ -141,21 +152,12 @@ def resolve_job_preferences(
     notes: List[str] = []
     model_choice = _resolve_model_choice(requested_model, user_settings, notes)
 
-    allow_override = bool(user_settings and user_settings.allow_job_overrides)
-    diarization_enabled = bool(user_settings and user_settings.diarization_enabled)
-    if requested_diarization is not None:
-        if allow_override:
-            diarization_enabled = requested_diarization
-        else:
-            notes.append("Per-job diarization toggle ignored (admin disabled overrides)")
+    diarization_enabled = requested_diarization if requested_diarization is not None else True
 
     diarizer_choice: Optional[str] = None
     if diarization_enabled:
-        preferred = (
-            requested_diarizer
-            if (allow_override and requested_diarizer)
-            else (user_settings.default_diarizer if user_settings else "vad")
-        )
+        admin_default = user_settings.default_diarizer if user_settings else None
+        preferred = requested_diarizer or admin_default or "vad"
         capabilities = get_capabilities()
         options = {opt["key"]: opt for opt in capabilities["diarizers"]}
         diarizer_choice = _select_available_diarizer(preferred, options, notes)
@@ -232,9 +234,8 @@ def enforce_runtime_diarizer(
 
     push("job", requested_diarizer)
 
-    admin_enabled = bool(user_settings and user_settings.diarization_enabled)
-    if admin_enabled:
-        push("admin", user_settings.default_diarizer)
+    admin_default = user_settings.default_diarizer if user_settings else None
+    push("admin", admin_default)
 
     for fallback_key in DIARIZER_PRIORITY:
         push("fallback", fallback_key)
@@ -242,7 +243,7 @@ def enforce_runtime_diarizer(
     for source, key in order:
         option = options.get(key)
         if option and option["available"]:
-            if source != "job":
+            if source != "job" and requested_diarizer:
                 if source == "admin":
                     notes.append(
                         f"Job diarizer '{requested_diarizer}' unavailable; using admin default '{key}'"
@@ -252,7 +253,7 @@ def enforce_runtime_diarizer(
                         f"Job diarizer '{requested_diarizer}' unavailable; falling back to '{key}'"
                     )
             return {"diarizer": key, "diarization_enabled": True, "notes": notes}
-        if source == "job":
+        if source == "job" and key:
             notes.append(f"Diarizer '{key}' unavailable at runtime")
 
     notes.append("No diarizer backends available; disabling speaker labels")

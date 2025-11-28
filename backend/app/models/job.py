@@ -39,6 +39,7 @@ class Job(Base):
     speaker_count = Column(Integer, nullable=True)
     has_timestamps = Column(Boolean, default=True, nullable=False)
     has_speaker_labels = Column(Boolean, default=True, nullable=False)
+    diarizer_used = Column(String(20), nullable=True)
     transcript_path = Column(String(512), nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

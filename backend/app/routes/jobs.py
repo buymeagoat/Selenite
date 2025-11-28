@@ -2,6 +2,7 @@
 
 from app.schemas.tag import JobTagsResponse, TagBasic
 
+import logging
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
@@ -32,6 +33,9 @@ from app.models.tag import Tag
 from app.utils.file_handling import save_uploaded_file, generate_secure_filename
 from app.utils.file_validation import validate_media_file
 from app.services.job_queue import queue
+from app.services.capabilities import resolve_job_preferences
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -44,6 +48,7 @@ async def create_job(
     enable_timestamps: bool = Form(default=True),
     # Speaker detection is not implemented; the flag is ignored and forced off.
     enable_speaker_detection: bool = Form(default=False),
+    diarizer: Optional[str] = Form(default=None),
     speaker_count: Optional[int] = Form(default=None),
     should_fail: bool = Query(False, alias="fail"),
     current_user: User = Depends(get_current_user),
@@ -91,7 +96,18 @@ async def create_job(
         select(UserSettings).where(UserSettings.user_id == current_user.id)
     )
     user_settings = settings_result.scalar_one_or_none()
-    resolved_model = model or (user_settings.default_model if user_settings else "medium")
+
+    preference = resolve_job_preferences(
+        requested_model=model,
+        requested_diarizer=diarizer,
+        requested_diarization=enable_speaker_detection,
+        user_settings=user_settings,
+    )
+    resolved_model = preference["model"]
+    diarizer_used = preference["diarizer"]
+    diarization_active = preference["diarization_enabled"]
+    for note in preference["notes"]:
+        logger.warning("Job %s preference adjustment: %s", job_uuid, note)
 
     # Create job record in database
     job = Job(
@@ -106,7 +122,8 @@ async def create_job(
         progress_percent=0,
         model_used=resolved_model,
         has_timestamps=enable_timestamps,
-        has_speaker_labels=False,
+        has_speaker_labels=diarization_active,
+        diarizer_used=diarizer_used,
         speaker_count=speaker_count,
         created_at=datetime.utcnow(),
     )

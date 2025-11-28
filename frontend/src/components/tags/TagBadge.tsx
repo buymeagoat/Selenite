@@ -14,16 +14,6 @@ interface TagBadgeProps {
   onClick?: (tagId: number) => void;
 }
 
-// Helper to determine if color is light (needs dark text)
-const isLightColor = (hex: string): boolean => {
-  const rgb = parseInt(hex.slice(1), 16);
-  const r = (rgb >> 16) & 0xff;
-  const g = (rgb >> 8) & 0xff;
-  const b = (rgb >> 0) & 0xff;
-  const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luma > 186;
-};
-
 export const TagBadge: React.FC<TagBadgeProps> = ({
   tag,
   size = 'md',
@@ -35,7 +25,9 @@ export const TagBadge: React.FC<TagBadgeProps> = ({
     md: 'text-sm px-3 py-1'
   };
 
-  const textColor = isLightColor(tag.color) ? 'text-pine-deep' : 'text-white';
+  // Force consistent high-contrast style regardless of tag color
+  const textColor = 'text-gray-900';
+  const backgroundStyle = { backgroundColor: '#EEF1EA', border: '1px solid #CBD5E1' };
   const clickable = onClick ? 'cursor-pointer hover:opacity-90' : '';
 
   const handleClick = () => {
@@ -50,7 +42,7 @@ export const TagBadge: React.FC<TagBadgeProps> = ({
   return (
     <span
       className={`inline-flex items-center gap-1 rounded ${sizeClasses[size]} ${textColor} ${clickable}`}
-      style={{ backgroundColor: tag.color }}
+      style={backgroundStyle}
       onClick={handleClick}
     >
       {tag.name}

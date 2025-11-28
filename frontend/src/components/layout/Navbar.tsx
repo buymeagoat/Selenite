@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Settings as SettingsIcon, Menu, X } from 'lucide-react';
 
+type Page = 'dashboard' | 'settings';
+
 interface NavbarProps {
-  onNavigate?: (page: 'dashboard' | 'settings') => void;
+  onNavigate?: (page: Page) => void;
+  activePage?: Page;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onNavigate, activePage }) => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -19,7 +22,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
           onNavigate?.('dashboard');
           setMobileMenuOpen(false);
         }}
-        className="text-forest-green text-xl font-semibold hover:opacity-80 transition"
+        className="text-xl font-semibold transition"
+        style={{ color: activePage === 'dashboard' ? '#0e8a60' : '#0f2e1f' }}
       >
         Selenite
       </button>
@@ -29,7 +33,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
         {onNavigate && (
           <button
             onClick={() => onNavigate('settings')}
-            className="p-2 text-pine-mid hover:text-forest-green transition rounded hover:bg-sage-light"
+            className={`p-2 rounded transition hover:bg-sage-light ${
+              activePage === 'settings' ? 'text-forest-green bg-sage-light' : 'text-pine-mid hover:text-forest-green'
+            }`}
             aria-label="Settings"
           >
             <SettingsIcon className="w-5 h-5" />
@@ -87,7 +93,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
                     onNavigate('dashboard');
                     setMobileMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 rounded hover:bg-sage-light text-pine-deep text-left"
+                  className={`flex items-center gap-2 px-3 py-2 rounded text-left ${
+                    activePage === 'dashboard'
+                      ? 'bg-sage-light text-forest-green'
+                      : 'hover:bg-sage-light text-pine-deep'
+                  }`}
                 >
                   <span>Dashboard</span>
                 </button>
@@ -96,7 +106,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
                     onNavigate('settings');
                     setMobileMenuOpen(false);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 rounded hover:bg-sage-light text-pine-deep text-left"
+                  className={`flex items-center gap-2 px-3 py-2 rounded text-left ${
+                    activePage === 'settings'
+                      ? 'bg-sage-light text-forest-green'
+                      : 'hover:bg-sage-light text-pine-deep'
+                  }`}
                 >
                   <SettingsIcon className="w-5 h-5" />
                   <span>Settings</span>

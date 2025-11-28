@@ -82,7 +82,7 @@ export const FileDropzone: React.FC<FileDropzoneProps> = ({
       }`}
       data-testid="file-dropzone"
     >
-      <input {...getInputProps()} />
+      <input {...getInputProps()} data-testid="file-input" />
       
       {error ? (
         <>

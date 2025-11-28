@@ -7,28 +7,28 @@ describe('StatusBadge', () => {
     render(<StatusBadge status="queued" />);
     const badge = screen.getByText('Queued');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-gray-200');
+    expect(badge).toHaveClass('bg-gray-200', 'text-gray-900');
   });
 
-  it('renders processing status with sage style and animation', () => {
+  it('renders processing status with high contrast', () => {
     render(<StatusBadge status="processing" />);
     const badge = screen.getByText('Processing');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-sage-mid');
+    expect(badge).toHaveClass('bg-black', 'text-white');
   });
 
-  it('renders completed status with green style and check icon', () => {
+  it('renders completed status with high contrast', () => {
     render(<StatusBadge status="completed" />);
     const badge = screen.getByText('Completed');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-green-100');
+    expect(badge).toHaveClass('bg-black', 'text-white');
   });
 
-  it('renders failed status with red style and error icon', () => {
+  it('renders failed status with high contrast', () => {
     render(<StatusBadge status="failed" />);
     const badge = screen.getByText('Failed');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-red-100');
+    expect(badge).toHaveClass('bg-black', 'text-white');
   });
 
   it('supports different sizes', () => {

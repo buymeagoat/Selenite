@@ -52,6 +52,7 @@ export const Login: React.FC = () => {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter username"
+            autoComplete="username"
             disabled={isLoading}
           />
         </div>
@@ -64,6 +65,7 @@ export const Login: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter password"
+            autoComplete="current-password"
             disabled={isLoading}
           />
         </div>

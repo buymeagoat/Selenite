@@ -62,12 +62,16 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     return Math.max(0, Math.floor((now - startedTs) / 1000));
   }, [now, startedAt, createdAt]);
 
+  const ariaLabel = stage
+    ? `Progress ${clampedPercent} percent, stage ${stage}`
+    : `Progress ${clampedPercent} percent`;
+
   return (
     <div className="w-full">
       {(stage || estimatedTimeLeft !== undefined || elapsedSeconds !== null) && (
         <div className="flex justify-between items-center mb-1 text-xs text-pine-mid">
           <span className="flex items-center gap-2">
-            {stalled ? 'Stalled — no recent progress' : stage}
+            {stalled ? 'Stalled - no recent progress' : stage}
           </span>
           <span className="flex items-center gap-2">
             {elapsedSeconds !== null && <span>Elapsed {formatTime(elapsedSeconds)}</span>}
@@ -84,6 +88,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         aria-valuenow={clampedPercent}
         aria-valuemin={0}
         aria-valuemax={100}
+        aria-label={ariaLabel}
         data-testid="progress-bar"
       >
         <div

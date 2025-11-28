@@ -99,8 +99,9 @@ export const JobCard: React.FC<JobCardProps> = ({
               aria-label={`Select job ${job.original_filename}`}
             />
           )}
-          <span className="text-lg">🎧</span>
-          <h3 className="font-medium text-pine-deep truncate">{job.original_filename}</h3>
+          <h2 className="font-medium text-pine-deep truncate text-sm md:text-base">
+            {job.original_filename}
+          </h2>
         </div>
         <StatusBadge status={job.status} />
       </div>
@@ -110,13 +111,13 @@ export const JobCard: React.FC<JobCardProps> = ({
         <span>{formatDate(job.created_at)}</span>
         {job.duration && job.status === 'completed' && (
           <>
-            <span>•</span>
+            <span aria-hidden="true" className="text-gray-300">|</span>
             <span>Duration: {formatDuration(job.duration)}</span>
           </>
         )}
         {speakerLabel() && (
           <>
-            <span>•</span>
+            <span aria-hidden="true" className="text-gray-300">|</span>
             <span>Speakers: {speakerLabel()}</span>
           </>
         )}
@@ -134,20 +135,22 @@ export const JobCard: React.FC<JobCardProps> = ({
             stalled={job.progress_stage === 'stalled' || Boolean(job.stalled_at)}
           />
         </div>
-      )}
+        )}
 
       {/* Tags */}
       {job.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {job.tags.map((tag) => (
-            <span
-              key={tag.id}
-              className="text-xs px-2 py-1 rounded"
-              style={{ backgroundColor: tag.color + '20', color: tag.color }}
-            >
-              #{tag.name}
-            </span>
-          ))}
+        <div className="flex flex-wrap gap-2 mb-3" data-testid="job-tags">
+          {job.tags.map((tag) => {
+            return (
+              <span
+                key={tag.id}
+                data-testid="job-tag-chip"
+                className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-900 border border-gray-300"
+              >
+                #{tag.name}
+              </span>
+            );
+          })}
         </div>
       )}
 

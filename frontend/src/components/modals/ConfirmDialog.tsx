@@ -47,7 +47,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black bg-opacity-50"
@@ -62,12 +62,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
 
         {/* Title */}
-        <h3 className="text-xl font-semibold text-pine-deep text-center mb-2">
+        <h3 id="confirm-dialog-title" className="text-xl font-semibold text-pine-deep text-center mb-2">
           {title}
         </h3>
 
         {/* Message */}
-        <p className="text-pine-mid text-center mb-6">
+        <p id="confirm-dialog-message" className="text-pine-mid text-center mb-6">
           {message}
         </p>
 

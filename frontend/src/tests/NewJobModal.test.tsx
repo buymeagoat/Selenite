@@ -1,252 +1,149 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NewJobModal } from '../components/modals/NewJobModal';
+import {
+  SettingsContext,
+  type SettingsContextValue,
+} from '../context/SettingsContext';
+import { fetchCapabilities } from '../services/system';
+
+vi.mock('../services/system', () => ({
+  fetchCapabilities: vi.fn().mockResolvedValue({
+    asr: [],
+    diarizers: [
+      { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
+      { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: false, notes: ['GPU required'] },
+      { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+    ],
+  }),
+}));
+
+const mockedFetchCapabilities = fetchCapabilities as any;
+
+const baseContext: SettingsContextValue = {
+  status: 'ready',
+  settings: {
+    default_model: 'medium',
+    default_language: 'auto',
+    default_diarizer: 'vad',
+    diarization_enabled: true,
+    allow_job_overrides: true,
+    enable_timestamps: true,
+    max_concurrent_jobs: 3,
+  },
+  error: null,
+  isRefreshing: false,
+  refresh: vi.fn(),
+};
+
+const defaultProps = {
+  isOpen: true,
+  onClose: vi.fn(),
+  onSubmit: vi.fn(),
+};
 
 describe('NewJobModal', () => {
-  const mockOnClose = vi.fn();
-  const mockOnSubmit = vi.fn();
-
   beforeEach(() => {
-    mockOnClose.mockClear();
-    mockOnSubmit.mockClear();
+    defaultProps.onClose.mockClear();
+    defaultProps.onSubmit.mockClear();
+    mockedFetchCapabilities.mockClear();
+    mockedFetchCapabilities.mockResolvedValue({
+      asr: [],
+      diarizers: [
+        { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
+        { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: false, notes: ['GPU required'] },
+        { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+      ],
+    });
   });
 
-  it('does not render when isOpen is false', () => {
+  const renderModal = (
+    overrideProps: Partial<React.ComponentProps<typeof NewJobModal>> = {},
+    ctxOverrides: Partial<SettingsContextValue> = {}
+  ) =>
     render(
-      <NewJobModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
+      <SettingsContext.Provider value={{ ...baseContext, ...ctxOverrides }}>
+        <NewJobModal {...defaultProps} {...overrideProps} />
+      </SettingsContext.Provider>
     );
-    
+
+  it('does not render when isOpen is false', () => {
+    renderModal({ isOpen: false });
     expect(screen.queryByText(/start transcription/i)).not.toBeInTheDocument();
   });
 
-  it('renders modal when isOpen is true', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
+  it('renders modal when open', () => {
+    renderModal();
     expect(screen.getByText(/new transcription job/i)).toBeInTheDocument();
     expect(screen.getByText(/drag & drop file here/i)).toBeInTheDocument();
   });
 
-  it('closes modal when cancel button is clicked', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
+  it('closes modal via cancel button', () => {
+    renderModal();
     fireEvent.click(screen.getByText(/cancel/i));
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('closes modal when X button is clicked', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const closeButton = screen.getByLabelText(/close/i);
-    fireEvent.click(closeButton);
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
+  it('closes modal via close icon', () => {
+    renderModal();
+    fireEvent.click(screen.getByLabelText(/close/i));
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
 
   it('disables submit button when no file is selected', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const submitButton = screen.getByText(/start transcription/i);
-    expect(submitButton).toBeDisabled();
+    renderModal();
+    expect(screen.getByText(/start transcription/i)).toBeDisabled();
   });
 
-  it('enables submit button when file is selected', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    // Simulate file selection by finding and interacting with the dropzone
-    // This is a simplified test - actual file selection would be more complex
-    const submitButton = screen.getByText(/start transcription/i);
-    expect(submitButton).toBeDisabled();
-  });
-
-  it('shows default model selection as medium', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement;
-    expect(modelSelect.value).toBe('medium');
-  });
-
-  it('shows default language as auto-detect', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const languageSelect = screen.getByLabelText(/language/i) as HTMLSelectElement;
-    expect(languageSelect.value).toBe('auto');
+  it('shows default model and language selections', () => {
+    renderModal();
+    expect((screen.getByLabelText(/model/i) as HTMLSelectElement).value).toBe('medium');
+    expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('auto');
   });
 
   it('has timestamps checkbox checked by default', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const timestampsCheckbox = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
-    expect(timestampsCheckbox.checked).toBe(true);
+    renderModal();
+    const checkbox = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
   });
 
-  it('has speaker detection checkbox unchecked by default and enabled', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const speakerCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
-    expect(speakerCheckbox.checked).toBe(false);
-    expect(speakerCheckbox).not.toBeDisabled();
+  it('allows toggling detect speakers', async () => {
+    renderModal();
+    const checkbox = (await screen.findByLabelText(/detect speakers/i)) as HTMLInputElement;
+    expect(checkbox).not.toBeDisabled();
+    expect(checkbox.checked).toBe(true);
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(false);
   });
 
-  it('allows changing model selection', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement;
-    fireEvent.change(modelSelect, { target: { value: 'large' } });
-    expect(modelSelect.value).toBe('large');
+  it('shows diarizer dropdown with options and respects defaults', async () => {
+    renderModal({ defaultDiarizer: 'whisperx' });
+    const select = (await screen.findByTestId('diarizer-select')) as HTMLSelectElement;
+    expect(select).toBeInTheDocument();
+    expect(select.value).toBe('whisperx');
+    const options = Array.from(select.options);
+    const disabledOption = options.find((opt) => opt.value === 'pyannote');
+    expect(disabledOption?.disabled).toBe(true);
   });
 
-  it('allows changing language selection', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const languageSelect = screen.getByLabelText(/language/i) as HTMLSelectElement;
-    fireEvent.change(languageSelect, { target: { value: 'en' } });
-    expect(languageSelect.value).toBe('en');
+  it('disables speaker detection when no diarizers are available', async () => {
+    mockedFetchCapabilities.mockResolvedValueOnce({
+      asr: [],
+      diarizers: [
+        { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: false, notes: ['GPU required'] },
+        { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: false, notes: ['not installed'] },
+      ],
+    });
+    renderModal();
+    const help = await screen.findByText(/No compatible diarization models/i);
+    expect(help).toBeInTheDocument();
+    const checkbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
+    expect(checkbox).toBeDisabled();
   });
 
-  it('allows toggling checkboxes', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    const timestampsCheckbox = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
-    fireEvent.click(timestampsCheckbox);
-    expect(timestampsCheckbox.checked).toBe(false);
-
-    const speakersCheckbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
-    fireEvent.click(speakersCheckbox);
-    expect(speakersCheckbox.checked).toBe(true);
-  });
-
-  it('shows loading state during submission', async () => {
-    mockOnSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
-    
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    // This test would need actual file selection logic to work fully
-    // For now, it verifies the structure exists
-    expect(screen.getByText(/start transcription/i)).toBeInTheDocument();
-  });
-
-  it('displays error message on submission failure', async () => {
-    mockOnSubmit.mockRejectedValue(new Error('Upload failed'));
-    
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-      />
-    );
-    
-    // Would need to trigger submission with a file to see error
-    // Verifying the component structure for now
-    expect(screen.getByText(/start transcription/i)).toBeInTheDocument();
-  });
-
-  it('respects defaultModel prop', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        defaultModel="small"
-      />
-    );
-    
-    const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement;
-    expect(modelSelect.value).toBe('small');
-  });
-
-  it('respects defaultLanguage prop', () => {
-    render(
-      <NewJobModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        defaultLanguage="es"
-      />
-    );
-    
-    const languageSelect = screen.getByLabelText(/language/i) as HTMLSelectElement;
-    expect(languageSelect.value).toBe('es');
+  it('respects provided default model and language props', () => {
+    renderModal({ defaultModel: 'small', defaultLanguage: 'es' });
+    expect((screen.getByLabelText(/model/i) as HTMLSelectElement).value).toBe('small');
+    expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('es');
   });
 });

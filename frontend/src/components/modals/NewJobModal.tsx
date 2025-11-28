@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { FileDropzone } from '../upload/FileDropzone';
+import { useAdminSettings } from '../../context/SettingsContext';
+import { fetchCapabilities, type CapabilityResponse } from '../../services/system';
 
 interface NewJobModalProps {
   isOpen: boolean;
@@ -11,10 +13,12 @@ interface NewJobModalProps {
     language: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
+    diarizer?: string | null;
     speakerCount?: number | null;
   }) => Promise<void>;
   defaultModel?: string;
   defaultLanguage?: string;
+  defaultDiarizer?: string;
 }
 
 export const NewJobModal: React.FC<NewJobModalProps> = ({
@@ -22,17 +26,113 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   onClose,
   onSubmit,
   defaultModel = 'medium',
-  defaultLanguage = 'auto'
+  defaultLanguage = 'auto',
+  defaultDiarizer = 'vad',
 }) => {
+  const { settings: adminSettings } = useAdminSettings();
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [model, setModel] = useState(defaultModel);
-  const [language, setLanguage] = useState(defaultLanguage);
-  const [enableTimestamps, setEnableTimestamps] = useState(true);
-  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(false);
+  const resolvedDefaults = useMemo(
+    () => ({
+      model: defaultModel ?? adminSettings?.default_model ?? 'medium',
+      language: defaultLanguage ?? adminSettings?.default_language ?? 'auto',
+      diarizer: defaultDiarizer ?? adminSettings?.default_diarizer ?? 'vad',
+      timestamps: true,
+    }),
+    [adminSettings, defaultModel, defaultLanguage, defaultDiarizer]
+  );
+
+  const [model, setModel] = useState(resolvedDefaults.model);
+  const [language, setLanguage] = useState(resolvedDefaults.language);
+  const [enableTimestamps, setEnableTimestamps] = useState(resolvedDefaults.timestamps);
+  const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
   const [speakerCount, setSpeakerCount] = useState<number | 'auto'>('auto');
+  const [diarizer, setDiarizer] = useState(resolvedDefaults.diarizer);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
+  const [capabilities, setCapabilities] = useState<CapabilityResponse | null>(null);
+  const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null);
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCapabilities = async () => {
+      try {
+        const data = await fetchCapabilities();
+        if (cancelled) return;
+        setCapabilities(data);
+        setCapabilitiesError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setCapabilitiesError(
+          err instanceof Error ? err.message : 'Unable to load diarization capabilities'
+        );
+      } finally {
+        if (!cancelled) {
+          setCapabilitiesLoading(false);
+        }
+      }
+    };
+    loadCapabilities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fallbackDiarizers = useMemo(
+    () => [
+      { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
+      { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: true, notes: [] },
+      { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+    ],
+    []
+  );
+
+  const diarizerOptions = useMemo(
+    () => capabilities?.diarizers ?? fallbackDiarizers,
+    [capabilities, fallbackDiarizers]
+  );
+  const availableDiarizers = diarizerOptions.filter((option) => option.available);
+  const supportsDiarization = availableDiarizers.length > 0;
+  const detectSpeakersDisabled = capabilitiesLoading || !supportsDiarization;
+
+  const detectSpeakersHelpText = useMemo(() => {
+    if (capabilitiesLoading) {
+      return 'Checking diarization availability...';
+    }
+    if (capabilitiesError) {
+      return 'Unable to verify diarization availability; using safe defaults.';
+    }
+    if (!supportsDiarization) {
+      return 'No compatible diarization models are available on this system.';
+    }
+    return undefined;
+  }, [capabilitiesLoading, capabilitiesError, supportsDiarization]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    setModel(resolvedDefaults.model);
+    setLanguage(resolvedDefaults.language);
+    setEnableTimestamps(resolvedDefaults.timestamps);
+    const preferred = resolvedDefaults.diarizer;
+    const preferredAvailable = diarizerOptions.find(
+      (option) => option.key === preferred && option.available
+    );
+    const fallbackAvailable = diarizerOptions.find((option) => option.available);
+    const fallbackAny = diarizerOptions[0];
+    setDiarizer(preferredAvailable?.key ?? fallbackAvailable?.key ?? fallbackAny?.key ?? preferred);
+    setEnableSpeakerDetection(supportsDiarization);
+    setSpeakerCount('auto');
+  }, [isOpen, resolvedDefaults, diarizerOptions, supportsDiarization]);
+
+  useEffect(() => {
+    if (!enableSpeakerDetection) {
+      setSpeakerCount('auto');
+    }
+  }, [enableSpeakerDetection]);
 
   if (!isOpen) return null;
 
@@ -44,32 +144,43 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedFile) {
       setError('Please select a file');
       return;
     }
 
-    // Validate file size (2GB max)
     const maxSize = 2 * 1024 * 1024 * 1024;
     if (selectedFile.size > maxSize) {
       setFileError('File size exceeds maximum allowed (2GB)');
       return;
     }
 
-    // Validate file type
     const validTypes = [
-      'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/flac', 'audio/ogg',
-      'video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska'
+      'audio/mpeg',
+      'audio/wav',
+      'audio/x-m4a',
+      'audio/flac',
+      'audio/ogg',
+      'video/mp4',
+      'video/x-msvideo',
+      'video/quicktime',
+      'video/x-matroska',
     ];
-    if (!validTypes.includes(selectedFile.type) && 
-        !selectedFile.name.match(/\.(mp3|wav|m4a|flac|ogg|mp4|avi|mov|mkv)$/i)) {
-      setFileError('Invalid file format. Supported formats: mp3, wav, m4a, flac, ogg, mp4, avi, mov, mkv');
+    if (
+      !validTypes.includes(selectedFile.type) &&
+      !selectedFile.name.match(/\.(mp3|wav|m4a|flac|ogg|mp4|avi|mov|mkv)$/i)
+    ) {
+      setFileError(
+        'Invalid file format. Supported formats: mp3, wav, m4a, flac, ogg, mp4, avi, mov, mkv'
+      );
       return;
     }
 
     setIsSubmitting(true);
     setError('');
+
+    const diarizationActive = enableSpeakerDetection && supportsDiarization;
 
     try {
       await onSubmit({
@@ -77,23 +188,23 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         model,
         language,
         enableTimestamps,
-        enableSpeakerDetection,
-        speakerCount: enableSpeakerDetection
-          ? speakerCount === 'auto'
-            ? null
-            : speakerCount
-          : null
+        enableSpeakerDetection: diarizationActive,
+        diarizer: diarizationActive ? diarizer : null,
+        speakerCount:
+          diarizationActive && speakerCount !== 'auto' ? speakerCount : null,
       });
-      
-      // Reset form on success
+
       setSelectedFile(null);
-      setModel(defaultModel);
-      setLanguage(defaultLanguage);
-      setEnableTimestamps(true);
-      setEnableSpeakerDetection(false);
+      setModel(resolvedDefaults.model);
+      setLanguage(resolvedDefaults.language);
+      setEnableTimestamps(resolvedDefaults.timestamps);
+      setEnableSpeakerDetection(supportsDiarization);
+      setSpeakerCount('auto');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      setError(
+        err instanceof Error ? err.message : 'Upload failed. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -104,23 +215,32 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setSelectedFile(null);
       setError('');
       setFileError('');
+      setEnableSpeakerDetection(supportsDiarization);
+      setSpeakerCount('auto');
       onClose();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" data-testid="new-job-modal">
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      data-testid="new-job-modal"
+    >
       <div
         className="absolute inset-0 bg-black bg-opacity-50"
         onClick={handleClose}
       />
-      
-      {/* Modal */}
+
       <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200" data-testid="new-job-modal-header">
-          <h2 className="text-2xl font-semibold text-pine-deep">New Transcription Job</h2>
+        <div
+          className="flex items-center justify-between p-6 border-b border-gray-200"
+          data-testid="new-job-modal-header"
+        >
+          <h2 className="text-2xl font-semibold text-pine-deep">
+            New Transcription Job
+          </h2>
           <button
             type="button"
             onClick={handleClose}
@@ -132,9 +252,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6" data-testid="new-job-form">
-          {/* File Upload */}
           <div className="mb-6" data-testid="file-input-section">
             <label className="block text-sm font-medium text-pine-deep mb-2">
               Audio/Video File
@@ -148,9 +266,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             />
           </div>
 
-          {/* Model Selection */}
           <div className="mb-6">
-            <label htmlFor="model" className="block text-sm font-medium text-pine-deep mb-2">
+            <label
+              htmlFor="model"
+              className="block text-sm font-medium text-pine-deep mb-2"
+            >
               Model
             </label>
             <select
@@ -163,15 +283,21 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             >
               <option value="tiny">Tiny - Fastest, lowest accuracy (75MB)</option>
               <option value="base">Base - Fast, moderate accuracy (142MB)</option>
-              <option value="small">Small - Balanced speed and accuracy (466MB)</option>
+              <option value="small">
+                Small - Balanced speed and accuracy (466MB)
+              </option>
               <option value="medium">Medium - High accuracy, slower (1.5GB)</option>
-              <option value="large">Large - Highest accuracy, slowest (2.9GB)</option>
+              <option value="large">
+                Large - Highest accuracy, slowest (2.9GB)
+              </option>
             </select>
           </div>
 
-          {/* Language Selection */}
           <div className="mb-6">
-            <label htmlFor="language" className="block text-sm font-medium text-pine-deep mb-2">
+            <label
+              htmlFor="language"
+              className="block text-sm font-medium text-pine-deep mb-2"
+            >
               Language
             </label>
             <select
@@ -197,7 +323,6 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             </select>
           </div>
 
-          {/* Options */}
           <div className="mb-6 space-y-3">
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3 flex-wrap">
@@ -210,7 +335,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                     className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
                     data-testid="timestamps-checkbox"
                   />
-                  <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
+                  <span className="ml-2 text-sm text-pine-deep">
+                    Include timestamps
+                  </span>
                 </label>
               </div>
 
@@ -218,49 +345,78 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 <label className="flex items-center">
                   <input
                     type="checkbox"
-                    checked={enableSpeakerDetection}
+                    checked={enableSpeakerDetection && supportsDiarization}
                     onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-                    disabled={isSubmitting}
-                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                    disabled={detectSpeakersDisabled}
+                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green disabled:opacity-50"
                     data-testid="speakers-checkbox"
                   />
                   <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
                 </label>
-                {enableSpeakerDetection && (
-                  <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
-                    <label className="text-sm text-pine-mid">Speakers:</label>
-                    <select
-                      value={speakerCount}
-                      onChange={(e) =>
-                        setSpeakerCount(
-                          e.target.value === 'auto' ? 'auto' : Number(e.target.value)
-                        )
-                      }
-                      disabled={isSubmitting}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                      data-testid="speaker-count-select"
-                    >
-                      <option value="auto">Auto-detect</option>
-                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                        <option key={n} value={n}>
-                          {n} speakers
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {detectSpeakersHelpText && (
+                  <p className="text-xs text-pine-mid pl-6">{detectSpeakersHelpText}</p>
+                )}
+                {enableSpeakerDetection && supportsDiarization && (
+                  <>
+                    <div className="flex flex-col gap-2 text-sm text-pine-deep">
+                      <label className="text-sm text-pine-mid">Speaker labeling method</label>
+                      <select
+                        value={diarizer}
+                        onChange={(e) => setDiarizer(e.target.value)}
+                        disabled={detectSpeakersDisabled}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                        data-testid="diarizer-select"
+                      >
+                        {diarizerOptions.map((option) => (
+                          <option key={option.key} value={option.key} disabled={!option.available}>
+                            {option.display_name}
+                            {!option.available && option.notes.length
+                              ? ` (${option.notes.join(', ')})`
+                              : !option.available
+                                ? ' (unavailable)'
+                                : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {!availableDiarizers.find((option) => option.key === diarizer) && (
+                        <p className="text-xs text-terracotta">
+                          Selected diarization model is unavailable; choose another option.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
+                      <label className="text-sm text-pine-mid">Speakers:</label>
+                      <select
+                        value={speakerCount}
+                        onChange={(e) =>
+                          setSpeakerCount(
+                            e.target.value === 'auto' ? 'auto' : Number(e.target.value)
+                          )
+                        }
+                        disabled={detectSpeakersDisabled}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                        data-testid="speaker-count-select"
+                      >
+                        <option value="auto">Auto-detect</option>
+                        {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                          <option key={n} value={n}>
+                            {n} speakers
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex gap-3 justify-end">
             <button
               type="button"

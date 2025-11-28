@@ -46,6 +46,7 @@ describe('job services', () => {
       language: 'en',
       enable_timestamps: true,
       enable_speaker_detection: false,
+      diarizer: 'vad',
     });
 
     expect(apiUpload).toHaveBeenCalledWith('/jobs', expect.any(FormData));
@@ -55,6 +56,7 @@ describe('job services', () => {
     expect(entries).toContainEqual(['language', 'en']);
     expect(entries).toContainEqual(['enable_timestamps', 'true']);
     expect(entries).toContainEqual(['enable_speaker_detection', 'false']);
+    expect(entries).toContainEqual(['diarizer', 'vad']);
     const fileEntry = entries.find(([key]) => key === 'file');
     expect(fileEntry?.[1]).toBeInstanceOf(File);
   });
@@ -80,7 +82,7 @@ describe('job services', () => {
   it('assignTag posts tag payload', async () => {
     (apiPost as any).mockResolvedValue([]);
     await assignTag('job-4', 3);
-    expect(apiPost).toHaveBeenCalledWith('/jobs/job-4/tags', { tag_id: 3 });
+    expect(apiPost).toHaveBeenCalledWith('/jobs/job-4/tags', { tag_ids: [3] });
   });
 
   it('removeTag deletes tag resource', async () => {

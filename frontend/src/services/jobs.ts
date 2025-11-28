@@ -58,6 +58,7 @@ export interface CreateJobParams {
   enable_timestamps?: boolean;
   enable_speaker_detection?: boolean;
   speaker_count?: number;
+  diarizer?: string;
   timestamp_timezone?: 'local' | 'utc';
   timestamp_format?: 'date-time' | 'time-date' | 'time-only';
 }
@@ -108,6 +109,9 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobRespo
   if (params.speaker_count !== undefined) {
     formData.append('speaker_count', String(params.speaker_count));
   }
+  if (params.diarizer) {
+    formData.append('diarizer', params.diarizer);
+  }
 
   if (params.timestamp_timezone) {
     formData.append('timestamp_timezone', params.timestamp_timezone);
@@ -143,8 +147,9 @@ export async function deleteJob(jobId: string): Promise<void> {
 /**
  * Assign a tag to a job
  */
-export async function assignTag(jobId: string, tagId: number): Promise<Job['tags']> {
-  return apiPost<Job['tags']>(`/jobs/${jobId}/tags`, { tag_id: tagId });
+export async function assignTag(jobId: string, tagIds: number | number[]): Promise<Job['tags']> {
+  const tag_ids = Array.isArray(tagIds) ? tagIds : [tagIds];
+  return apiPost<Job['tags']>(`/jobs/${jobId}/tags`, { tag_ids });
 }
 
 /**

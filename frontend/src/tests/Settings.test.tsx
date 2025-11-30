@@ -158,11 +158,13 @@ describe('Settings', () => {
     expect(refreshSpy).toHaveBeenCalled();
   });
 
-  it('renders diarization select with capability gating', async () => {
+  it('renders diarization select with capability gating and admin toggles', async () => {
     await renderSettings();
     const select = screen.getByTestId('default-diarizer') as HTMLSelectElement;
     expect(select).toBeInTheDocument();
-    expect(select.disabled).toBe(false);
+    expect(select.disabled).toBe(true);
+    const overridesCheckbox = screen.getByTestId('default-allow-overrides') as HTMLInputElement;
+    expect(overridesCheckbox).toBeDisabled();
     const unavailableOption = Array.from(select.options).find((opt) => opt.value === 'pyannote');
     expect(unavailableOption?.disabled).toBe(true);
   });

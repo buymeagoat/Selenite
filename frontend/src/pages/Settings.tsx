@@ -467,9 +467,10 @@ export const Settings: React.FC = () => {
               id="default-diarizer"
               value={defaultDiarizer}
               onChange={(e) => setDefaultDiarizer(e.target.value)}
-              disabled={isLoadingCapabilities}
+              disabled={isLoadingCapabilities || !diarizationEnabled}
               className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
               data-testid="default-diarizer"
+              data-ready={(!isLoadingSettings && !isLoadingCapabilities).toString()}
             >
               {diarizerOptions.map((option) => (
                 <option key={option.key} value={option.key} disabled={!option.available}>
@@ -490,6 +491,42 @@ export const Settings: React.FC = () => {
                 {selectedDiarizer.notes.join(', ') || 'Not available on this system'}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                checked={enableTimestamps}
+                onChange={(e) => setEnableTimestamps(e.target.checked)}
+                className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                data-testid="default-timestamps"
+              />
+              <span className="ml-2">Include timestamps on new jobs</span>
+            </label>
+            <label className="flex items-center text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                checked={diarizationEnabled}
+                onChange={(e) => setDiarizationEnabled(e.target.checked)}
+                className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                data-testid="default-diarization-enabled"
+                data-ready={(!isLoadingSettings).toString()}
+              />
+              <span className="ml-2">Enable diarization</span>
+            </label>
+            <label className="flex items-center text-sm text-pine-deep pl-6">
+              <input
+                type="checkbox"
+                checked={allowJobOverrides}
+                onChange={(e) => setAllowJobOverrides(e.target.checked)}
+                disabled={!diarizationEnabled}
+                className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green disabled:opacity-50"
+                data-testid="default-allow-overrides"
+              />
+              <span className="ml-2">
+                Allow per-job overrides {diarizationEnabled ? '' : '(enable diarization first)'}
+              </span>
+            </label>
           </div>
           <button
             onClick={handleSaveDefaults}

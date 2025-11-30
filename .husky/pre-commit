@@ -73,18 +73,10 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
   echo "[LOG] Running backend unit tests at $(date)"
   CHANGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*\.py$' | sed 's/^backend\///' || true)
   if [ -n "$CHANGED_PY_FILES" ]; then
-    if command -v timeout >/dev/null 2>&1; then
-      if ! timeout 1800 python -m pytest -x --tb=short -q 2>/dev/null; then
-        echo "? FAILED: Unit tests failed"
-        echo "   Fix tests before committing"
-        exit 1
-      fi
-    else
-      if ! python -m pytest -x --tb=short -q 2>/dev/null; then
-        echo "? FAILED: Unit tests failed"
-        echo "   Fix tests before committing"
-        exit 1
-      fi
+    if ! python -m pytest -x --tb=short -q 2>/dev/null; then
+      echo "? FAILED: Unit tests failed"
+      echo "   Fix tests before committing"
+      exit 1
     fi
     echo "  ? Unit tests passed"
   else

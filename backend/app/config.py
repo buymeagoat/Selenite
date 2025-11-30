@@ -62,6 +62,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000"
     )
     redis_url: str | None = None
+    enable_remote_server_control: bool = False
 
     # Logging
     log_level: str = "INFO"

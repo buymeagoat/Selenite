@@ -18,6 +18,7 @@ from app.routes import search as search_module
 from app.routes import settings as settings_module
 from app.routes import exports as exports_module
 from app.routes import system as system_module
+from app.routes import diagnostics as diagnostics_module
 from app.services.job_queue import queue, resume_queued_jobs
 from app.services.system_probe import SystemProbeService
 
@@ -34,6 +35,7 @@ search_router = search_module.router
 settings_router = settings_module.router
 exports_router = exports_module.router
 system_router = system_module.router
+diagnostics_router = diagnostics_module.router
 
 
 @asynccontextmanager
@@ -123,6 +125,7 @@ app.include_router(search_router)
 app.include_router(settings_router)
 app.include_router(exports_router)
 app.include_router(system_router)
+app.include_router(diagnostics_router)
 
 
 @app.get("/health")

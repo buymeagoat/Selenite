@@ -23,5 +23,14 @@ class User(Base):
         "UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
 
+    @property
+    def is_admin(self) -> bool:
+        """
+        Return whether the user should be treated as an administrator.
+
+        For now, the single built-in `admin` account (or id 1) acts as admin.
+        """
+        return self.username == "admin" or self.id == 1
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}')>"

@@ -19,6 +19,17 @@ if (-not $bind -or $bind -eq "") {
     $bind = "0.0.0.0"
 }
 
+# Proactively ensure any previous Selenite processes are stopped before starting fresh
+try {
+    $stopScript = Join-Path $repo 'stop-selenite.ps1'
+    if (Test-Path $stopScript) {
+        Write-Host "Ensuring a clean slate by stopping existing Selenite processes..." -ForegroundColor Yellow
+        & $stopScript | Out-Null
+    }
+} catch {
+    Write-Host "Warning: Failed to run stop-selenite.ps1: $_" -ForegroundColor Yellow
+}
+
 pwsh -NoLogo -NoProfile -Command "& '$repo/bootstrap.ps1' -Dev -ResetAuth -BindIP $bind"
 
 # Example usage for Task Scheduler Action:

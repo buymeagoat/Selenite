@@ -1,14 +1,15 @@
 ## Summary
-- What changed?
-- Why?
+- Describe the change and the user/admin impact in 1-2 sentences.
+- Link the relevant PRODUCTION_TASKS ID(s).
 
-## Checks (mark all as applicable)
-- [ ] Tests run (list commands and outcomes)
-- [ ] Docs updated or memorialized (link to file/section)
-- [ ] Hygiene passed (`scripts/check_repo_hygiene.py`)
-- [ ] Security/QA checks run (lint/format/audit as applicable)
-- [ ] Migrations/schema checked (if backend touched)
+## Pre-flight Checklist
+- [ ] Ran `./scripts/pre-flight-check.ps1` and resolved any failures.
+- [ ] Ran `./run-tests.ps1 -SkipE2E` (or stricter) and captured the outcome.
+- [ ] Updated `docs/build/PRODUCTION_TASKS.md` and any manual verification docs.
+- [ ] Confirmed no hardcoded IPs/credentials or debug instrumentation remain.
+- [ ] Added/updated automated tests (or explained why not applicable).
 
-## Notes
-- Skipped checks (and why):
-- Known follow-ups:
+## Manual Verification (if required)
+- Steps taken:
+  - [ ] ...
+  - [ ] ...

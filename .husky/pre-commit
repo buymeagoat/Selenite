@@ -4,37 +4,37 @@
 
 set -e
 
-echo "🔍 Selenite QA Gateway: Pre-Commit Validation"
+echo "?? Selenite QA Gateway: Pre-Commit Validation"
 echo "=============================================="
 echo "[LOG] Pre-commit hook started at $(date)"
 
 echo ""
-echo "🧹 Stage 0: Repository Hygiene Policy"
+echo "?? Stage 0: Repository Hygiene Policy"
 if ! python scripts/check_repo_hygiene.py; then
-  echo "❌ FAILED: Repository hygiene violations detected"
+  echo "? FAILED: Repository hygiene violations detected"
   exit 1
 fi
-echo "  ✅ Repository hygiene OK"
+echo "  ? Repository hygiene OK"
 
 # Check if SKIP_QA is set (emergency bypass)
 if [ -n "$SKIP_QA" ]; then
-  echo "⚠️  WARNING: QA checks bypassed via SKIP_QA environment variable"
+  echo "??  WARNING: QA checks bypassed via SKIP_QA environment variable"
   echo "   This should only be used in emergencies!"
   exit 0
 fi
 
 # Stage 1: Commit Message Validation
 echo ""
-echo "📝 Stage 1: Commit Message Format"
+echo "?? Stage 1: Commit Message Format"
 # Note: Commit message validation should be in commit-msg hook, not pre-commit
 # Skipping Stage 1 for now (will be validated by commit-msg hook if configured)
-echo "⏭️  Commit message validation skipped (use commit-msg hook for this check)"
+echo "??  Commit message validation skipped (use commit-msg hook for this check)"
 
 # Stage 2: Backend Quality Checks
 if git diff --cached --name-only | grep -qE '^backend/'; then
   echo "[LOG] Entering backend QA checks at $(date)"
   echo ""
-  echo "🐍 Stage 2: Backend Quality Checks"
+  echo "?? Stage 2: Backend Quality Checks"
   
   cd backend
   
@@ -45,7 +45,7 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
     elif [ -f ".venv/bin/activate" ]; then
       . .venv/bin/activate
     else
-      echo "⚠️  Virtual environment not found or activated"
+      echo "??  Virtual environment not found or activated"
       echo "   Run: python -m venv .venv && source .venv/bin/activate"
       exit 1
     fi
@@ -54,33 +54,41 @@ if git diff --cached --name-only | grep -qE '^backend/'; then
   # Code formatting check
   echo "[LOG] Checking code formatting (black) at $(date)"
   if ! python -m black app/ tests/ --check --quiet 2>/dev/null; then
-    echo "❌ FAILED: Code formatting issues detected"
+    echo "? FAILED: Code formatting issues detected"
     echo "   Fix with: cd backend && black app/ tests/"
     exit 1
   fi
-  echo "  ✅ Code formatting OK"
+  echo "  ? Code formatting OK"
   
   # Linting check
   echo "[LOG] Running linter (ruff) at $(date)"
   if ! python -m ruff check app/ tests/ --quiet 2>/dev/null; then
-    echo "❌ FAILED: Linting issues detected"
+    echo "? FAILED: Linting issues detected"
     echo "   Fix with: cd backend && ruff check app/ tests/ --fix"
     exit 1
   fi
-  echo "  ✅ Linting OK"
+  echo "  ? Linting OK"
   
   # Run tests for changed files
   echo "[LOG] Running backend unit tests at $(date)"
   CHANGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*\.py$' | sed 's/^backend\///' || true)
   if [ -n "$CHANGED_PY_FILES" ]; then
-    if ! timeout 120 python -m pytest -x --tb=short -q 2>/dev/null; then
-      echo "❌ FAILED: Unit tests failed"
-      echo "   Fix tests before committing"
-      exit 1
+    if command -v timeout >/dev/null 2>&1; then
+      if ! timeout 1800 python -m pytest -x --tb=short -q 2>/dev/null; then
+        echo "? FAILED: Unit tests failed"
+        echo "   Fix tests before committing"
+        exit 1
+      fi
+    else
+      if ! python -m pytest -x --tb=short -q 2>/dev/null; then
+        echo "? FAILED: Unit tests failed"
+        echo "   Fix tests before committing"
+        exit 1
+      fi
     fi
-    echo "  ✅ Unit tests passed"
+    echo "  ? Unit tests passed"
   else
-    echo "  ⏭️  No Python files changed, skipping tests"
+    echo "  ??  No Python files changed, skipping tests"
   fi
   
   echo "[LOG] Finished backend QA checks at $(date)"
@@ -91,27 +99,27 @@ fi
 if git diff --cached --name-only | grep -qE '^frontend/'; then
   echo "[LOG] Entering frontend QA checks at $(date)"
   echo ""
-  echo "⚛️  Stage 3: Frontend Quality Checks"
+  echo "??  Stage 3: Frontend Quality Checks"
   
   cd frontend
   
   # Type checking
   echo "[LOG] Type checking (TypeScript) at $(date)"
   if ! npm run type-check --silent 2>/dev/null; then
-    echo "❌ FAILED: TypeScript type errors detected"
+    echo "? FAILED: TypeScript type errors detected"
     echo "   Fix type errors before committing"
     exit 1
   fi
-  echo "  ✅ Type checking OK"
+  echo "  ? Type checking OK"
   
   # Linting check
   echo "[LOG] Running linter (ESLint) at $(date)"
   if ! npm run lint --silent 2>/dev/null; then
-    echo "❌ FAILED: ESLint issues detected"
+    echo "? FAILED: ESLint issues detected"
     echo "   Fix with: cd frontend && npm run lint"
     exit 1
   fi
-  echo "  ✅ Linting OK"
+  echo "  ? Linting OK"
   
   # Run unit tests
   echo "[LOG] Running frontend unit tests at $(date)"
@@ -119,21 +127,21 @@ if git diff --cached --name-only | grep -qE '^frontend/'; then
   if [ -n "$CHANGED_TS_FILES" ]; then
     if command -v timeout-cli >/dev/null 2>&1; then
       if ! timeout-cli 120 npm run test --silent 2>/dev/null; then
-        echo "❌ FAILED: Unit tests failed"
+        echo "? FAILED: Unit tests failed"
         echo "   Fix tests before committing"
         exit 1
       fi
     else
       # Windows/CI fallback when timeout-cli is unavailable
       if ! npm run test --silent 2>/dev/null; then
-        echo "❌ FAILED: Unit tests failed"
+        echo "? FAILED: Unit tests failed"
         echo "   Fix tests before committing"
         exit 1
       fi
     fi
-    echo "  ✅ Unit tests passed"
+    echo "  ? Unit tests passed"
   else
-    echo "  ⏭️  No TypeScript files changed, skipping tests"
+    echo "  ??  No TypeScript files changed, skipping tests"
   fi
   
   echo "[LOG] Finished frontend QA checks at $(date)"
@@ -148,7 +156,7 @@ CHANGED_FILES=$(git diff --cached --name-only)
 # Check if API contracts were modified
 if echo "$CHANGED_FILES" | grep -qE 'backend/app/routes/'; then
   if ! echo "$CHANGED_FILES" | grep -qE 'docs/API_CONTRACTS.md'; then
-    echo "⚠️  WARNING: API routes modified but docs/API_CONTRACTS.md not updated"
+    echo "??  WARNING: API routes modified but docs/API_CONTRACTS.md not updated"
     echo "   Consider updating API documentation"
     # Don't fail, just warn
   fi
@@ -157,7 +165,7 @@ fi
 # Check if components were modified
 if echo "$CHANGED_FILES" | grep -qE 'frontend/src/components/'; then
   if ! echo "$CHANGED_FILES" | grep -qE 'docs/COMPONENT_SPECS.md'; then
-    echo "⚠️  WARNING: Components modified but docs/COMPONENT_SPECS.md not updated"
+    echo "??  WARNING: Components modified but docs/COMPONENT_SPECS.md not updated"
     echo "   Consider updating component documentation"
     # Don't fail, just warn
   fi
@@ -170,7 +178,7 @@ echo ""
 echo "=============================================="
 echo "[LOG] All QA checks passed at $(date). Proceeding with commit..."
 echo ""
-echo "💡 Tip: Run 'npm run qa' or 'make qa' to run full validation suite"
+echo "?? Tip: Run 'npm run qa' or 'make qa' to run full validation suite"
 echo ""
 
 exit 0

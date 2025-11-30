@@ -46,8 +46,7 @@ async def create_job(
     model: Optional[str] = Form(default=None),
     language: Optional[str] = Form(default=None),
     enable_timestamps: bool = Form(default=True),
-    # Speaker detection is not implemented; the flag is ignored and forced off.
-    enable_speaker_detection: bool = Form(default=False),
+    enable_speaker_detection: bool = Form(default=True),
     diarizer: Optional[str] = Form(default=None),
     speaker_count: Optional[int] = Form(default=None),
     should_fail: bool = Query(False, alias="fail"),

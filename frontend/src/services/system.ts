@@ -91,3 +91,29 @@ export interface CapabilityResponse {
 export async function fetchCapabilities(): Promise<CapabilityResponse> {
   return apiGet<CapabilityResponse>('/system/availability');
 }
+
+export interface ServerActionResponse {
+  message: string;
+  success: boolean;
+}
+
+/**
+ * Restart the server
+ */
+export async function restartServer(): Promise<ServerActionResponse> {
+  return apiPost<ServerActionResponse>('/system/restart');
+}
+
+/**
+ * Shutdown the server
+ */
+export async function shutdownServer(): Promise<ServerActionResponse> {
+  return apiPost<ServerActionResponse>('/system/shutdown');
+}
+
+/**
+ * Request a full orchestrated restart via sentinel file.
+ */
+export async function fullRestartServer(): Promise<ServerActionResponse> {
+  return apiPost<ServerActionResponse>('/system/full-restart');
+}

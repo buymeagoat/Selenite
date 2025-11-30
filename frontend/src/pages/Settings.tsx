@@ -8,11 +8,15 @@ import {
   fetchSystemInfo,
   refreshSystemInfo,
   fetchCapabilities,
+  restartServer,
+  shutdownServer,
+  fullRestartServer,
   type SystemProbe,
   type DiskUsage,
   type CapabilityResponse,
 } from '../services/system';
 import { useToast } from '../context/ToastContext';
+import { devError, devInfo } from '../lib/debug';
 
 export const Settings: React.FC = () => {
   const { showError, showSuccess } = useToast();
@@ -71,20 +75,19 @@ export const Settings: React.FC = () => {
         setCapabilities(capabilityData);
         setIsLoadingCapabilities(false);
       } catch (error) {
-        console.error('Failed to load settings:', error);
+        devError('Failed to load settings:', error);
         if (error instanceof ApiError) {
           showError(`Failed to load settings: ${error.message}`);
         } else {
           showError('Failed to load settings. Please refresh the page.');
         }
       } finally {
-        if (!isMounted) {
-          return;
+        if (isMounted) {
+          setIsLoadingSettings(false);
+          setTagsLoaded(true);
+          setIsSystemLoading(false);
+          setIsLoadingCapabilities(false);
         }
-        setIsLoadingSettings(false);
-        setTagsLoaded(true);
-        setIsSystemLoading(false);
-        setIsLoadingCapabilities(false);
       }
     };
 
@@ -147,7 +150,7 @@ export const Settings: React.FC = () => {
       showSuccess('Default transcription settings saved');
       broadcastSettingsUpdated();
     } catch (error) {
-      console.error('Failed to save defaults:', error);
+      devError('Failed to save defaults:', error);
       if (error instanceof ApiError) {
         showError(`Failed to save settings: ${error.message}`);
       } else {
@@ -162,7 +165,7 @@ export const Settings: React.FC = () => {
       showSuccess('Performance settings saved');
       broadcastSettingsUpdated();
     } catch (error) {
-      console.error('Failed to save performance:', error);
+      devError('Failed to save performance:', error);
       if (error instanceof ApiError) {
         showError(`Failed to save settings: ${error.message}`);
       } else {
@@ -172,7 +175,7 @@ export const Settings: React.FC = () => {
   };
 
   const handleEditTag = (tagId: number) => {
-    console.log('Edit tag:', tagId);
+    devInfo('Edit tag:', tagId);
     // TODO: Open edit modal
     alert(`Edit tag ${tagId} (not yet implemented)`);
   };
@@ -187,7 +190,7 @@ export const Settings: React.FC = () => {
       setTags(tags.filter(t => t.id !== tagId));
       showSuccess(`Tag deleted (removed from ${result.jobs_affected} jobs)`);
     } catch (error) {
-      console.error('Failed to delete tag:', error);
+      devError('Failed to delete tag:', error);
       if (error instanceof ApiError) {
         showError(`Failed to delete tag: ${error.message}`);
       } else {
@@ -196,19 +199,74 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleRestartServer = () => {
-    const password = prompt('Enter admin password to restart server:');
-    if (password) {
-      console.log('Restart server (placeholder)');
-      alert('Server restart not yet implemented');
+  const handleRestartServer = async () => {
+    if (!confirm('Are you sure you want to restart the server? This will briefly interrupt all operations.')) {
+      return;
+    }
+    
+    try {
+      const response = await restartServer();
+      showSuccess(response.message);
+      // The server will restart and the connection will be lost momentarily
+      setTimeout(() => {
+        showSuccess('Server should be restarting now. Reload the page in a few seconds.');
+      }, 1500);
+    } catch (error) {
+      devError('Failed to restart server:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to restart server: ${error.message}`);
+      } else {
+        showError('Failed to restart server. Please try again.');
+      }
     }
   };
 
-  const handleShutdownServer = () => {
-    const password = prompt('Enter admin password to shutdown server:');
-    if (password && confirm('Are you sure? This will stop all transcriptions.')) {
-      console.log('Shutdown server (placeholder)');
-      alert('Server shutdown not yet implemented');
+  const handleShutdownServer = async () => {
+    if (!confirm('Are you sure you want to shutdown the server? This will stop all transcriptions and you will need to manually restart it.')) {
+      return;
+    }
+    
+    if (!confirm('FINAL WARNING: The server will shutdown completely. You will need physical/SSH access to restart it. Continue?')) {
+      return;
+    }
+    
+    try {
+      const response = await shutdownServer();
+      showSuccess(response.message);
+      // The server will shutdown
+      setTimeout(() => {
+        showSuccess('Server is shutting down. You will need to manually restart it.');
+      }, 1500);
+    } catch (error) {
+      devError('Failed to shutdown server:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to shutdown server: ${error.message}`);
+      } else {
+        showError('Failed to shutdown server. Please try again.');
+      }
+    }
+  };
+
+  const handleFullRestartServer = async () => {
+    if (!confirm('Full orchestrated restart will recycle ALL components. Continue?')) {
+      return;
+    }
+    if (!confirm('Confirm again: jobs in progress will be interrupted. Proceed with full restart?')) {
+      return;
+    }
+    try {
+      const response = await fullRestartServer();
+      showSuccess(response.message);
+      setTimeout(() => {
+        showSuccess('If watchdog is running, services should come back shortly.');
+      }, 2000);
+    } catch (error) {
+      devError('Failed to request full restart:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to request full restart: ${error.message}`);
+      } else {
+        showError('Failed to request full restart.');
+      }
     }
   };
 
@@ -219,7 +277,7 @@ export const Settings: React.FC = () => {
       setSystemInfo(data);
       showSuccess('System information refreshed');
     } catch (error) {
-      console.error('Failed to refresh system info:', error);
+      devError('Failed to refresh system info:', error);
       if (error instanceof ApiError) {
         showError(`Failed to refresh system info: ${error.message}`);
       } else {
@@ -649,9 +707,18 @@ export const Settings: React.FC = () => {
             >
               Shutdown Server
             </button>
+            <button
+              onClick={handleFullRestartServer}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            >
+              Full Restart (Sentinel)
+            </button>
           </div>
           <p className="text-xs text-pine-mid">
             Warning: System operations require administrator password and may interrupt ongoing transcriptions.
+          </p>
+          <p className="text-xs text-pine-mid">
+            Full restart requires watchdog script <code>scripts/watch-restart.ps1</code> running.
           </p>
         </div>
       </section>

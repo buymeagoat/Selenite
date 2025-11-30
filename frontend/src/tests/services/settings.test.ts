@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../lib/api', () => ({
-  apiGet: vi.fn(),
+  apiFetch: vi.fn(),
   apiPut: vi.fn(),
 }));
 
-import { apiGet, apiPut } from '../../lib/api';
+import { apiFetch, apiPut } from '../../lib/api';
 import { fetchSettings, updateSettings } from '../../services/settings';
 
 describe('settings service', () => {
@@ -14,9 +14,12 @@ describe('settings service', () => {
   });
 
   it('fetchSettings retrieves data from /settings', async () => {
-    (apiGet as any).mockResolvedValue({});
+    (apiFetch as any).mockResolvedValue({});
     await fetchSettings();
-    expect(apiGet).toHaveBeenCalledWith('/settings');
+    expect(apiFetch).toHaveBeenCalledWith('/settings', {
+      method: 'GET',
+      signal: undefined,
+    });
   });
 
   it('updateSettings sends payload via PUT', async () => {

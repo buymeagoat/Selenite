@@ -9,6 +9,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { fetchSettings, type UserSettings } from '../services/settings';
+import { devInfo, devWarn } from '../lib/debug';
 
 export type SettingsStatus = 'loading' | 'ready' | 'error';
 
@@ -71,16 +72,16 @@ function recordDebugEvent(event: DebugEvent) {
   const tag = '[settings-store]';
   switch (event.type) {
     case 'init':
-      console.info(`${tag} init`, event);
+      devInfo(`${tag} init`, event);
       break;
     case 'fetch-start':
-      console.info(`${tag} fetch start`, event);
+      devInfo(`${tag} fetch start`, event);
       break;
     case 'fetch-success':
-      console.info(`${tag} fetch success`, event);
+      devInfo(`${tag} fetch success`, event);
       break;
     case 'fetch-error':
-      console.warn(`${tag} fetch error`, event.message);
+      devWarn(`${tag} fetch error`, event.message);
       break;
     default:
       break;

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NewJobModal } from '../components/modals/NewJobModal';
 import {
@@ -18,7 +18,7 @@ vi.mock('../services/system', () => ({
   }),
 }));
 
-const mockedFetchCapabilities = fetchCapabilities as any;
+const mockedFetchCapabilities = fetchCapabilities as unknown as Mock;
 
 const baseContext: SettingsContextValue = {
   status: 'ready',
@@ -57,15 +57,15 @@ describe('NewJobModal', () => {
     });
   });
 
-  const renderModal = (
-    overrideProps: Partial<React.ComponentProps<typeof NewJobModal>> = {},
-    ctxOverrides: Partial<SettingsContextValue> = {}
-  ) =>
-    render(
-      <SettingsContext.Provider value={{ ...baseContext, ...ctxOverrides }}>
-        <NewJobModal {...defaultProps} {...overrideProps} />
-      </SettingsContext.Provider>
-    );
+const renderModal = (
+  overrideProps: Partial<React.ComponentProps<typeof NewJobModal>> = {},
+  ctxOverrides: Partial<SettingsContextValue> = {}
+) =>
+  render(
+    <SettingsContext.Provider value={{ ...baseContext, ...ctxOverrides }}>
+      <NewJobModal {...defaultProps} {...overrideProps} />
+    </SettingsContext.Provider>
+  );
 
   it('does not render when isOpen is false', () => {
     renderModal({ isOpen: false });
@@ -117,7 +117,15 @@ describe('NewJobModal', () => {
   });
 
   it('shows diarizer dropdown with options and respects defaults', async () => {
-    renderModal({ defaultDiarizer: 'whisperx' });
+    renderModal(
+      {},
+      {
+        settings: {
+          ...baseContext.settings!,
+          default_diarizer: 'whisperx',
+        },
+      }
+    );
     const select = (await screen.findByTestId('diarizer-select')) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
     expect(select.value).toBe('whisperx');
@@ -141,8 +149,11 @@ describe('NewJobModal', () => {
     expect(checkbox).toBeDisabled();
   });
 
-  it('respects provided default model and language props', () => {
-    renderModal({ defaultModel: 'small', defaultLanguage: 'es' });
+  it('respects provided default model and language props when admin settings unavailable', () => {
+    renderModal(
+      { defaultModel: 'small', defaultLanguage: 'es' },
+      { settings: null }
+    );
     expect((screen.getByLabelText(/model/i) as HTMLSelectElement).value).toBe('small');
     expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('es');
   });

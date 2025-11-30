@@ -72,6 +72,16 @@ $MemorialRoot = Join-Path $RepoRoot "docs/memorialization/test-runs"
 if (-not (Test-Path $MemorialRoot)) {
     New-Item -ItemType Directory -Force -Path $MemorialRoot | Out-Null
 }
+$MaxRunHistory = 50
+$existingRuns = Get-ChildItem -Path $MemorialRoot -Directory -ErrorAction SilentlyContinue | Sort-Object CreationTime
+if ($existingRuns.Count -ge $MaxRunHistory) {
+    $removeCount = $existingRuns.Count - $MaxRunHistory + 1
+    $toRemove = $existingRuns | Select-Object -First $removeCount
+    foreach ($run in $toRemove) {
+        Write-Host "Pruning old test run archive: $($run.Name)" -ForegroundColor DarkGray
+        Remove-Item -LiteralPath $run.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 $runParts = @()
 if (-not $SkipBackend) { $runParts += "backend" }
 if (-not $SkipFrontend) { $runParts += "frontend" }
@@ -220,15 +230,35 @@ function Ensure-BackendEnv {
     }
 }
 
+function ConvertTo-AsciiSafe {
+    param([string]$Text)
+    return ([regex]'[^\u0000-\u007F]').Replace($Text, '?')
+}
+
 function Run-BackendTests {
     Write-Section "Running backend pytest suite"
+    $logPath = Join-Path $RunDir "backend.pytest.log"
     Push-Location $BackendDir
     try {
-        & $script:BackendPython -m pytest --maxfail=1 --disable-warnings --cov=app --cov-report=term
-        Throw-OnError "pytest"
+        & $script:BackendPython -m pytest --maxfail=1 --disable-warnings --cov=app --cov-report=term *> $logPath
+        $exit = $LASTEXITCODE
     }
     finally {
         Pop-Location
+    }
+    if ($exit -ne 0) {
+        Write-Host "Backend pytest failed. See $logPath for full details." -ForegroundColor Red
+        if (Test-Path $logPath) {
+            Write-Host "--- Last 40 lines (ASCII-safe) ---" -ForegroundColor Yellow
+            $tail = Get-Content $logPath -Tail 40
+            foreach ($line in $tail) {
+                Write-Host (ConvertTo-AsciiSafe $line)
+            }
+            Write-Host "---------------------------------" -ForegroundColor Yellow
+        }
+        throw "pytest failed (exit code $exit)"
+    } else {
+        Write-Host "Backend pytest output saved to $logPath" -ForegroundColor DarkGray
     }
 }
 
@@ -398,3 +428,9 @@ Write-Section "Repository hygiene verification"
 $systemPython = Get-SystemPython
 & $systemPython (Join-Path $RepoRoot "scripts/check_repo_hygiene.py")
 Throw-OnError "Repository hygiene check"
+
+# Stamp the repo so pre-flight checks know tests ran recently
+$stampPath = Join-Path $RepoRoot ".last_tests_run"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+Set-Content -Path $stampPath -Value "last_tests_run=$timestamp" -Encoding UTF8
+Write-Host "Recorded test run timestamp at $stampPath" -ForegroundColor Green

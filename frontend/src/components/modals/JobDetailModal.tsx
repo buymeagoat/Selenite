@@ -4,6 +4,7 @@ import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Job } from '../../services/jobs';
 import { createTag, type Tag } from '../../services/tags';
+import { devError } from '../../lib/debug';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -101,7 +102,7 @@ const canStop = job.status === 'processing' || job.status === 'queued';
       try {
         tagToUse = await createTag({ name: trimmed, color: '#0F3D2E' });
       } catch (err) {
-        console.error('Failed to create tag', err);
+        devError('Failed to create tag', err);
         setTagInputValue('');
         return;
       }

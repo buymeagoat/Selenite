@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchTranscript, TranscriptResponse } from '../services/transcripts';
 import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
+import { devError } from '../lib/debug';
 
 const DOWNLOAD_FORMATS = ['txt', 'md', 'srt', 'vtt', 'json', 'docx'] as const;
 
@@ -28,7 +29,7 @@ export const TranscriptView: React.FC = () => {
         const data = await fetchTranscript(jobId);
         setTranscript(data);
       } catch (error) {
-        console.error('Failed to load transcript:', error);
+        devError('Failed to load transcript:', error);
         if (error instanceof ApiError) {
           showError(error.message);
         } else {
@@ -69,7 +70,7 @@ export const TranscriptView: React.FC = () => {
       window.URL.revokeObjectURL(downloadUrl);
       showSuccess(`Transcript downloaded (${format.toUpperCase()})`);
     } catch (error) {
-      console.error('Download error:', error);
+      devError('Download error:', error);
       showError(error instanceof Error ? error.message : 'Download failed.');
     }
   };

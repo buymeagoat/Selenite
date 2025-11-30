@@ -396,6 +396,16 @@ Contributions are welcome! Please follow these steps:
 - Write tests for new features
 - Update documentation as needed
 - Keep commits focused and descriptive
+- Keep any temporary diagnostics (HTML/PS1, scripts, captured responses) inside the gitignored `scratch/` directory and keep them out of builds—never commit files with hardcoded credentials/IPs or helper pages meant only for troubleshooting.
+
+### Pre-flight Guardrails
+
+Before opening a PR (or handing work back to the admin):
+
+1. Run `./scripts/pre-flight-check.ps1` and fix any failures (missing auth guards, hardcoded credentials/IPs, stray debug logging).
+2. Run `./run-tests.ps1 -SkipE2E` (or the full suite) so `.last_tests_run` is refreshed and cite the outcome in your summary.
+3. Update `docs/build/PRODUCTION_TASKS.md` and any manual verification docs for every code/doc/test change.
+4. Keep temporary diagnostics under a gitignored scratch directory—never ship IPs/credentials or debug HTML/PS1 files in the build.
 
 ### Work Tracking Policy
 

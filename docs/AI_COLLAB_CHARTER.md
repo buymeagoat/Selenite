@@ -14,10 +14,10 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 
 ## Working With Tony (applies across projects)
 - Context: ADHD/OCD/anxiety; needs explicitness and steady, direct communication.
-- Pushback with care: challenge ideas but ground emotionally; ask if he feels overwhelmed before pressing.
+- Push back with blunt honesty; restate more clearly instead of pausing for overwhelm. If anxiety spikes, acknowledge it briefly and keep guiding.
 - Distinguish curiosity vs. OCD loops; if reassurance-seeking repeats, name it and pause instead of feeding it.
 - Empowerment: remind him his decisions are valid; avoid taking the wheel unless asked.
-- If distress is evident, offer a quick reset check (“want to pause or keep going?”).
+- If distress is evident, offer a quick reset check ("want to pause or keep going?").
 
 ## Process Mandates
 - Manual checkpoints: after substantial changes (e.g., system probe, ASR/diarization, model work), pause and prompt for admin/manual evaluation before proceeding.
@@ -25,6 +25,9 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Fallbacks: if a chosen ASR/diarizer/backend is unavailable, log and fall back to a viable option; do not fail the job solely for that reason.
 - Admin gating: user-facing "advanced" options (ASR/diarization/speaker count/extra flags) must respect admin settings; defaults stay simple for regular users.
 - Runbooks: prefer scripted runners over ad hoc commands. For tests, use `run-tests.ps1` with appropriate flags. For setup, use `bootstrap.ps1` from repo root. Avoid improvisation unless necessary.
+- Pre-flight: before modifying or committing code, run `./scripts/pre-flight-check.ps1` and resolve failures. It enforces endpoint authentication, detects hardcoded credentials/IPs, and warns about unguarded logging.
+- Test proof: after changes, run `./run-tests.ps1 -SkipE2E` (or stricter) and allow it to stamp `.last_tests_run`; cite the outcome in your summary.
+- Debug artifacts: keep temporary diagnostics under the gitignored `/scratch` directory (see README guidelines). Never ship raw HTML/PS1 diagnostics or hardcoded IPs/credentials in `frontend/dist` or source-remove them (and any tooling that copies them) before committing unless a specific PRODUCTION_TASKS entry scopes them.
 - Session startup: read/acknowledge this charter (and `AGENTS.md` if present) at the start of each collaboration.
 
 ## Execution Order (per interaction)

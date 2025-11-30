@@ -9,8 +9,8 @@ interface NewJobModalProps {
   onClose: () => void;
   onSubmit: (jobData: {
     file: File;
-    model: string;
-    language: string;
+    model?: string;
+    language?: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
@@ -25,18 +25,18 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  defaultModel = 'medium',
-  defaultLanguage = 'auto',
-  defaultDiarizer = 'vad',
+  defaultModel,
+  defaultLanguage,
+  defaultDiarizer,
 }) => {
   const { settings: adminSettings } = useAdminSettings();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const resolvedDefaults = useMemo(
     () => ({
-      model: defaultModel ?? adminSettings?.default_model ?? 'medium',
-      language: defaultLanguage ?? adminSettings?.default_language ?? 'auto',
-      diarizer: defaultDiarizer ?? adminSettings?.default_diarizer ?? 'vad',
+      model: adminSettings?.default_model ?? defaultModel ?? 'medium',
+      language: adminSettings?.default_language ?? defaultLanguage ?? 'auto',
+      diarizer: adminSettings?.default_diarizer ?? defaultDiarizer ?? 'vad',
       timestamps: true,
     }),
     [adminSettings, defaultModel, defaultLanguage, defaultDiarizer]
@@ -182,14 +182,20 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
     const diarizationActive = enableSpeakerDetection && supportsDiarization;
 
+    // Only send model/language/diarizer if they differ from saved defaults
+    // This allows backend to use user's saved preferences unless explicitly overridden
+    const modelOverride = model !== resolvedDefaults.model ? model : undefined;
+    const languageOverride = language !== resolvedDefaults.language ? language : undefined;
+    const diarizerOverride = diarizer !== resolvedDefaults.diarizer ? diarizer : undefined;
+
     try {
       await onSubmit({
         file: selectedFile,
-        model,
-        language,
+        model: modelOverride,
+        language: languageOverride,
         enableTimestamps,
         enableSpeakerDetection: diarizationActive,
-        diarizer: diarizationActive ? diarizer : null,
+        diarizer: diarizationActive ? diarizerOverride : undefined,
         speakerCount:
           diarizationActive && speakerCount !== 'auto' ? speakerCount : null,
       });

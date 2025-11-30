@@ -75,3 +75,6 @@ backend/logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Developer scratch space (keep debug helpers local only)
+scratch/

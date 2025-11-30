@@ -11,7 +11,8 @@ vi.mock('../services/settings', () => ({
     default_diarizer: 'vad',
     diarization_enabled: false,
     allow_job_overrides: false,
-    max_concurrent_jobs: 3
+    enable_timestamps: true,
+    max_concurrent_jobs: 3,
   }),
   updateSettings: vi.fn().mockResolvedValue({})
 }));
@@ -121,8 +122,7 @@ describe('Settings', () => {
     await renderSettings();
     expect(screen.getByLabelText(/default model/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/default language/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/timestamps/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/enable diarization/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/default diarizer/i)).toBeInTheDocument();
   });
 
   it('renders performance settings', async () => {
@@ -158,12 +158,13 @@ describe('Settings', () => {
     expect(refreshSpy).toHaveBeenCalled();
   });
 
-  it('renders diarization controls', async () => {
+  it('renders diarization select with capability gating', async () => {
     await renderSettings();
-    const toggle = screen.getByLabelText(/enable diarization/i) as HTMLInputElement;
-    expect(toggle).toBeInTheDocument();
     const select = screen.getByTestId('default-diarizer') as HTMLSelectElement;
-    expect(select).toBeDisabled();
+    expect(select).toBeInTheDocument();
+    expect(select.disabled).toBe(false);
+    const unavailableOption = Array.from(select.options).find((opt) => opt.value === 'pyannote');
+    expect(unavailableOption?.disabled).toBe(true);
   });
 
   it('submits password change form', async () => {

@@ -20,6 +20,7 @@ import { fetchTags, type Tag } from '../services/tags';
 import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { useAdminSettings } from '../context/SettingsContext';
+import { devError } from '../lib/debug';
 
 export const Dashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -64,7 +65,7 @@ export const Dashboard: React.FC = () => {
         setJobs(jobResp.items);
         setTags(tagResp.items);
       } catch (error) {
-        console.error('Failed to load jobs:', error);
+        devError('Failed to load jobs:', error);
         if (error instanceof ApiError) {
           showError(`Failed to load jobs: ${error.message}`);
         } else {
@@ -91,7 +92,7 @@ export const Dashboard: React.FC = () => {
       setJobs(response.items);
       setSelectedIds(new Set());
     } catch (error) {
-      console.error('Failed to poll job updates:', error);
+      devError('Failed to poll job updates:', error);
       // Continue polling on error (don't stop polling for temporary failures)
     }
   };
@@ -119,8 +120,8 @@ export const Dashboard: React.FC = () => {
 
   const handleNewJob = async (jobData: {
     file: File;
-    model: string;
-    language: string;
+    model?: string;
+    language?: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
@@ -143,7 +144,7 @@ export const Dashboard: React.FC = () => {
       const jobsResponse = await fetchJobs();
       setJobs(jobsResponse.items);
     } catch (error) {
-      console.error('Failed to create job:', error);
+      devError('Failed to create job:', error);
       if (error instanceof ApiError) {
         showError(`Failed to create job: ${error.message}`);
       } else {
@@ -210,7 +211,7 @@ export const Dashboard: React.FC = () => {
       setIsAudioPlaying(true);
       showSuccess('Playing media');
     } catch (error: any) {
-      console.error('Play failed:', error);
+      devError('Play failed:', error);
       showError(error?.message || 'Failed to play media');
     }
   };
@@ -272,7 +273,7 @@ export const Dashboard: React.FC = () => {
       window.URL.revokeObjectURL(downloadUrl);
       showSuccess(`Transcript downloaded as ${filename}`);
     } catch (error: any) {
-      console.error('Download failed:', error);
+      devError('Download failed:', error);
       showError(`Failed to download transcript: ${error?.message || 'Unknown error'}`);
     }
   };
@@ -288,7 +289,7 @@ export const Dashboard: React.FC = () => {
       const jobsResponse = await fetchJobs();
       setJobs(jobsResponse.items);
     } catch (error) {
-      console.error('Failed to restart job:', error);
+      devError('Failed to restart job:', error);
       if (error instanceof ApiError) {
         showError(`Failed to restart job: ${error.message}`);
       } else {
@@ -311,7 +312,7 @@ export const Dashboard: React.FC = () => {
         return next;
       });
     } catch (error) {
-      console.error('Failed to delete job:', error);
+      devError('Failed to delete job:', error);
       if (error instanceof ApiError) {
         showError(`Failed to delete job: ${error.message}`);
       } else {
@@ -345,7 +346,7 @@ export const Dashboard: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Failed to stop job:', error);
+      devError('Failed to stop job:', error);
       if (error instanceof ApiError) {
         showError(`Failed to stop job: ${error.message}`);
       } else {
@@ -380,7 +381,7 @@ export const Dashboard: React.FC = () => {
       setJobs(jobsResponse.items);
       clearSelection();
     } catch (error) {
-      console.error('Bulk delete failed:', error);
+      devError('Bulk delete failed:', error);
       showError('Failed to delete selected jobs. Please try again.');
     }
   };
@@ -397,7 +398,7 @@ export const Dashboard: React.FC = () => {
       setJobs(jobsResponse.items);
       clearSelection();
     } catch (error) {
-      console.error('Bulk tag failed:', error);
+      devError('Bulk tag failed:', error);
       showError('Failed to apply tag to selected jobs.');
     }
   };
@@ -447,7 +448,7 @@ export const Dashboard: React.FC = () => {
       
       showSuccess('Tags updated successfully');
     } catch (error) {
-      console.error('Failed to update tags:', error);
+      devError('Failed to update tags:', error);
       if (error instanceof ApiError) {
         showError(`Failed to update tags: ${error.message}`);
       } else {

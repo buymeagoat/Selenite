@@ -1,3 +1,5 @@
+import { devInfo, devWarn } from './debug';
+
 /**
  * API Client Utilities
  * 
@@ -15,6 +17,15 @@ if (typeof window !== 'undefined') {
 
 export const API_BASE_URL =
   envApiBase && envApiBase.length > 0 ? envApiBase : defaultApiBase;
+
+// Log API configuration on load (dev only)
+devInfo('[API CONFIG]', {
+  envApiBase,
+  defaultApiBase,
+  API_BASE_URL,
+  userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+  timestamp: new Date().toISOString()
+});
 
 export class ApiError extends Error {
   status: number;
@@ -71,11 +82,31 @@ export async function apiFetch<T>(
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
+
+  devInfo(`[API REQUEST ${requestId}]`, {
+    method: options.method || 'GET',
+    url,
+    endpoint,
+    hasToken: !!token,
+    hasBody: Boolean(options.body),
+    timestamp: new Date().toISOString()
+  });
 
   try {
     const response = await fetch(url, {
       ...options,
       headers,
+    });
+
+    const duration = Date.now() - startTime;
+    devInfo(`[API RESPONSE ${requestId}]`, {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString()
     });
 
     // Handle non-OK responses
@@ -103,6 +134,20 @@ export async function apiFetch<T>(
     const data = await response.json();
     return data as T;
   } catch (error) {
+    const duration = Date.now() - startTime;
+    devWarn(`[API ERROR ${requestId}]`, {
+      endpoint,
+      url,
+      duration: `${duration}ms`,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : error,
+      errorType: error instanceof ApiError ? 'ApiError' : error instanceof Error ? 'Error' : 'Unknown',
+      timestamp: new Date().toISOString()
+    });
+
     if (error instanceof ApiError) {
       throw error;
     }

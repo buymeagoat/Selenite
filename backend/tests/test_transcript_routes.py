@@ -51,6 +51,34 @@ async def test_db():
         session.add_all(users)
         await session.commit()
 
+        # Seed minimal ASR registry entry so jobs can be created
+        from app.config import BACKEND_ROOT
+        from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+        from app.services.model_registry import ModelRegistryService
+
+        models_root = BACKEND_ROOT / "models"
+        set_path = models_root / "test-set"
+        entry_path = set_path / "test-entry" / "model.bin"
+        entry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry_path.write_text("ok", encoding="utf-8")
+
+        model_set = await ModelRegistryService.create_model_set(
+            session,
+            ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
+            actor="system",
+        )
+        await ModelRegistryService.create_model_entry(
+            session,
+            model_set,
+            ModelEntryCreate(
+                name="test-entry",
+                description="seed entry",
+                abs_path=str(entry_path.resolve()),
+                checksum=None,
+            ),
+            actor="system",
+        )
+
     # Ensure clean worker state per test: stop then start to bind to current loop
     if queue._started:
         try:

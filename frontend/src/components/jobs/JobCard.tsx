@@ -30,13 +30,13 @@ interface JobCardProps {
   isActive?: boolean;
   isPlaying?: boolean;
   currentTime?: number;
-  duration?: number;
   playbackRate?: number;
   onDownload?: (jobId: string) => void;
   onView?: (jobId: string) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onSelectToggle?: (jobId: string, checked: boolean) => void;
+  timeZone?: string | null;
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -49,36 +49,54 @@ export const JobCard: React.FC<JobCardProps> = ({
   isActive = false,
   isPlaying = false,
   currentTime = 0,
-  duration = 0,
   playbackRate = 1,
   onDownload,
   onView,
   selectionMode = false,
   selected = false,
-  onSelectToggle
+  onSelectToggle,
+  timeZone = null,
 }) => {
+  const durationSeconds = job.duration ?? 0;
+
   const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const speakerText = (() => {
+    const detected = job.speaker_count ?? (job.has_speaker_labels ? 1 : null);
+    if (detected === null) return null;
+    const mode = job.has_speaker_labels ? 'Detected' : 'Requested';
+    return `${mode} ${detected}`;
+  })();
+
+  const parseAsUTC = (isoString: string): Date => {
+    if (!isoString) return new Date();
+    // If the string lacks a timezone, treat it as UTC to avoid double-shifting local times.
+    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(isoString);
+    return new Date(hasZone ? isoString : `${isoString}Z`);
+  };
+
   const formatDate = (isoString: string): string => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('en-US', {
+    const date = parseAsUTC(isoString);
+    return date.toLocaleString(undefined, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: timeZone || undefined,
+      timeZoneName: 'short',
     });
   };
 
-  const speakerLabel = () => {
-    if (job.speaker_count === null || job.speaker_count === undefined) return null;
-    const mode = job.has_speaker_labels ? 'Detected' : 'Requested';
-    return `${mode} ${job.speaker_count}`;
-  };
+  const showDuration = job.status === 'completed' && durationSeconds > 0;
 
   return (
     <div
@@ -109,16 +127,16 @@ export const JobCard: React.FC<JobCardProps> = ({
       {/* Metadata */}
       <div className="flex items-center gap-3 text-sm text-pine-mid mb-3">
         <span>{formatDate(job.created_at)}</span>
-        {job.duration && job.status === 'completed' && (
+        {showDuration && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
-            <span>Duration: {formatDuration(job.duration)}</span>
+            <span>Duration: {formatDuration(durationSeconds)}</span>
           </>
         )}
-        {speakerLabel() && (
+        {speakerText && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
-            <span>Speakers: {speakerLabel()}</span>
+            <span>Speakers: {speakerText}</span>
           </>
         )}
       </div>
@@ -211,15 +229,15 @@ export const JobCard: React.FC<JobCardProps> = ({
               type="range"
               min={0}
               max={100}
-              value={duration ? Math.floor((currentTime / duration) * 100) : 0}
+              value={durationSeconds ? Math.floor((currentTime / durationSeconds) * 100) : 0}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => onSeek?.(job.id, Number(e.target.value))}
               className="w-full accent-forest-green"
-              disabled={!isActive || !duration}
+              disabled={!isActive || !durationSeconds}
               aria-label={`Seek ${job.original_filename}`}
             />
             <span className="text-xs text-pine-mid">
-              {Math.floor(currentTime)}/{duration ? Math.floor(duration) : '0'}s
+              {Math.floor(currentTime)}/{durationSeconds ? Math.floor(durationSeconds) : '0'}s
             </span>
           </div>
         </div>

@@ -1,5 +1,7 @@
 """Unit tests for auth service helpers."""
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app.database import AsyncSessionLocal, engine, Base
@@ -54,11 +56,20 @@ async def test_authenticate_user_wrong_password():
 
 
 def test_create_token_response_contains_expected_fields():
-    user = User(id=42, username="svcuser", email="svc@example.com")
+    issued_at = datetime.now(timezone.utc)
+    user = User(
+        id=1,
+        username="admin",
+        email="svc@example.com",
+        created_at=issued_at,
+    )
     token = create_token_response(user)
     assert token.token_type == "bearer"
     assert token.expires_in == settings.access_token_expire_minutes * 60
 
     payload = decode_access_token(token.access_token)
-    assert payload["user_id"] == 42
-    assert payload["sub"] == "svcuser"
+    assert payload["user_id"] == 1
+    assert payload["sub"] == "admin"
+    assert token.user.username == "admin"
+    assert token.user.is_admin is True
+    assert token.user.created_at == issued_at

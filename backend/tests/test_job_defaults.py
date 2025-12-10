@@ -1,21 +1,21 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import select
 
 from app.main import app
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.user_settings import UserSettings
-from app.models.job import Job
+from app.services.provider_manager import ProviderManager
 from app.utils.security import hash_password, create_access_token
 
 
 @pytest.mark.asyncio
-async def test_job_creation_uses_user_settings_defaults():
+async def test_job_creation_uses_user_settings_defaults(monkeypatch):
     # Set up fresh schema
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     try:
+        monkeypatch.setattr(ProviderManager, "get_snapshot", lambda: {"asr": [], "diarizers": []})
         async with AsyncSessionLocal() as db:
             user = User(
                 username="defaultsuser",
@@ -37,12 +37,8 @@ async def test_job_creation_uses_user_settings_defaults():
                 files={"file": ("sample.wav", b"fake-audio", "audio/wav")},
                 data={"enable_timestamps": "true", "enable_speaker_detection": "true"},
             )
-            assert resp.status_code == 201
-            job_id = resp.json()["id"]
-
-        async with AsyncSessionLocal() as db:
-            job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one()
-            assert job.model_used == "small"
+            assert resp.status_code == 400
+            assert "No ASR models available" in resp.json()["detail"]
     finally:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)

@@ -44,6 +44,7 @@ export const Dashboard: React.FC = () => {
     status: adminSettingsStatus,
     error: adminSettingsError,
   } = useAdminSettings();
+  const effectiveTimeZone = adminSettings?.time_zone || adminSettings?.server_time_zone || null;
   const settingsErrorNotified = useRef(false);
 
   useEffect(() => {
@@ -642,30 +643,33 @@ export const Dashboard: React.FC = () => {
                 isActive={audioJobId === job.id}
                 isPlaying={isAudioPlaying && audioJobId === job.id}
                 currentTime={audioJobId === job.id ? audioPosition : 0}
-                duration={audioJobId === job.id ? audioDuration : 0}
                 playbackRate={audioJobId === job.id ? audioRate : 1}
                 onDownload={handleDownloadDefault}
                 onView={handleViewTranscript}
+                timeZone={effectiveTimeZone}
               />
             ))}
           </div>
         )}
       </div>
       {selectedJob && (
-        <JobDetailModal
-          isOpen={!!selectedJob}
-          onClose={() => setSelectedJob(null)}
-          job={selectedJob as any}
-          onPlay={handlePlay}
-          onDownload={handleDownload}
-          onRestart={handleRestart}
-          onDelete={handleDelete}
-          onStop={handleStop}
-          onViewTranscript={handleViewTranscript}
-          onUpdateTags={handleUpdateTags}
-          availableTags={availableTags}
-        />
-      )}
+      <JobDetailModal
+        isOpen={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        job={selectedJob as any}
+        onPlay={handlePlay}
+        onDownload={handleDownload}
+        onRestart={handleRestart}
+        onDelete={handleDelete}
+        onStop={handleStop}
+        onViewTranscript={handleViewTranscript}
+        onUpdateTags={handleUpdateTags}
+        availableTags={availableTags}
+        timeZone={effectiveTimeZone}
+        asrProviderHint={adminSettings?.default_asr_provider || null}
+        defaultDiarizerHint={adminSettings?.default_diarizer || null}
+      />
+    )}
       <NewJobModal
         isOpen={isNewJobModalOpen}
         onClose={() => setIsNewJobModalOpen(false)}

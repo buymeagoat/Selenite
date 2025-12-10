@@ -108,6 +108,12 @@ async def create_job(
     for note in preference["notes"]:
         logger.warning("Job %s preference adjustment: %s", job_uuid, note)
 
+    if resolved_model is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No ASR models available; contact admin to register a model.",
+        )
+
     # Create job record in database
     job = Job(
         id=str(job_uuid),

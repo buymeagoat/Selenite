@@ -12,9 +12,9 @@ Selenite is a self-hosted, privacy-focused transcription service that runs entir
 ## ✨ Features
 
 - **🔒 Local Processing**: All transcription happens on your device - complete privacy
-- **🎯 Multiple Models**: Choose from 5 Whisper models (tiny to large-v3) - balance speed vs. accuracy
-- **🌍 90+ Languages**: Supports automatic language detection and translation
-- **👥 Speaker Diarization**: Identify different speakers in conversations
+- **🧭 Admin-Managed Models**: Ships with zero bundled ASR/diarizer models; admins manually install providers, download checkpoints into `backend/models/<model_set>/<model_entry>/...`, and register them in the UI/API (no hidden fallbacks)
+- **🌍 90+ Languages**: Supports automatic language detection and translation (when the registered ASR model supports it)
+- **👥 Speaker Diarization**: Identify different speakers in conversations using registered diarizer entries
 - **⏱️ Timestamps**: Add precise timestamps to transcripts
 - **🏷️ Tag Organization**: Organize jobs with custom colored tags
 - **🔍 Search & Filter**: Quickly find jobs by name, status, date, or tags
@@ -49,13 +49,19 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-3. **Frontend setup**:
+3. **Install ASR/diarizer providers + place models (manual, admin-only)**:
+   - Inside the virtualenv, install only the providers you intend to run (examples):  
+     `pip install faster-whisper` (ASR), `pip install pyannote.audio` (diarizer), plus any GPU runtimes you prefer. Nothing is installed automatically.
+   - Download each model checkpoint manually into `backend/models/<model_set>/<model_entry>/...`. The `<model_set>` directory name should match the provider (e.g., `faster-whisper`), and `<model_entry>` should match the specific model variant (e.g., `medium-int8`).
+   - You must register every set + entry via the Admin UI (or REST) before creating jobs: create the model set (ASR or DIARIZER), add one or more entries pointed at the downloaded paths, enable them, and select the defaults. If the registry is empty or all entries are disabled, job creation is blocked with “Contact admin to register a model.”
+
+4. **Frontend setup**:
 ```bash
 cd ../frontend
 npm install
 ```
 
-4. **Start the application (production stack only)**:
+5. **Start the application (production stack only)**:
 
 The fastest way is to run the automated bootstrap script from the repository root:
 
@@ -96,11 +102,25 @@ cd ..
 python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
 ```
 
-> We no longer maintain a separate “dev server.” Everything runs with production settings to mirror the actual deployment.
+> We no longer maintain a separate "dev server." Everything runs with production settings to mirror the actual deployment.
+> ASR/diarizer providers and model files are never downloaded automatically—install them in the backend venv, place checkpoints under `backend/models/<set>/<entry>/...`, and register + enable them via the Admin UI before running real jobs.
 
-5. **Open in browser**: Navigate to `http://localhost:5173`
+6. **Open in browser**: Navigate to `http://localhost:5173`
 
 Default credentials: `admin` / (your configured password)
+
+> Remote/LAN access: CORS is enforced by FastAPI. To use the UI over Tailscale or your LAN (e.g., `http://100.85.28.75:5173` or `http://192.168.1.52:5173`), set `CORS_ORIGINS` in your `.env` to include those origins, or rely on the private-network regex default (`CORS_ORIGIN_REGEX`) which already allows RFC1918 + `100.x.x.x` addresses. Restart the backend after changing CORS values.
+
+### Model Registry Workflow (Admins)
+
+- No models ship with the app. Providers must be installed manually in the backend virtualenv, and model files must live under `backend/models/<model_set>/<model_entry>/...` (anything outside this tree is rejected).
+- Use the Admin tab (or `/model-registry` API) to create model sets (ASR or diarizer) and model entries (specific checkpoints). Each entry stores the absolute path you downloaded.
+- Enable or disable sets/entries at any time; disabled entries require a reason. `/system/availability` reports only enabled, registered items.
+- Before users can create jobs, pick the default ASR provider/model and (if used) diarizer provider/model from the registered, enabled entries.
+- Manual verification checkpoints (UI-only for operators):
+  1) After registering sets/entries, click **Rescan availability** in Admin → Model Registry and confirm the expected entries appear.
+  2) In Admin → Advanced ASR & Diarization, choose defaults from the enabled registry entries.
+  3) Open New Job; if no ASR entries are enabled, the submit button is disabled with “Contact admin to register a model.”
 
 ### Automated Test Runner
 
@@ -272,12 +292,16 @@ DATABASE_URL=sqlite+aiosqlite:///./selenite.db
 # Storage
 MEDIA_STORAGE_PATH=./storage/media
 TRANSCRIPT_STORAGE_PATH=./storage/transcripts
-MODEL_STORAGE_PATH=../models
+MODEL_STORAGE_PATH=./backend/models  # registry entries must live under backend/models/<model_set>/<model_entry>/...
 
 # Transcription
 MAX_CONCURRENT_JOBS=3
-DEFAULT_WHISPER_MODEL=medium
 DEFAULT_LANGUAGE=auto
+# Defaults must reference enabled registry items; set after registering:
+# DEFAULT_ASR_PROVIDER=your-set-name
+# DEFAULT_ASR_MODEL=your-entry-name
+# DEFAULT_DIARIZER_PROVIDER=your-diarizer-set
+# DEFAULT_DIARIZER_MODEL=your-diarizer-entry
 
 # Server
 HOST=0.0.0.0
@@ -352,6 +376,8 @@ Start the backend and navigate to:
 ## 📊 Performance
 
 ### Whisper Model Benchmarks
+
+If you register Whisper checkpoints (e.g., via `faster-whisper`), expect roughly:
 
 | Model | Speed | Accuracy | RAM | Disk | Use Case |
 |-------|-------|----------|-----|------|----------|

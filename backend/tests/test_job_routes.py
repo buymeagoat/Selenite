@@ -12,11 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.main import app
+from app.config import BACKEND_ROOT
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.job import Job
 from app.models.tag import Tag
 from app.utils.security import create_access_token, hash_password
+from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+from app.services.model_registry import ModelRegistryService
 
 
 @pytest.fixture
@@ -36,6 +39,30 @@ async def test_db():
         )
         session.add(test_user)
         await session.commit()
+
+        # Seed a minimal ASR registry entry so jobs can be created
+        models_root = BACKEND_ROOT / "models"
+        set_path = models_root / "test-set"
+        entry_path = set_path / "test-entry" / "model.bin"
+        entry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry_path.write_text("ok", encoding="utf-8")
+
+        model_set = await ModelRegistryService.create_model_set(
+            session,
+            ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
+            actor="system",
+        )
+        await ModelRegistryService.create_model_entry(
+            session,
+            model_set,
+            ModelEntryCreate(
+                name="test-entry",
+                description="seed entry",
+                abs_path=str(entry_path.resolve()),
+                checksum=None,
+            ),
+            actor="system",
+        )
 
     yield
 
@@ -279,7 +306,7 @@ class TestGetJob:
         assert json_data["id"] == job_id
         assert json_data["original_filename"] == "test.mp3"
         assert json_data["status"] == "queued"
-        assert json_data["model_used"] == "medium"
+        assert json_data["model_used"] == "test-entry"
         assert "file_path" in json_data
         assert "saved_filename" in json_data
         assert "available_exports" in json_data

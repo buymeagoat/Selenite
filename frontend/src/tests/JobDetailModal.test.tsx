@@ -15,6 +15,7 @@ const mockJob: Job = {
   estimated_time_left: 0,
   estimated_total_seconds: 2000,
   model_used: 'medium',
+  diarizer_used: null,
   language_detected: 'English',
   speaker_count: null,
   has_timestamps: true,
@@ -123,8 +124,8 @@ describe('JobDetailModal', () => {
       />
     );
     
-    expect(screen.getByText(/30:34/)).toBeInTheDocument(); // Duration
-    expect(screen.getByText('medium')).toBeInTheDocument(); // Model
+    expect(screen.getByText(/00:30:34/)).toBeInTheDocument(); // Duration
+    expect(screen.getByText('Unknown / medium')).toBeInTheDocument(); // Model (provider / entry)
     expect(screen.getByText('English')).toBeInTheDocument(); // Language
     expect(screen.getByText(/Not available/i)).toBeInTheDocument(); // Speakers disabled
     expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size

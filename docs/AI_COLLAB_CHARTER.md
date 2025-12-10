@@ -25,6 +25,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Fallbacks: if a chosen ASR/diarizer/backend is unavailable, log and fall back to a viable option; do not fail the job solely for that reason.
 - Admin gating: user-facing "advanced" options (ASR/diarization/speaker count/extra flags) must respect admin settings; defaults stay simple for regular users.
 - Runbooks: prefer scripted runners over ad hoc commands. For tests, use `run-tests.ps1` with appropriate flags. For setup, use `bootstrap.ps1` from repo root. Avoid improvisation unless necessary.
+- Repository hygiene: never invoke `git clean -fd*` directly. Use `scripts/protected-clean.ps1 -DryRun` to review deletions, and only allow the script to execute the real cleanup after it confirms no protected paths (`docs/memorialization`, `models`, `logs`, `storage`, `scratch`) are targeted.
 - Pre-flight: before modifying or committing code, run `./scripts/pre-flight-check.ps1` and resolve failures. It enforces endpoint authentication, detects hardcoded credentials/IPs, and warns about unguarded logging.
 - Test proof: after changes, run `./run-tests.ps1 -SkipE2E` (or stricter) and allow it to stamp `.last_tests_run`; cite the outcome in your summary.
 - Debug artifacts: keep temporary diagnostics under the gitignored `/scratch` directory (see README guidelines). Never ship raw HTML/PS1 diagnostics or hardcoded IPs/credentials in `frontend/dist` or source-remove them (and any tooling that copies them) before committing unless a specific PRODUCTION_TASKS entry scopes them.

@@ -6,5 +6,16 @@ from app.models.job import Job
 from app.models.tag import Tag, job_tags
 from app.models.transcript import Transcript
 from app.models.settings import Settings
+from app.models.model_provider import ModelEntry, ModelSet
 
-__all__ = ["User", "UserSettings", "Job", "Tag", "Transcript", "Settings", "job_tags"]
+__all__ = [
+    "User",
+    "UserSettings",
+    "Job",
+    "Tag",
+    "Transcript",
+    "Settings",
+    "ModelSet",
+    "ModelEntry",
+    "job_tags",
+]

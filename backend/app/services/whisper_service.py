@@ -21,7 +21,9 @@ from app.database import AsyncSessionLocal
 from app.models.job import Job
 from app.models.user_settings import UserSettings
 from app.models.transcript import Transcript
+from app.models.system_preferences import SystemPreferences
 from app.services.capabilities import enforce_runtime_diarizer, get_asr_candidate_order
+from app.services.provider_manager import ProviderManager
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,64 @@ class WhisperService:
             logger.info(f"Successfully loaded Whisper model: {model_name}")
             return model
 
+    async def _load_model_from_record(self, record) -> Any:
+        """Load a Whisper model using a registry record's abs_path."""
+
+        async with _model_lock:
+            cache_key = f"{record.set_name}:{record.name}"
+            if cache_key in _model_cache:
+                logger.info(
+                    "Using cached Whisper model: %s (set=%s path=%s)",
+                    cache_key,
+                    record.set_name,
+                    record.abs_path,
+                )
+                return _model_cache[cache_key]
+
+            try:
+                import whisper
+            except ImportError:
+                raise ImportError(
+                    "openai-whisper package not installed. Install with: pip install openai-whisper"
+                )
+
+            model_path = Path(record.abs_path)
+            if model_path.is_file():
+                download_root = model_path.parent
+                model_name = model_path.stem
+            elif model_path.is_dir():
+                candidate = model_path / f"{record.name}.pt"
+                if candidate.exists():
+                    download_root = model_path
+                    model_name = record.name
+                else:
+                    pt_files = list(model_path.glob("*.pt"))
+                    if not pt_files:
+                        raise FileNotFoundError(
+                            f"No .pt file found in {model_path}; cannot load Whisper model {record.name}"
+                        )
+                    download_root = model_path
+                    model_name = pt_files[0].stem
+            else:
+                raise FileNotFoundError(f"Model path does not exist: {model_path}")
+
+            logger.info(
+                "Loading Whisper model from registry set=%s entry=%s path=%s (resolved name=%s, root=%s)",
+                record.set_name,
+                record.name,
+                model_path,
+                model_name,
+                download_root,
+            )
+            loop = asyncio.get_event_loop()
+            model = await loop.run_in_executor(
+                None, lambda: whisper.load_model(model_name, download_root=str(download_root))
+            )
+
+            _model_cache[cache_key] = model
+            logger.info("Successfully loaded Whisper model %s from %s", model_name, download_root)
+            return model
+
     async def transcribe_audio(
         self,
         audio_path: str,
@@ -122,6 +182,8 @@ class WhisperService:
         language: Optional[str] = None,
         enable_timestamps: bool = True,
         enable_speaker_detection: bool = False,
+        *,
+        model_obj: Any = None,
     ) -> Dict[str, Any]:
         """Transcribe an audio/video file using Whisper.
 
@@ -131,19 +193,10 @@ class WhisperService:
             language: Language code (e.g., 'en', 'es') or None for auto-detect
             enable_timestamps: Include word-level timestamps
             enable_speaker_detection: Enable speaker diarization (requires pyannote)
+            model_obj: Optional pre-loaded whisper model (bypasses internal load)
 
         Returns:
-            Dictionary with transcription results:
-            {
-                'text': str,  # Full transcript text
-                'segments': List[Dict],  # Timestamped segments
-                'language': str,  # Detected or specified language
-                'duration': float,  # Audio duration in seconds
-            }
-
-        Raises:
-            FileNotFoundError: If audio file doesn't exist
-            RuntimeError: If transcription fails
+            Dictionary with transcription results.
         """
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -151,22 +204,19 @@ class WhisperService:
         logger.info(f"Starting transcription: {audio_path} with model {model_name}")
 
         try:
-            model = await self.load_model(model_name)
+            model = model_obj or await self.load_model(model_name)
 
-            # Prepare transcription options
             transcribe_options = {
                 "language": language if language and language != "auto" else None,
                 "task": "transcribe",
                 "verbose": False,
             }
 
-            # Run transcription in thread pool (CPU-intensive)
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None, lambda: model.transcribe(audio_path, **transcribe_options)
             )
 
-            # Extract results
             normalized_segments = self._normalize_segments(result.get("segments", []))
             formatted_text = self._format_full_text(
                 normalized_segments,
@@ -180,12 +230,6 @@ class WhisperService:
                 "duration": result.get("duration", 0.0),
             }
 
-            # TODO: Speaker diarization integration (requires pyannote.audio)
-            # if enable_speaker_detection:
-            #     transcript_result = await self._add_speaker_labels(
-            #         audio_path, transcript_result
-            #     )
-
             logger.info(
                 f"Transcription complete: {len(transcript_result['segments'])} segments, "
                 f"{transcript_result['duration']:.1f}s duration"
@@ -196,6 +240,276 @@ class WhisperService:
         except Exception as exc:
             logger.error(f"Transcription failed for {audio_path}: {exc}")
             raise RuntimeError(f"Transcription failed: {str(exc)}") from exc
+
+    def _probe_duration_seconds(self, audio_path: Path) -> Optional[float]:
+        """Best-effort duration probe using ffmpeg, returning None on failure."""
+        try:
+            import ffmpeg
+        except ImportError:
+            return None
+
+        try:
+            probe = ffmpeg.probe(str(audio_path))
+            fmt = probe.get("format") or {}
+            dur = fmt.get("duration")
+            if dur is not None:
+                return float(dur)
+        except Exception as exc:  # best effort
+            logger.warning("Could not probe duration for %s: %s", audio_path, exc)
+        return None
+
+    def _resolve_diarizer_record(self, name: Optional[str]):
+        if not name:
+            return None
+        snapshot = ProviderManager.get_snapshot()
+        return next((r for r in snapshot["diarizers"] if r.name == name and r.enabled), None)
+
+    async def _get_system_preferences(self, db: AsyncSession) -> SystemPreferences:
+        result = await db.execute(select(SystemPreferences).where(SystemPreferences.id == 1))
+        prefs = result.scalar_one_or_none()
+        if not prefs:
+            prefs = SystemPreferences(id=1, server_time_zone="UTC", transcode_to_wav=True)
+            db.add(prefs)
+            await db.commit()
+            await db.refresh(prefs)
+        return prefs
+
+    def _transcode_to_wav(self, src: Path, job_id: str) -> Path:
+        """Transcode a source audio/video file to WAV for downstream processing."""
+        try:
+            import ffmpeg  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError("ffmpeg-python not installed") from exc
+
+        dst = Path(settings.media_storage_path) / f"{src.stem}-{job_id}-pcm.wav"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        stream = ffmpeg.input(str(src))
+        out = ffmpeg.output(stream, str(dst), format="wav", acodec="pcm_s16le")
+        ffmpeg.run(out, overwrite_output=True, quiet=True)
+        return dst
+
+    def _diarizer_available(self, record) -> bool:
+        if not record:
+            return False
+        model_path = Path(record.abs_path)
+        if not model_path.exists():
+            logger.warning("Diarizer path missing for %s: %s", record.name, model_path)
+            return False
+        config_path = model_path / "config.yaml" if model_path.is_dir() else model_path
+        if not config_path.exists():
+            logger.warning("Diarizer config missing for %s at %s", record.name, config_path)
+            return False
+        try:
+            import torchaudio  # type: ignore
+
+            if not hasattr(torchaudio, "set_audio_backend"):
+                torchaudio.set_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+            if not hasattr(torchaudio, "get_audio_backend"):
+                torchaudio.get_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+            if not hasattr(torchaudio, "list_audio_backends"):
+                torchaudio.list_audio_backends = lambda *args, **kwargs: []  # type: ignore[attr-defined]
+            else:
+                try:
+                    torchaudio.set_audio_backend("soundfile")  # type: ignore[attr-defined]
+                except Exception:
+                    torchaudio.set_audio_backend = lambda *args, **kwargs: None  # fallback no-op
+        except ImportError:
+            pass
+        try:
+            import torch  # noqa: F401
+            import pyannote.audio  # noqa: F401
+        except ImportError as exc:
+            logger.warning("Diarizer '%s' not available (missing deps): %s", record.name, exc)
+            return False
+        except Exception as exc:
+            logger.warning("Diarizer '%s' import error: %s", record.name, exc)
+            return False
+        return True
+
+    async def _run_diarization(self, audio_path: str, record) -> Dict[str, Any]:
+        """Run pyannote diarization for a given registry record."""
+        try:
+            import torchaudio  # type: ignore
+
+            if not hasattr(torchaudio, "set_audio_backend"):
+                torchaudio.set_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+            if not hasattr(torchaudio, "get_audio_backend"):
+                torchaudio.get_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+            if not hasattr(torchaudio, "list_audio_backends"):
+                torchaudio.list_audio_backends = lambda *args, **kwargs: []  # type: ignore[attr-defined]
+            else:
+                try:
+                    torchaudio.set_audio_backend("soundfile")  # type: ignore[attr-defined]
+                except Exception:
+                    torchaudio.set_audio_backend = lambda *args, **kwargs: None  # fallback no-op
+            from pyannote.audio import Pipeline
+        except ImportError as exc:
+            raise RuntimeError(f"pyannote.audio not installed: {exc}") from exc
+
+        model_path = Path(record.abs_path)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Diarizer path not found: {model_path}")
+
+        # Allow admin to point to either a directory containing config.yaml or the config file itself.
+        if model_path.is_dir():
+            config_path = model_path / "config.yaml"
+            base_dir = model_path
+        else:
+            config_path = model_path
+            base_dir = model_path.parent
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"Diarizer config not found at {config_path}")
+
+        # Ensure torch is imported in this scope so any nested helpers and finally blocks
+        # can reference it without tripping a NameError if pyannote throws mid-load.
+        try:
+            import numpy as np  # type: ignore
+
+            # Numpy 2.x dropped the legacy NAN alias; pyannote still references it.
+            if not hasattr(np, "NAN"):
+                np.NAN = np.nan  # type: ignore[attr-defined]
+        except Exception:
+            logger.exception("Unable to import torch before initializing diarizer pipeline")
+            raise
+
+        # Rewrite HF repo references in config.yaml to local checkpoint files if present
+        # so Pipeline/Model.from_pretrained skip hub validation and stay offline.
+        def _rewrite_local_paths(obj):
+            if isinstance(obj, dict):
+                return {k: _rewrite_local_paths(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_rewrite_local_paths(v) for v in obj]
+            if isinstance(obj, str):
+                # Look for a local directory matching the repo id tail and pick a .bin inside it.
+                tail = obj.split("/")[-1]
+                candidate_dir = base_dir / tail
+                candidate_file = candidate_dir / "pytorch_model.bin"
+                if candidate_file.exists():
+                    logger.info("Using local diarizer checkpoint for %s -> %s", obj, candidate_file)
+                    return str(candidate_file)
+                # fallback: any .bin inside the candidate dir
+                if candidate_dir.is_dir():
+                    bin_files = list(candidate_dir.glob("*.bin"))
+                    if bin_files:
+                        chosen = bin_files[0]
+                        logger.info("Using local diarizer checkpoint for %s -> %s", obj, chosen)
+                        return str(chosen)
+            return obj
+
+        import yaml
+
+        with config_path.open("r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+
+        rewritten = _rewrite_local_paths(config_data)
+        local_config_path = base_dir / "_local_config.generated.yaml"
+        with local_config_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(rewritten, f)
+
+        temp_wav: Optional[Path] = None
+
+        def _load_waveform(path: Path):
+            nonlocal temp_wav
+            try:
+                import torchaudio  # type: ignore
+
+                waveform, sample_rate = torchaudio.load(str(path))
+                return waveform, sample_rate
+            except Exception as exc:
+                logger.warning(
+                    "Primary audio load for diarization failed (%s); attempting ffmpeg re-encode",
+                    exc,
+                )
+                # Fallback 1: soundfile (if available) without re-encode
+                try:
+                    import soundfile as sf  # type: ignore
+                    import torch
+
+                    data, sample_rate = sf.read(str(path))
+                    tensor = torch.tensor(data, dtype=torch.float32)
+                    if tensor.ndim == 1:
+                        tensor = tensor.unsqueeze(0)
+                    else:
+                        tensor = tensor.transpose(0, 1)
+                    return tensor, sample_rate
+                except Exception as sf_exc:
+                    logger.warning(
+                        "soundfile load also failed (%s); attempting ffmpeg re-encode", sf_exc
+                    )
+                try:
+                    import ffmpeg  # type: ignore
+                except ImportError:
+                    raise RuntimeError(
+                        "torchaudio/soundfile could not read diarization input and ffmpeg is missing"
+                    ) from exc
+                temp_wav = base_dir / f"{path.stem}-diarizer-reencode.wav"
+                stream = ffmpeg.input(str(path))
+                out = ffmpeg.output(
+                    stream, str(temp_wav), format="wav", acodec="pcm_s16le", ar=16000, ac=1
+                )
+                ffmpeg.run(out, overwrite_output=True, quiet=True)
+                try:
+                    import soundfile as sf  # type: ignore
+                    import torch
+
+                    data, sample_rate = sf.read(str(temp_wav))
+                    tensor = torch.tensor(data, dtype=torch.float32)
+                    if tensor.ndim == 1:
+                        tensor = tensor.unsqueeze(0)
+                    else:
+                        tensor = tensor.transpose(0, 1)
+                    return tensor, sample_rate
+                except Exception as final_exc:
+                    logger.warning("Even re-encoded diarizer audio load failed (%s)", final_exc)
+                    raise
+
+        def _infer():
+            import torch
+            import torch.serialization as ser
+
+            original_load = torch.load
+            original_ser_load = ser.load
+
+            def _load_weights_friendly(*args, **kwargs):
+                kwargs.setdefault("weights_only", False)
+                return original_load(*args, **kwargs)
+
+            def _ser_load_weights_friendly(*args, **kwargs):
+                kwargs.setdefault("weights_only", False)
+                return original_ser_load(*args, **kwargs)
+
+            torch.load = _load_weights_friendly  # type: ignore[assignment]
+            ser.load = _ser_load_weights_friendly  # type: ignore[assignment]
+            if hasattr(ser, "_set_default_weights_only"):
+                try:
+                    ser._set_default_weights_only(False)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            try:
+                pipeline = Pipeline.from_pretrained(str(local_config_path))
+                try:
+                    waveform, sample_rate = _load_waveform(Path(audio_path))
+                    diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+                except Exception as exc:
+                    logger.warning(
+                        "Falling back to path-based diarization load after waveform decode failure: %s",
+                        exc,
+                    )
+                    diarization = pipeline(audio_path)
+                speakers = set()
+                for segment, _, label in diarization.itertracks(yield_label=True):
+                    speakers.add(label)
+                return {"speaker_count": max(1, len(speakers)), "raw": diarization}
+            finally:
+                torch.load = original_load  # type: ignore[assignment]
+                ser.load = original_ser_load  # type: ignore[assignment]
+                if temp_wav:
+                    with suppress(Exception):
+                        temp_wav.unlink(missing_ok=True)
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _infer)
 
     async def process_job(self, job_id: str, db: AsyncSession) -> None:
         """Process a transcription job end-to-end.
@@ -221,9 +535,12 @@ class WhisperService:
             select(UserSettings).where(UserSettings.user_id == job.user_id)
         )
         user_settings = settings_result.scalar_one_or_none()
+        system_preferences = await self._get_system_preferences(db)
 
         progress_task: Optional[asyncio.Task] = None
         fast_path = settings.is_testing or settings.e2e_fast_transcription
+        transcoded_path: Optional[Path] = None
+        audio_path_for_processing: str = job.file_path
         try:
             if fast_path:
                 await self._wait_for_processing_slot(db)
@@ -248,6 +565,20 @@ class WhisperService:
             job.diarizer_used = runtime_diarizer["diarizer"]
             if not job.has_speaker_labels:
                 job.speaker_count = None
+            diarizer_record = self._resolve_diarizer_record(job.diarizer_used)
+            diarizer_ready = (
+                self._diarizer_available(diarizer_record) if job.has_speaker_labels else False
+            )
+            if not diarizer_ready:
+                if job.diarizer_used:
+                    logger.warning(
+                        "Job %s diarizer %s not runnable on this system; proceeding without diarization",
+                        job_id,
+                        job.diarizer_used,
+                    )
+                    job.diarizer_used = f"{job.diarizer_used} (failed)"
+                job.has_speaker_labels = False
+                job.speaker_count = 1
 
             # Stage 1: Loading model
             job.status = "processing"
@@ -271,35 +602,92 @@ class WhisperService:
             if await self._abort_if_cancelled(job, db, "before resolving model availability"):
                 return
 
+            # Resolve model candidates from registry (provider + entry)
+            preferred_provider = user_settings.default_asr_provider if user_settings else None
+            snapshot = ProviderManager.get_snapshot()
+            enabled_asr = snapshot["asr"]
             candidate_models = get_asr_candidate_order(job.model_used, user_settings)
-            resolved_model: Optional[str] = None
+
+            def pick_records(names: list[str], preferred: Optional[str]):
+                records = []
+                for name in names:
+                    pref = next(
+                        (
+                            r
+                            for r in enabled_asr
+                            if r.name == name and (preferred is None or r.set_name == preferred)
+                        ),
+                        None,
+                    )
+                    if pref:
+                        records.append(pref)
+                        continue
+                    fallback = next((r for r in enabled_asr if r.name == name), None)
+                    if fallback:
+                        records.append(fallback)
+                return records
+
+            candidate_records = pick_records(candidate_models, preferred_provider)
+            if not candidate_records:
+                raise RuntimeError("No Whisper models are available in the registry.")
+
+            resolved_record = None
             last_error: Optional[Exception] = None
-            for candidate in candidate_models:
+            for record in candidate_records:
                 try:
-                    await self.load_model(candidate)
-                    resolved_model = candidate
+                    await self._load_model_from_record(record)
+                    resolved_record = record
                     break
-                except FileNotFoundError as exc:
+                except Exception as exc:
                     last_error = exc
                     logger.warning(
-                        "Job %s model '%s' unavailable; trying next candidate", job_id, candidate
+                        "Job %s model '%s/%s' unavailable; trying next candidate (%s)",
+                        job_id,
+                        record.set_name,
+                        record.name,
+                        exc,
                     )
-            if resolved_model is None:
+            if resolved_record is None:
                 raise RuntimeError(
                     "No Whisper models are available in the configured model directory."
                 ) from last_error
-            if resolved_model != job.model_used:
+
+            logger.info(
+                "Job %s using ASR model set=%s entry=%s abs_path=%s",
+                job_id,
+                resolved_record.set_name,
+                resolved_record.name,
+                resolved_record.abs_path,
+            )
+            if resolved_record.name != job.model_used:
                 logger.warning(
                     "Job %s model fallback applied: %s -> %s",
                     job_id,
                     job.model_used,
-                    resolved_model,
+                    resolved_record.name,
                 )
-                job.model_used = resolved_model
+                job.model_used = resolved_record.name
                 await db.commit()
                 await db.refresh(job)
-            model_name = resolved_model
+
+            model_name = resolved_record.name
             language = job.language_detected if job.language_detected != "auto" else None
+
+            # Optional transcode to WAV for better backend compatibility (pyannote on CPU).
+            if (
+                system_preferences.transcode_to_wav
+                and Path(audio_path_for_processing).suffix.lower() != ".wav"
+            ):
+                try:
+                    transcoded_path = self._transcode_to_wav(Path(job.file_path), job.id)
+                    audio_path_for_processing = str(transcoded_path)
+                    logger.info("Job %s transcoded input to WAV at %s", job_id, transcoded_path)
+                except Exception as exc:
+                    logger.warning(
+                        "Job %s failed to transcode input to WAV: %s; continuing with original file",
+                        job_id,
+                        exc,
+                    )
 
             if await self._abort_if_cancelled(job, db, "after selecting model"):
                 return
@@ -322,14 +710,50 @@ class WhisperService:
                         await progress_task
                 return
 
-            # Perform transcription
+            # Perform transcription using the resolved record/path
+            model_obj = await self._load_model_from_record(resolved_record)
             transcript_result = await self.transcribe_audio(
-                audio_path=job.file_path,
+                audio_path=audio_path_for_processing,
                 model_name=model_name,
                 language=language,
                 enable_timestamps=job.has_timestamps,
                 enable_speaker_detection=job.has_speaker_labels,
+                model_obj=model_obj,
             )
+
+            if job.has_speaker_labels and diarizer_ready and diarizer_record:
+                try:
+                    diarization_result = await self._run_diarization(
+                        audio_path_for_processing, diarizer_record
+                    )
+                    job.speaker_count = diarization_result.get("speaker_count") or 1
+                    logger.info(
+                        "Job %s diarization success using %s: %s speakers",
+                        job_id,
+                        diarizer_record.name,
+                        job.speaker_count,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Job %s diarization failed with %s: %s; falling back to 1 speaker",
+                        job_id,
+                        diarizer_record.name,
+                        exc,
+                    )
+                    job.diarizer_used = f"{job.diarizer_used} (failed)"
+                    job.has_speaker_labels = False
+                    job.speaker_count = 1
+
+            duration = transcript_result.get("duration") or 0.0
+            if duration <= 0 and job.duration:
+                duration = job.duration
+            if duration <= 0:
+                probed = self._probe_duration_seconds(Path(audio_path_for_processing))
+                if probed:
+                    duration = probed
+            if duration <= 0:
+                duration = float(settings.default_estimated_duration_seconds)
+            transcript_result["duration"] = float(duration)
 
             if await self._abort_if_cancelled(job, db, "after transcription"):
                 if progress_task:
@@ -383,7 +807,8 @@ class WhisperService:
             job.estimated_time_left = None
             job.duration = transcript_result["duration"]
             job.language_detected = transcript_result["language"]
-            job.speaker_count = self._estimate_speaker_count(transcript_result)
+            if not job.speaker_count:
+                job.speaker_count = self._estimate_speaker_count(transcript_result)
             job.transcript_path = str(transcript_path)
             job.estimated_total_seconds = self._estimate_total_seconds(
                 job, transcript_result["duration"]
@@ -407,6 +832,10 @@ class WhisperService:
             job.estimated_time_left = None
             job.error_message = str(exc)
             await db.commit()
+        finally:
+            if transcoded_path:
+                with suppress(Exception):
+                    transcoded_path.unlink(missing_ok=True)
 
     def _estimate_speaker_count(self, transcript_result: Dict[str, Any]) -> int:
         """Estimate number of speakers from transcript.
@@ -439,7 +868,7 @@ class WhisperService:
         """Estimate total processing time based on duration and model."""
         duration = duration_hint if duration_hint is not None else job.duration
         base_seconds = float(duration or settings.default_estimated_duration_seconds)
-        factor = self._model_speed_factor(job.model_used or settings.default_whisper_model)
+        factor = self._model_speed_factor(job.model_used or "unknown")
         estimate = int(max(base_seconds * factor, 60))
         return estimate
 

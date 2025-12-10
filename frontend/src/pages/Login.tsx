@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { apiPost, ApiError } from '../lib/api';
 import { devInfo, devError } from '../lib/debug';
+import type { CurrentUserResponse } from '../services/auth';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -26,13 +27,18 @@ export const Login: React.FC = () => {
     });
 
     try {
-      const data = await apiPost<{ access_token: string; token_type: string; email?: string }>('/auth/login', {
+      const data = await apiPost<{
+        access_token: string;
+        token_type: string;
+        expires_in: number;
+        user: CurrentUserResponse;
+      }>('/auth/login', {
         username,
         password
       });
 
       devInfo('[LOGIN SUCCESS]', { username, hasToken: !!data.access_token });
-      login(data.access_token, { username, email: data.email || `${username}@example.com` });
+      login(data.access_token, data.user);
       navigate('/');
     } catch (err) {
       devError('[LOGIN FAILED]', err);

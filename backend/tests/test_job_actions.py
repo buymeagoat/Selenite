@@ -5,11 +5,15 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
+from app.config import BACKEND_ROOT
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.job import Job
 from app.utils.security import hash_password, create_access_token
+from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+from app.services.model_registry import ModelRegistryService
+from app.services.provider_manager import ProviderManager
 
 
 @pytest.fixture(scope="function")
@@ -29,6 +33,33 @@ async def test_db():
         )
         session.add(user)
         await session.commit()
+
+        # Seed a minimal ASR model in the registry so jobs can be created
+        models_root = BACKEND_ROOT / "models"
+        set_path = models_root / "test-set"
+        entry_path = set_path / "test-entry" / "model.bin"
+        entry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry_path.write_text("ok", encoding="utf-8")
+
+        model_set = await ModelRegistryService.create_model_set(
+            session,
+            ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
+            actor="system",
+        )
+    await ModelRegistryService.create_model_entry(
+        session,
+        model_set,
+        ModelEntryCreate(
+            name="test-entry",
+            description="seed entry",
+            abs_path=str(entry_path.resolve()),
+            checksum=None,
+        ),
+        actor="system",
+    )
+
+    # Refresh provider cache for tests
+    await ProviderManager.refresh(session)
 
     yield
 
@@ -134,18 +165,19 @@ async def test_settings_get_and_update(test_db, auth_headers):
             "/settings",
             headers=auth_headers,
             json={
-                "default_model": "small",
+                "default_asr_provider": "test-set",
+                "default_model": "test-entry",
                 "default_language": "en",
                 "max_concurrent_jobs": 2,
             },
         )
         assert put_resp.status_code == 200
         updated = put_resp.json()
-        assert updated["default_model"] == "small"
+        assert updated["default_model"] == "test-entry"
         assert updated["default_language"] == "en"
         assert updated["max_concurrent_jobs"] == 2
         async with AsyncSessionLocal() as session:
             res = await session.execute(
-                UserSettings.__table__.select().where(UserSettings.default_model == "small")
+                UserSettings.__table__.select().where(UserSettings.default_model == "test-entry")
             )
             assert res.first() is not None

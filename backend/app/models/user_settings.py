@@ -21,6 +21,7 @@ class UserSettings(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    default_asr_provider = Column(String(255), nullable=True)
     default_model = Column(String(20), nullable=False, default="medium")
     default_language = Column(String(10), nullable=False, default="auto")
     default_diarizer = Column(String(20), nullable=False, default="vad")
@@ -28,6 +29,7 @@ class UserSettings(Base):
     allow_job_overrides = Column(Boolean, nullable=False, default=False)
     enable_timestamps = Column(Boolean, nullable=False, default=True)
     max_concurrent_jobs = Column(Integer, nullable=False, default=3)
+    time_zone = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

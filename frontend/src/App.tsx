@@ -3,18 +3,22 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
+import { Admin } from './pages/Admin';
 import { ToastProvider } from './context/ToastContext';
 
-type Page = 'dashboard' | 'settings';
+type Page = 'dashboard' | 'settings' | 'admin';
 
 const App: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const currentPage: Page = location.pathname === '/settings' ? 'settings' : 'dashboard';
+  const currentPage: Page =
+    location.pathname === '/settings' ? 'settings' : location.pathname === '/admin' ? 'admin' : 'dashboard';
 
   const handleNavigate = (page: Page) => {
     if (page === 'settings') {
       navigate('/settings');
+    } else if (page === 'admin') {
+      navigate('/admin');
     } else {
       navigate('/');
     }
@@ -27,6 +31,7 @@ const App: React.FC = () => {
         <main className="flex-1">
           {currentPage === 'dashboard' && <Dashboard />}
           {currentPage === 'settings' && <Settings />}
+          {currentPage === 'admin' && <Admin />}
         </main>
       </div>
     </ToastProvider>

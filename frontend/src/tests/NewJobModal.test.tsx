@@ -9,11 +9,11 @@ import { fetchCapabilities } from '../services/system';
 
 vi.mock('../services/system', () => ({
   fetchCapabilities: vi.fn().mockResolvedValue({
-    asr: [],
+    asr: [
+      { provider: 'test-asr', display_name: 'test-asr', available: true, models: ['asr-entry'], notes: [] },
+    ],
     diarizers: [
-      { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
-      { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: false, notes: ['GPU required'] },
-      { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+      { key: 'diar-entry', display_name: 'diar-entry', requires_gpu: false, available: true, notes: [] },
     ],
   }),
 }));
@@ -23,13 +23,17 @@ const mockedFetchCapabilities = fetchCapabilities as unknown as Mock;
 const baseContext: SettingsContextValue = {
   status: 'ready',
   settings: {
-    default_model: 'medium',
+    default_asr_provider: 'test-asr',
+    default_model: 'asr-entry',
     default_language: 'auto',
-    default_diarizer: 'vad',
+    default_diarizer: 'diar-entry',
     diarization_enabled: true,
     allow_job_overrides: true,
     enable_timestamps: true,
     max_concurrent_jobs: 3,
+    time_zone: 'UTC',
+    server_time_zone: 'UTC',
+    transcode_to_wav: true,
   },
   error: null,
   isRefreshing: false,
@@ -48,11 +52,11 @@ describe('NewJobModal', () => {
     defaultProps.onSubmit.mockClear();
     mockedFetchCapabilities.mockClear();
     mockedFetchCapabilities.mockResolvedValue({
-      asr: [],
+      asr: [
+        { provider: 'test-asr', display_name: 'test-asr', available: true, models: ['asr-entry'], notes: [] },
+      ],
       diarizers: [
-        { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
-        { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: false, notes: ['GPU required'] },
-        { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
+        { key: 'diar-entry', display_name: 'diar-entry', requires_gpu: false, available: true, notes: [] },
       ],
     });
   });
@@ -95,9 +99,10 @@ const renderModal = (
     expect(screen.getByText(/start transcription/i)).toBeDisabled();
   });
 
-  it('shows default model and language selections', () => {
+  it('shows default model and language selections', async () => {
     renderModal();
-    expect((screen.getByLabelText(/model/i) as HTMLSelectElement).value).toBe('medium');
+    const modelSelect = (await screen.findByLabelText(/model/i)) as HTMLSelectElement;
+    expect(modelSelect.value).toBe('asr-entry');
     expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('auto');
   });
 
@@ -122,39 +127,21 @@ const renderModal = (
       {
         settings: {
           ...baseContext.settings!,
-          default_diarizer: 'whisperx',
+          default_diarizer: 'diar-entry',
         },
       }
     );
     const select = (await screen.findByTestId('diarizer-select')) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
-    expect(select.value).toBe('whisperx');
-    const options = Array.from(select.options);
-    const disabledOption = options.find((opt) => opt.value === 'pyannote');
-    expect(disabledOption?.disabled).toBe(true);
+    expect(select.value).toBe('diar-entry');
   });
 
-  it('disables speaker detection when no diarizers are available', async () => {
-    mockedFetchCapabilities.mockResolvedValueOnce({
-      asr: [],
-      diarizers: [
-        { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: false, notes: ['GPU required'] },
-        { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: false, notes: ['not installed'] },
-      ],
-    });
+  it('disables model selection and submit when registry is empty', async () => {
+    mockedFetchCapabilities.mockResolvedValueOnce({ asr: [], diarizers: [] });
     renderModal();
-    const help = await screen.findByText(/No compatible diarization models/i);
-    expect(help).toBeInTheDocument();
-    const checkbox = screen.getByLabelText(/detect speakers/i) as HTMLInputElement;
-    expect(checkbox).toBeDisabled();
-  });
-
-  it('respects provided default model and language props when admin settings unavailable', () => {
-    renderModal(
-      { defaultModel: 'small', defaultLanguage: 'es' },
-      { settings: null }
-    );
-    expect((screen.getByLabelText(/model/i) as HTMLSelectElement).value).toBe('small');
-    expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('es');
+    const modelSelect = (await screen.findByTestId('model-select')) as HTMLSelectElement;
+    expect(modelSelect).toBeDisabled();
+    expect(screen.getByTestId('start-transcription-btn')).toBeDisabled();
+    expect(await screen.findByText(/contact admin to register a model/i)).toBeInTheDocument();
   });
 });

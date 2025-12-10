@@ -28,6 +28,10 @@ const router = createBrowserRouter([
     element: <ProtectedApp />,
   },
   {
+    path: '/admin',
+    element: <ProtectedApp />,
+  },
+  {
     path: '/transcripts/:jobId',
     element: (
       <ProtectedRoute>

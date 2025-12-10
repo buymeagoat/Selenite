@@ -8,20 +8,80 @@ import { devInfo, devWarn } from './debug';
 
 const envApiBase = import.meta.env.VITE_API_URL?.trim();
 
-let defaultApiBase = 'http://localhost:8100';
-if (typeof window !== 'undefined') {
-  const protocol = window.location?.protocol || 'http:';
-  const hostname = window.location?.hostname || 'localhost';
-  defaultApiBase = `${protocol}//${hostname}:8100`;
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+
+const getRuntimeHostInfo = () => {
+  if (typeof window === 'undefined') {
+    return {
+      protocol: 'http:',
+      hostname: 'localhost'
+    };
+  }
+
+  return {
+    protocol: window.location?.protocol || 'http:',
+    hostname: window.location?.hostname || 'localhost'
+  };
+};
+
+const isLoopbackHost = (host?: string | null) => {
+  if (!host) {
+    return false;
+  }
+  const normalized = host.toLowerCase();
+  return (
+    LOOPBACK_HOSTS.includes(normalized) ||
+    normalized.startsWith('127.')
+  );
+};
+
+const parseUrl = (value?: string | null): URL | null => {
+  if (!value || value.length === 0) {
+    return null;
+  }
+  try {
+    return new URL(value);
+  } catch (error) {
+    devWarn('[API CONFIG] Invalid VITE_API_URL provided; falling back to runtime host.', {
+      provided: value,
+      error: error instanceof Error ? error.message : 'unknown'
+    });
+    return null;
+  }
+};
+
+const runtimeHostInfo = getRuntimeHostInfo();
+const runtimeApiBase = `${runtimeHostInfo.protocol}//${runtimeHostInfo.hostname}:8100`;
+const envApiUrl = parseUrl(envApiBase);
+
+let resolvedApiBase = (envApiBase && envApiBase.length > 0)
+  ? envApiBase
+  : runtimeApiBase;
+
+if (envApiUrl && typeof window !== 'undefined') {
+  const envIsLoopback = isLoopbackHost(envApiUrl.hostname);
+  const runtimeIsLoopback = isLoopbackHost(runtimeHostInfo.hostname);
+
+  if (envIsLoopback && !runtimeIsLoopback) {
+    // If the bundle was built with a loopback API base but the browser is remote, prefer the runtime host.
+    devWarn('[API CONFIG] Remote browser detected but VITE_API_URL points to loopback; defaulting to runtime host.', {
+      envApiBase,
+      runtimeApiBase
+    });
+    resolvedApiBase = runtimeApiBase;
+  }
 }
 
-export const API_BASE_URL =
-  envApiBase && envApiBase.length > 0 ? envApiBase : defaultApiBase;
+export const API_BASE_URL = resolvedApiBase;
 
 // Log API configuration on load (dev only)
 devInfo('[API CONFIG]', {
   envApiBase,
-  defaultApiBase,
+  runtimeApiBase,
+  envHost: envApiUrl?.hostname ?? null,
+  runtimeHost: runtimeHostInfo.hostname,
+  envIsLoopback: envApiUrl ? isLoopbackHost(envApiUrl.hostname) : null,
+  runtimeIsLoopback: isLoopbackHost(runtimeHostInfo.hostname),
   API_BASE_URL,
   userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
   timestamp: new Date().toISOString()

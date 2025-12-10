@@ -19,6 +19,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int = Field(..., description="Token expiration time in seconds")
+    user: "UserResponse"
 
 
 class UserResponse(BaseModel):
@@ -29,6 +30,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: Optional[str] = None
+    is_admin: bool
     created_at: datetime
 
 

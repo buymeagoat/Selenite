@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 import { FileDropzone } from '../upload/FileDropzone';
 import { useAdminSettings } from '../../context/SettingsContext';
 import { fetchCapabilities, type CapabilityResponse } from '../../services/system';
@@ -34,9 +34,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const resolvedDefaults = useMemo(
     () => ({
-      model: adminSettings?.default_model ?? defaultModel ?? 'medium',
+      model: adminSettings?.default_model ?? defaultModel ?? '',
       language: adminSettings?.default_language ?? defaultLanguage ?? 'auto',
-      diarizer: adminSettings?.default_diarizer ?? defaultDiarizer ?? 'vad',
+      diarizer: adminSettings?.default_diarizer ?? defaultDiarizer ?? '',
       timestamps: true,
     }),
     [adminSettings, defaultModel, defaultLanguage, defaultDiarizer]
@@ -80,22 +80,22 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     };
   }, []);
 
-  const fallbackDiarizers = useMemo(
-    () => [
-      { key: 'whisperx', display_name: 'WhisperX', requires_gpu: true, available: true, notes: [] },
-      { key: 'pyannote', display_name: 'Pyannote', requires_gpu: true, available: true, notes: [] },
-      { key: 'vad', display_name: 'VAD + clustering', requires_gpu: false, available: true, notes: [] },
-    ],
-    []
-  );
-
-  const diarizerOptions = useMemo(
-    () => capabilities?.diarizers ?? fallbackDiarizers,
-    [capabilities, fallbackDiarizers]
-  );
+  const diarizerOptions = useMemo(() => capabilities?.diarizers ?? [], [capabilities]);
   const availableDiarizers = diarizerOptions.filter((option) => option.available);
   const supportsDiarization = availableDiarizers.length > 0;
   const detectSpeakersDisabled = capabilitiesLoading || !supportsDiarization;
+
+  const asrModelOptions = useMemo(() => {
+    if (!capabilities?.asr?.length) return [];
+    return capabilities.asr.flatMap((provider) =>
+      provider.models.map((model) => ({
+        value: model,
+        label: `${model} (${provider.provider})`,
+      }))
+    );
+  }, [capabilities]);
+
+  const hasAsrModels = asrModelOptions.length > 0;
 
   const detectSpeakersHelpText = useMemo(() => {
     if (capabilitiesLoading) {
@@ -114,7 +114,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     if (!isOpen) {
       return;
     }
-    setModel(resolvedDefaults.model);
+    const availableModelValues = asrModelOptions.map((opt) => opt.value);
+    const resolvedModel = availableModelValues.includes(resolvedDefaults.model)
+      ? resolvedDefaults.model
+      : availableModelValues[0] ?? '';
+    setModel(hasAsrModels ? resolvedModel : '');
     setLanguage(resolvedDefaults.language);
     setEnableTimestamps(resolvedDefaults.timestamps);
     const preferred = resolvedDefaults.diarizer;
@@ -126,7 +130,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setDiarizer(preferredAvailable?.key ?? fallbackAvailable?.key ?? fallbackAny?.key ?? preferred);
     setEnableSpeakerDetection(supportsDiarization);
     setSpeakerCount('auto');
-  }, [isOpen, resolvedDefaults, diarizerOptions, supportsDiarization]);
+  }, [isOpen, resolvedDefaults, diarizerOptions, supportsDiarization, hasAsrModels, asrModelOptions]);
 
   useEffect(() => {
     if (!enableSpeakerDetection) {
@@ -144,6 +148,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!hasAsrModels) {
+      setError('No ASR models available. Contact admin to register a model.');
+      return;
+    }
 
     if (!selectedFile) {
       setError('Please select a file');
@@ -283,20 +292,22 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               id="model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !hasAsrModels}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
               data-testid="model-select"
             >
-              <option value="tiny">Tiny - Fastest, lowest accuracy (75MB)</option>
-              <option value="base">Base - Fast, moderate accuracy (142MB)</option>
-              <option value="small">
-                Small - Balanced speed and accuracy (466MB)
-              </option>
-              <option value="medium">Medium - High accuracy, slower (1.5GB)</option>
-              <option value="large">
-                Large - Highest accuracy, slowest (2.9GB)
-              </option>
+              {!hasAsrModels && <option value="">No models registered</option>}
+              {asrModelOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+            {!hasAsrModels && (
+              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Contact admin to register a model.
+              </p>
+            )}
           </div>
 
           <div className="mb-6">
@@ -435,7 +446,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!selectedFile || isSubmitting}
+              disabled={!selectedFile || isSubmitting || !hasAsrModels}
               className="px-6 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               data-testid="start-transcription-btn"
             >

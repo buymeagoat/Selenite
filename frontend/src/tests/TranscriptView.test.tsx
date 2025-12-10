@@ -57,9 +57,12 @@ describe('TranscriptView', () => {
 
     await waitFor(() => expect(fetchTranscriptMock).toHaveBeenCalledWith('job-1'));
     expect(localStorage.getItem('auth_token')).toBe('abc123');
-    expect(screen.getByText(/job id: job-1/i)).toBeInTheDocument();
-    expect(screen.getByText(/\[00:00\.0 – 00:05\.0\] hello world/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/hello world/i).length).toBeGreaterThan(0);
+    const jobHeading = await screen.findByText(/job id: job-1/i);
+    expect(jobHeading).toBeInTheDocument();
+    const transcriptText = await screen.findByText(/\[00:00\.0 – 00:05\.0\] hello world/i);
+    expect(transcriptText).toBeInTheDocument();
+    const helloInstances = await screen.findAllByText(/hello world/i);
+    expect(helloInstances.length).toBeGreaterThan(0);
   });
 
   it('surfaces errors and shows fallback when transcript cannot be loaded', async () => {

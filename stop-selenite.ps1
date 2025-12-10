@@ -1,18 +1,19 @@
 <#
 .SYNOPSIS
-    Stop all Selenite processes.
+    Stop all Selenite processes (backend uvicorn, frontend vite/node).
 
 .DESCRIPTION
-    Finds and stops all Python and Node processes related to Selenite
-    (uvicorn backend and vite frontend).
+    Matches running processes by command line contents and known ports
+    (8100 for backend, 5173 for frontend) and stops them.
 #>
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "Stopping Selenite processes..." -ForegroundColor Cyan
 
-# Find Selenite-related processes more robustly via CIM (match by command line)
+# Collect candidate processes by command line (python/node running uvicorn/vite/npm)
 $processes = @()
+$currentPid = $PID
 try {
     $procCim = Get-CimInstance Win32_Process | Where-Object {
         ($_.Name -match 'python|node') -and (
@@ -38,6 +39,10 @@ try {
 
 # Deduplicate
 $processes = $processes | Sort-Object Id -Unique
+# Do not stop the current PowerShell host or the invoker scripts
+$processes = $processes | Where-Object {
+    $_.Id -ne $currentPid -and ($_.CommandLine -notmatch 'start-selenite\.ps1' -and $_.CommandLine -notmatch 'restart-selenite\.ps1')
+}
 
 if (-not $processes -or $processes.Count -eq 0) {
     Write-Host "No Selenite processes found by command line match." -ForegroundColor Yellow
@@ -55,9 +60,9 @@ if (-not $processes -or $processes.Count -eq 0) {
         try {
             Write-Host "Stopping PID $($_.Id) ($($_.ProcessName))..." -ForegroundColor Yellow
             Stop-Process -Id $_.Id -Force -ErrorAction Stop
-            Write-Host "  ✓ Stopped" -ForegroundColor Green
+            Write-Host "  Stopped" -ForegroundColor Green
         } catch {
-            Write-Host "  ✗ Failed: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  Failed: $($_.Exception.Message)" -ForegroundColor Red
         }
     }
 }
@@ -76,7 +81,7 @@ function Stop-PortListeners {
                 if ($p) {
                     Write-Host "Stopping listener PID $pid on port $port ($($p.ProcessName))..." -ForegroundColor Yellow
                     Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-                    Write-Host "  ✓ Stopped" -ForegroundColor Green
+                    Write-Host "  Stopped" -ForegroundColor Green
                 } else {
                     Write-Host "Listener on port $port had exited (PID $pid)." -ForegroundColor Yellow
                 }
@@ -91,9 +96,7 @@ Start-Sleep -Seconds 2
 
 # Verify all stopped (by port and by command line)
 $remaining = @()
-try {
-    $remaining += Get-NetTCPConnection -LocalPort 8100,5173 -State Listen -ErrorAction SilentlyContinue
-} catch {}
+try { $remaining += Get-NetTCPConnection -LocalPort 8100,5173 -State Listen -ErrorAction SilentlyContinue } catch {}
 try {
     $remaining += (Get-CimInstance Win32_Process | Where-Object {
         ($_.Name -match 'python|node') -and (
@@ -106,7 +109,7 @@ try {
 } catch {}
 
 if ($remaining -and $remaining.Count -gt 0) {
-    Write-Host "" 
+    Write-Host ""
     Write-Host "Warning: Some processes are still running:" -ForegroundColor Red
     try {
         $remaining | ForEach-Object {
@@ -119,6 +122,6 @@ if ($remaining -and $remaining.Count -gt 0) {
         }
     } catch {}
 } else {
-    Write-Host "" 
-    Write-Host "✓ All Selenite processes stopped." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "All Selenite processes stopped." -ForegroundColor Green
 }

@@ -13,7 +13,8 @@ param(
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8100,   # Backend port
     [string]$BindIP = "0.0.0.0",  # Bind address for backend/frontend (0.0.0.0 listens on all)
-    [string]$ApiBase = ""           # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
+    [string]$ApiBase = "",          # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
+    [string[]]$AdvertiseHosts = @()  # Additional hosts/IPs to advertise for CORS + docs (e.g., LAN + Tailscale)
 )
 
 Set-StrictMode -Version Latest
@@ -56,31 +57,67 @@ function Invoke-SqliteGuard {
 
 function Get-CorsOriginList {
     param(
-        [string]$AdvertisedApi,
-        [string]$BindHost
+        [string[]]$AdvertisedHosts
     )
     $origins = [System.Collections.Generic.List[string]]::new()
     foreach ($origin in @("http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000")) {
         if (-not $origins.Contains($origin)) { $origins.Add($origin) }
     }
-    $customHosts = @()
-    if ($AdvertisedApi) {
-        try {
-            $uri = [Uri]$AdvertisedApi
-            if ($uri.Host) { $customHosts += $uri.Host }
-        } catch {}
-    }
-    if ($BindHost -and $BindHost -ne "0.0.0.0" -and $BindHost -ne "127.0.0.1" -and $BindHost -ne "localhost") {
-        $customHosts += $BindHost
-    }
-    $customHosts = $customHosts | Where-Object { $_ } | Select-Object -Unique
-    foreach ($customHost in $customHosts) {
+    $hostSet = $AdvertisedHosts | Where-Object { $_ } | Select-Object -Unique
+    foreach ($hostEntry in $hostSet) {
+        $normalized = Normalize-HostEntry -Value $hostEntry
+        if (-not $normalized) { continue }
         foreach ($port in 5173,3000) {
-            $origin = "http://$customHost`:$port"
+            $origin = "http://$normalized`:$port"
             if (-not $origins.Contains($origin)) { $origins.Add($origin) }
         }
     }
     return ($origins -join ",")
+}
+
+function Normalize-HostEntry {
+    param([string]$Value)
+    if (-not $Value) { return $null }
+    $trimmed = $Value.Trim()
+    if (-not $trimmed) { return $null }
+    try {
+        $uri = if ($trimmed -match '://') { [Uri]$trimmed } else { [Uri]("http://$trimmed") }
+        if ($uri.Host) { return $uri.Host }
+    } catch {}
+    return $trimmed
+}
+
+function Get-AdvertisedHostList {
+    param(
+        [string]$BindHost,
+        [string]$AdvertisedApi,
+        [string[]]$ExplicitHosts
+    )
+    $hostSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($seed in @('localhost','127.0.0.1')) {
+        [void]$hostSet.Add($seed)
+    }
+    if ($AdvertisedApi) {
+        $apiHost = Normalize-HostEntry -Value $AdvertisedApi
+        if ($apiHost) { [void]$hostSet.Add($apiHost) }
+    }
+    if ($BindHost -and $BindHost -ne '0.0.0.0') {
+        $bindHostNormalized = Normalize-HostEntry -Value $BindHost
+        if ($bindHostNormalized) { [void]$hostSet.Add($bindHostNormalized) }
+    }
+    foreach ($explicit in $ExplicitHosts) {
+        $explicitHost = Normalize-HostEntry -Value $explicit
+        if ($explicitHost) { [void]$hostSet.Add($explicitHost) }
+    }
+    if ($BindHost -eq '0.0.0.0' -and -not $ExplicitHosts) {
+        $candidates = Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual, Dhcp -ErrorAction SilentlyContinue | Where-Object {
+            $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*'
+        }
+        foreach ($candidate in $candidates) {
+            [void]$hostSet.Add($candidate.IPAddress)
+        }
+    }
+    return [System.Linq.Enumerable]::ToArray($hostSet)
 }
 
 function Write-Section($Message) {
@@ -249,7 +286,6 @@ if (-not $SkipPreflight) {
             $oldPort = $BindPort
             $BindPort = Get-FreePort
             $ApiBaseResolved = if ($ApiBase -ne "") { $ApiBase } else { "http://$BindIP`:$BindPort" }
-            $CorsOrigins = Get-CorsOriginList -AdvertisedApi $ApiBaseResolved -BindHost $BindIP
             Write-Host "Using backend port $BindPort for this run (was $oldPort)." -ForegroundColor Yellow
         } elseif ($canBind -and $stillBusy) {
             Write-Host "Backend port $BindPort appears bindable despite lingering entries; proceeding." -ForegroundColor Yellow
@@ -279,9 +315,20 @@ if ($ApiBase -ne "") {
         $ApiBaseResolved = "http://$BindIP`:$BindPort"
     }
 }
-$CorsOrigins = Get-CorsOriginList -AdvertisedApi $ApiBaseResolved -BindHost $BindIP
+$AdvertisedHostList = Get-AdvertisedHostList -BindHost $BindIP -AdvertisedApi $ApiBaseResolved -ExplicitHosts $AdvertiseHosts
+if (-not $AdvertisedHostList -or $AdvertisedHostList.Count -eq 0) {
+    $AdvertisedHostList = @('localhost','127.0.0.1')
+}
+$CorsOrigins = Get-CorsOriginList -AdvertisedHosts $AdvertisedHostList
+$advertisedDisplay = $AdvertisedHostList -join ', '
+Write-Host "Advertised API hosts: $advertisedDisplay" -ForegroundColor Yellow
+$nonDefaultHosts = $AdvertisedHostList | Where-Object { $_ -notin @('localhost','127.0.0.1') }
+$useRuntimeFrontendHost = $nonDefaultHosts.Count -gt 0
 $FrontendApiBase = $null
-if ($ApiBase -ne "") {
+if ($useRuntimeFrontendHost) {
+    $FrontendApiBase = ""
+    Write-Host "Multiple non-loopback hosts detected; frontend will rely on runtime host detection." -ForegroundColor Yellow
+} elseif ($ApiBase -ne "") {
     $FrontendApiBase = $ApiBaseResolved
 } elseif ($BindIP -ne "0.0.0.0") {
     $FrontendApiBase = $ApiBaseResolved
@@ -347,21 +394,21 @@ Invoke-Step "Frontend dependencies" {
 }
 
 Invoke-Step "Start backend API (new window)" {
-    $envBlock = @"
-`$env:DISABLE_FILE_LOGS = '1'
-`$env:ENVIRONMENT = '$([bool]$Dev -eq $true ? 'development' : 'production')'
+    $envValue = if ($Dev) { "development" } else { "production" }
+    $uvicornArgs = if ($Dev) { "--reload" } else { "" }
+
+    $backendCmd = @"
+Set-Location "$BackendDir"
+`$env:DISABLE_FILE_LOGS = '0'
+`$env:ENVIRONMENT = '$envValue'
 `$env:ALLOW_LOCALHOST_CORS = '1'
 `$env:MEDIA_STORAGE_PATH = '$MediaDir'
 `$env:TRANSCRIPT_STORAGE_PATH = '$TranscriptDir'
 `$env:CORS_ORIGINS = '$CorsOrigins'
-"@
-    $uvicornArgs = $Dev ? "--reload" : ""
-$backendCmd = @"
-cd "$BackendDir"
-$envBlock
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host $BindIP --port $BindPort --app-dir app $uvicornArgs
 "@
-    Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $backendCmd
+
+    Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-NoProfile", "-Command", $backendCmd
     Write-Host "Backend starting on http://$BindIP`:$BindPort (check new window)." -ForegroundColor Green
 }
 

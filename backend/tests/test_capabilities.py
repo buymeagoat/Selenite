@@ -1,12 +1,10 @@
 """Tests for capability reporting service."""
 
-import importlib.util
 from types import SimpleNamespace
 
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from app.config import settings
 from app.main import app
 from app.models.user import User
 from app.routes.system import get_current_user
@@ -15,7 +13,7 @@ from app.services.capabilities import (
     get_asr_candidate_order,
     get_capabilities,
 )
-from app.services.system_probe import SystemProbeService
+from app.services.provider_manager import ProviderManager, ProviderRecord
 
 
 @pytest.fixture(autouse=True)
@@ -27,52 +25,22 @@ def override_auth():
     app.dependency_overrides.pop(get_current_user, None)
 
 
-@pytest.fixture(autouse=True)
-def mock_probe(monkeypatch):
-    payload = {
-        "gpu": {
-            "has_gpu": True,
-            "devices": [{"name": "Mock GPU", "memory_gb": 16.0, "multi_processor_count": 64}],
-        }
-    }
-    monkeypatch.setattr(SystemProbeService, "get_cached_probe", lambda: payload)
-    yield
-
-
-def test_get_capabilities(monkeypatch):
-    """Ensure capability response respects module availability."""
-    monkeypatch.setattr(
-        importlib.util, "find_spec", lambda name: None if name == "pyannote.audio" else True
-    )
+def test_get_capabilities_returns_empty_when_registry_missing(monkeypatch):
+    monkeypatch.setattr(ProviderManager, "get_snapshot", lambda: {"asr": [], "diarizers": []})
     result = get_capabilities()
-    assert result["asr"][0]["available"] is True
-    diarizers = {d["key"]: d for d in result["diarizers"]}
-    assert diarizers["whisperx"]["available"] is True
-    assert diarizers["pyannote"]["available"] is False
-
-
-def test_get_capabilities_handles_missing_parent_module(monkeypatch):
-    """Modules that are not installed should not cause crashes."""
-
-    def raising_find_spec(name):
-        raise ModuleNotFoundError(name)
-
-    monkeypatch.setattr(importlib.util, "find_spec", raising_find_spec)
-    result = get_capabilities()
-    diarizers = {d["key"]: d for d in result["diarizers"]}
-    assert diarizers["pyannote"]["available"] is False
-    assert diarizers["whisperx"]["available"] is False
+    assert result["asr"] == []
+    assert result["diarizers"] == []
 
 
 @pytest.mark.asyncio
 async def test_capabilities_endpoint(monkeypatch):
-    monkeypatch.setattr(importlib.util, "find_spec", lambda name: True)
+    monkeypatch.setattr(ProviderManager, "get_snapshot", lambda: {"asr": [], "diarizers": []})
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/system/availability")
     assert response.status_code == 200
     data = response.json()
-    assert len(data["asr"]) >= 1
-    assert len(data["diarizers"]) >= 1
+    assert data["asr"] == []
+    assert data["diarizers"] == []
 
 
 def test_enforce_runtime_diarizer_prefers_job(monkeypatch):
@@ -95,30 +63,6 @@ def test_enforce_runtime_diarizer_prefers_job(monkeypatch):
     assert result["diarizer"] == "whisperx"
     assert result["diarization_enabled"] is True
     assert result["notes"] == []
-
-
-def test_enforce_runtime_diarizer_fallback_to_admin(monkeypatch):
-    monkeypatch.setattr(
-        "app.services.capabilities.get_capabilities",
-        lambda: {
-            "asr": [],
-            "diarizers": [
-                {"key": "pyannote", "available": False, "notes": ["missing module"]},
-                {"key": "whisperx", "available": True, "notes": []},
-                {"key": "vad", "available": True, "notes": []},
-            ],
-        },
-    )
-    user_settings = SimpleNamespace(default_diarizer="whisperx")
-    result = enforce_runtime_diarizer(
-        requested_diarizer="pyannote",
-        diarization_requested=True,
-        user_settings=user_settings,
-    )
-    assert result["diarizer"] == "whisperx"
-    assert result["diarization_enabled"] is True
-    assert result["notes"]
-    assert any("admin default" in note.lower() for note in result["notes"])
 
 
 def test_enforce_runtime_diarizer_disables_when_none_available(monkeypatch):
@@ -145,7 +89,22 @@ def test_enforce_runtime_diarizer_disables_when_none_available(monkeypatch):
 
 
 def test_get_asr_candidate_order_deduplicates(monkeypatch):
-    monkeypatch.setattr(settings, "default_whisper_model", "small")
-    user_settings = SimpleNamespace(default_model="large-v3")
-    order = get_asr_candidate_order("tiny", user_settings)
-    assert order == ["tiny", "large-v3", "small", "medium"]
+    record = ProviderRecord(
+        set_id=1,
+        entry_id=1,
+        set_name="faster-whisper",
+        name="medium",
+        provider_type="asr",
+        abs_path="/backend/models/faster-whisper/medium",
+        enabled=True,
+        disable_reason=None,
+        checksum=None,
+    )
+    monkeypatch.setattr(
+        ProviderManager,
+        "get_snapshot",
+        lambda: {"asr": [record], "diarizers": []},
+    )
+    user_settings = SimpleNamespace(default_model="medium")
+    order = get_asr_candidate_order("medium", user_settings)
+    assert order == ["medium"]

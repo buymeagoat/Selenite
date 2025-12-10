@@ -2,7 +2,6 @@
 
 import logging
 import logging.config
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,9 +19,8 @@ def setup_logging() -> None:
 
     # Determine handler sets based on environment
     extra_handlers: list[str] = []
-    disable_file_handlers = settings.is_testing or (
-        os.getenv("DISABLE_FILE_LOGS", "").strip() == "1"
-    )
+    # File logging is required for diagnosis; only disable during automated tests.
+    disable_file_handlers = settings.is_testing
     handlers: dict[str, Any] = {
         "console": {
             "class": "logging.StreamHandler",
@@ -39,21 +37,17 @@ def setup_logging() -> None:
         handlers.update(
             {
                 "file": {
-                    "class": "logging.handlers.RotatingFileHandler",
+                    "class": "logging.FileHandler",
                     "level": "INFO",
                     "formatter": "detailed",
                     "filename": str(info_log),
-                    "maxBytes": 10485760,  # 10MB
-                    "backupCount": 5,
                     "encoding": "utf-8",
                 },
                 "error_file": {
-                    "class": "logging.handlers.RotatingFileHandler",
+                    "class": "logging.FileHandler",
                     "level": "ERROR",
                     "formatter": "detailed",
                     "filename": str(error_log),
-                    "maxBytes": 10485760,  # 10MB
-                    "backupCount": 5,
                     "encoding": "utf-8",
                 },
             }

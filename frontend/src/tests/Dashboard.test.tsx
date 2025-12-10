@@ -146,12 +146,17 @@ describe('Dashboard', () => {
     fetchJobsMock.mockResolvedValue(jobsResponse([jobA, jobB]));
     fetchTagsMock.mockResolvedValue({ total: 1, items: [{ id: 1, name: 'General', color: '#1D8348', job_count: 2, created_at: new Date().toISOString() }] });
     fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
       default_model: 'medium',
       default_language: 'auto',
       default_diarizer: 'vad',
       diarization_enabled: true,
       allow_job_overrides: true,
+      enable_timestamps: true,
       max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
     });
 
     renderDashboard();
@@ -171,12 +176,17 @@ describe('Dashboard', () => {
     fetchJobsMock.mockRejectedValueOnce(new ApiError('Boom', 500));
     fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
     fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
       default_model: 'medium',
       default_language: 'auto',
       default_diarizer: 'vad',
       diarization_enabled: false,
       allow_job_overrides: false,
+      enable_timestamps: true,
       max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
     });
 
     renderDashboard();

@@ -1,15 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchCurrentUser, type CurrentUserResponse } from '../services/auth';
+import { devError } from '../lib/debug';
 
-interface User {
-  username: string;
-  email: string;
-}
+type User = CurrentUserResponse;
 
 interface AuthContextValue {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (token: string, user: User) => void;
+  login: (token: string, bootstrapUser?: User) => void;
   logout: () => void;
 }
 
@@ -20,12 +19,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
-    setUser(newUser);
-    // Persist to localStorage
-    localStorage.setItem('auth_token', newToken);
-    localStorage.setItem('auth_user', JSON.stringify(newUser));
+  const persistUser = (nextUser: User | null) => {
+    if (nextUser) {
+      localStorage.setItem('auth_user', JSON.stringify(nextUser));
+    } else {
+      localStorage.removeItem('auth_user');
+    }
   };
 
   const logout = () => {
@@ -33,24 +32,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     // Clear from localStorage
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    persistUser(null);
+  };
+
+  const refreshUserProfile = async () => {
+    if (!localStorage.getItem('auth_token')) {
+      return;
+    }
+    try {
+      const latest = await fetchCurrentUser();
+      setUser(latest);
+      persistUser(latest);
+    } catch (error) {
+      devError('Failed to refresh user profile', error);
+      logout();
+    }
+  };
+
+  const login = (newToken: string, bootstrapUser?: User) => {
+    setToken(newToken);
+    localStorage.setItem('auth_token', newToken);
+    if (bootstrapUser) {
+      setUser(bootstrapUser);
+      persistUser(bootstrapUser);
+      return;
+    }
+    void refreshUserProfile();
   };
 
   // Restore from localStorage on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
-    if (storedToken && storedUser) {
-      try {
+    let isMounted = true;
+    const bootstrapAuth = async () => {
+      const storedToken = localStorage.getItem('auth_token');
+      const storedUser = localStorage.getItem('auth_user');
+
+      if (storedToken) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        // Invalid stored data, clear it
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
       }
-    }
-    setIsLoading(false);
+
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {
+          persistUser(null);
+        }
+      }
+
+      if (storedToken) {
+        try {
+          await refreshUserProfile();
+        } finally {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        }
+      } else {
+        setIsLoading(false);
+      }
+    };
+
+    void bootstrapAuth();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (

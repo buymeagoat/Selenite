@@ -6,10 +6,7 @@ if (-Not (Test-Path .venv\Scripts\python.exe)) {
 }
 . .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip > $null
-# Ensure minimal requirements installed (optional safeguard)
-if (Test-Path requirements-minimal.txt) {
-  pip install -r requirements-minimal.txt > $null
-}
+pip install -r requirements.txt > $null
 
 Write-Host "[E2E] Seeding database..."
 python -m app.seed_e2e --clear > $null

@@ -71,6 +71,10 @@ backend/backend/
 *.log
 logs/
 backend/logs/
+piplist.txt
+sfcheck.out
+_sfcheck.py
+*.whl
 
 # OS
 .DS_Store
@@ -78,3 +82,12 @@ Thumbs.db
 
 # Developer scratch space (keep debug helpers local only)
 scratch/
+
+# Test run artifacts and reports
+docs/memorialization/test-runs/
+frontend/playwright-report/
+frontend/test-results/
+
+# Model weights (admin-managed; keep out of VCS)
+models/**
+backend/models/**

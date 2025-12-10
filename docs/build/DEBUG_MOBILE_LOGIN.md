@@ -5,11 +5,12 @@ These steps assume the application is running via `start-selenite.ps1` and the t
 ---
 
 ## 1. Confirm the host IP and listener status
-1. Run `.\test-network-access.ps1`.  
-   - It prints every non-loopback IPv4 address detected (LAN + Tailscale) and whether port 8100 is listening.  
-   - It also probes `http://127.0.0.1:8100/health` and `http://<LAN_IP>:8100/health` so you immediately know if Windows Firewall is blocking remote access.
-2. If the network probe fails, follow the script’s prompt to run `.\allow-backend-port.ps1` from an elevated PowerShell window and re-run the test.
+1. Run `\.\test-network-access.ps1`.  
+  - It prints every non-loopback IPv4 address detected (LAN + Tailscale) and whether port 8100 is listening.  
+  - It also probes `http://127.0.0.1:8100/health` and `http://<LAN_IP>:8100/health` so you immediately know if Windows Firewall is blocking remote access.
+2. If the network probe fails, follow the script’s prompt to run `\.\allow-backend-port.ps1` from an elevated PowerShell window and re-run the test.
 3. Share the reported LAN/Tailscale IPs with whoever is testing (e.g., `http://192.168.x.x:5173/`).
+4. When restarting via the helpers, explicitly advertise each host you plan to share: `.\bootstrap.ps1 -AdvertiseHosts 127.0.0.1,<LAN-IP>,100.x.y.z` (or `.\start-selenite.ps1 -AdvertiseHosts ...`). This keeps backend CORS + frontend routing aligned no matter which address the tester loads.
 
 ## 2. Verify CORS configuration
 `.\test-cors.ps1 -HostIp <LAN_IP>` exercises the `/health` endpoint with an `Origin` header that matches the frontend URL. Successful output shows the HTTP status and whether `Access-Control-Allow-Origin` is returned. If it is missing, update `backend/.env` (`CORS_ORIGINS`) and restart via `start-selenite.ps1`.

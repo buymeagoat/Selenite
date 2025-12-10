@@ -40,12 +40,18 @@ class Settings(BaseSettings):
 
     # Transcription
     max_concurrent_jobs: int = 3
-    default_whisper_model: str = "medium"
+    # Deprecated legacy default; accepted for backward compatibility but unused by registry workflow
+    default_whisper_model: str | None = None
     default_language: str = "auto"
+    default_asr_provider: str | None = None
+    default_asr_model: str | None = None
+    default_diarizer_provider: str | None = None
+    default_diarizer_model: str | None = None
     default_estimated_duration_seconds: int = 600
     stall_timeout_multiplier: float = 2.0
     stall_timeout_min_seconds: int = 300
     stall_check_interval_seconds: int = 20
+    huggingface_token: str | None = None
 
     # E2E/automation helpers
     e2e_fast_transcription: bool = False
@@ -61,6 +67,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173,"
         "http://127.0.0.1:3000"
     )
+    # Optional regex to allow private-network origins (LAN + Tailscale/CGNAT) without enumerating every IP
+    cors_origin_regex: str | None = None
     redis_url: str | None = None
     enable_remote_server_control: bool = False
 
@@ -170,6 +178,16 @@ class Settings(BaseSettings):
             abs_path = (BACKEND_ROOT / path_obj).resolve()
             url = url.set(database=str(abs_path))
             self.database_url = str(url)
+        return self
+
+    @model_validator(mode="after")
+    def set_default_cors_regex(self) -> "Settings":
+        """
+        Ensure CORS regex always matches self-hosted deployments.
+        Default: allow any http(s) origin (covers localhost, LAN, Tailscale, custom domains).
+        """
+        if not self.cors_origin_regex:
+            self.cors_origin_regex = r"^https?://.+$"
         return self
 
     def generate_secure_secret(self) -> str:

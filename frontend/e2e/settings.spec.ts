@@ -152,27 +152,26 @@ test.describe('Settings Page', () => {
     }
   });
 
-  test('configure maximum concurrent jobs', async ({ page }) => {
-    await page.goto('/settings');
-    
-    const concurrentJobsInput = page.getByLabel(/maximum.*concurrent|max.*jobs/i)
-      .or(page.locator('[data-testid="max-concurrent-jobs"]'));
-    
-    if (await concurrentJobsInput.isVisible()) {
-      const currentValue = await concurrentJobsInput.inputValue();
-      const newValue = '2';
-      
-      if (currentValue !== newValue) {
-        await concurrentJobsInput.fill(newValue);
-        
-        const saveButton = page.getByRole('button', { name: /save/i }).first();
-        await saveButton.click();
-        
-        await expect(
-          page.getByText(/settings.*saved|success/i)
-        ).toBeVisible({ timeout: 5000 });
-      }
-    }
+  test('configure maximum concurrent jobs (admin only)', async ({ page }) => {
+    await page.goto('/admin');
+
+    const adminSection = page.getByTestId('admin-advanced-settings');
+    await expect(adminSection).toBeVisible();
+
+    const concurrentJobsInput = page.locator('[data-testid="max-concurrent-jobs"]');
+    await expect(concurrentJobsInput).toBeVisible();
+
+    const currentValue = await concurrentJobsInput.inputValue();
+    const newValue = currentValue === '5' ? '4' : '5';
+
+    await concurrentJobsInput.fill(newValue);
+
+    const saveButton = page.getByTestId('advanced-save');
+    await saveButton.click();
+
+    await expect(
+      page.getByText(/advanced settings saved|advanced defaults saved|settings.*saved|success/i)
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test('logout and login with new password', async ({ page }) => {

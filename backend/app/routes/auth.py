@@ -20,7 +20,7 @@ from sqlalchemy import select
 from app.utils.security import verify_password, hash_password
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -66,6 +66,12 @@ async def get_current_user(
     Raises:
         HTTPException: 401 if token is invalid or user not found
     """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Authorization header missing",
+        )
+
     # Decode token
     payload = decode_access_token(credentials.credentials)
 

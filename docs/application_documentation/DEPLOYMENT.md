@@ -26,7 +26,13 @@ cp .env.production.example .env
 - `CORS_ORIGINS=https://yourdomain.com`
 - Storage paths to absolute paths (e.g., `/var/lib/selenite/media`)
 
-### 3. Validate Configuration
+### 3. Install Providers & Stage Models (manual, admin-only)
+- Activate the backend virtualenv and install only the providers you plan to expose (examples): `pip install faster-whisper`, `pip install pyannote.audio` (+ GPU runtimes if needed). Nothing is installed automatically.
+- Download each checkpoint manually into `backend/models/<model_set>/<model_entry>/...` (e.g., `backend/models/faster-whisper/medium-int8/`). Paths outside this tree are rejected.
+- After the app is running, use the Admin UI/REST API to create **model sets** (providers) and **model entries** (variants pointing at the staged paths), enable/disable them, and select the defaults for ASR and diarization. If the registry is empty or entries are disabled, users cannot create jobs and `/system/availability` will return empty arrays.
+- Operator validation is UI-only: after staging models, open Admin → Model Registry, click **Rescan availability**, and confirm the entries appear; then select defaults under Admin → Advanced ASR & Diarization. New Job should disable submit with “Contact admin to register a model” if no ASR entries are enabled.
+
+### 4. Validate Configuration
 
 ```bash
 # Test that production config is valid
@@ -36,7 +42,7 @@ python -c "from app.config import settings; print(f'Environment: {settings.envir
 
 **Expected**: Should complete without errors. If you see validation errors about SECRET_KEY or CORS_ORIGINS, fix them before proceeding.
 
-### 4. Setup Database
+### 5. Setup Database
 
 ```bash
 cd backend
@@ -44,7 +50,7 @@ source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
 alembic upgrade head
 ```
 
-### 5. Check Health
+### 6. Check Health
 
 ```bash
 # Start the server
@@ -60,7 +66,8 @@ curl http://localhost:8100/health
   "status": "healthy",
   "environment": "production",
   "database": "healthy",
-  "models": "available"
+  "available_asr": [],
+  "available_diarizers": []
 }
 ```
 
@@ -116,12 +123,17 @@ cd backend
 python3.11 -m venv venv
 source venv/bin/activate  # Windows: .\venv\Scripts\activate
 
-# Install dependencies
+# Install core dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Download Whisper models (optional, can be done via UI)
-python -c "import whisper; whisper.load_model('medium')"
+# Install the providers you plan to expose (manual)
+# Examples: faster-whisper for ASR, pyannote.audio for diarization (plus GPU-specific extras if desired)
+pip install faster-whisper
+pip install pyannote.audio
+
+# Download checkpoints manually into backend/models/<model_set>/<model_entry>/...
+# (e.g., backend/models/faster-whisper/medium-int8/) before registering them in the admin UI.
 ```
 
 ### 3. Frontend Setup
@@ -155,11 +167,16 @@ DATABASE_URL=sqlite+aiosqlite:///./selenite.db
 # Storage paths (absolute paths recommended for production)
 MEDIA_STORAGE_PATH=/var/selenite/media
 TRANSCRIPT_STORAGE_PATH=/var/selenite/transcripts
-MODEL_STORAGE_PATH=/var/selenite/models
+MODEL_STORAGE_PATH=/var/selenite/backend/models  # registry entries must live under backend/models/<set>/<entry>/...
 
 # Performance tuning
 MAX_CONCURRENT_JOBS=3  # Adjust based on CPU cores
-DEFAULT_WHISPER_MODEL=medium  # or small, large-v3
+DEFAULT_LANGUAGE=auto
+# Defaults must reference enabled registry items (set after registration)
+# DEFAULT_ASR_PROVIDER=faster-whisper
+# DEFAULT_ASR_MODEL=medium-int8
+# DEFAULT_DIARIZER_PROVIDER=pyannote
+# DEFAULT_DIARIZER_MODEL=diarization-3.1
 
 # Server configuration
 HOST=0.0.0.0
@@ -250,6 +267,8 @@ npm run start:prod -- --host 127.0.0.1 --port 5173
 # Smoke test from repo root to verify backend readiness
 python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
 ```
+
+> Providers and model files are never auto-installed. Install the desired packages into the backend venv, stage checkpoints under `backend/models/<set>/<entry>/...`, then register + enable them in the Admin UI before creating jobs.
 
 ### Production Mode
 
@@ -484,11 +503,14 @@ psql -h localhost -U selenite -d selenite -c "SELECT 1;"
 # Verify FFmpeg installation
 ffmpeg -version
 
-# Check model files exist
-ls -lh models/*.pt
+# Confirm provider packages are installed in the backend venv
+pip show faster-whisper
 
-# Test Whisper manually
-python -c "import whisper; model = whisper.load_model('medium'); print('OK')"
+# Check staged model paths align with registry entries
+ls -lh backend/models/<model_set>/<model_entry>/
+
+# Confirm the registry advertises the entry
+curl http://localhost:8100/system/availability
 ```
 
 **Worker Process Crashes**:
@@ -552,7 +574,7 @@ docker run --user root ...
 ### Backend Optimization
 - **Workers**: Set to `(2 * CPU_cores) + 1` for Gunicorn
 - **Max Concurrent Jobs**: Start with `CPU_cores - 1`, adjust based on RAM
-- **Model Selection**: `tiny` (fastest), `small` (good), `medium` (best quality), `large-v3` (high accuracy, very slow)
+- **Model Selection (Whisper, if registered)**: `tiny` (fastest), `small` (good), `medium` (best quality), `large-v3` (high accuracy, very slow)
 - **Database**: Use PostgreSQL for production instead of SQLite for better concurrency
 
 ### Frontend Optimization

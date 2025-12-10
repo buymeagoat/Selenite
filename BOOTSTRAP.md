@@ -11,6 +11,7 @@ This file is the single source of truth for getting the Selenite dev stack runni
    ```
    This performs the pre-flight cleanup, installs dependencies, and launches backend + frontend production servers (the frontend command builds before serving). Watch those windows for live logs.
    - Default binding is now `0.0.0.0` (all interfaces). The script picks an advertised API host automatically (prefers Tailscale IP, then LAN). Ensure Windows Firewall allows inbound 8100/5173 if you want LAN/Tailscale access.
+  - To advertise multiple hosts (e.g., `127.0.0.1`, your LAN IP, and a Tailscale IP), pass `-AdvertiseHosts 127.0.0.1,<LAN-IP>,100.x.y.z` (or use `start-selenite.ps1 -AdvertiseHosts ...`). Bootstrap will add each host to CORS, and the frontend falls back to whichever host you used to load it.
 
 If you cannot run PowerShell scripts (policy, different shell, etc.), follow the manual steps below.
 

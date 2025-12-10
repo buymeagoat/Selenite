@@ -6,6 +6,8 @@ import sys
 import types
 
 import pytest
+from unittest.mock import AsyncMock
+from types import SimpleNamespace
 
 from app.database import engine, Base, AsyncSessionLocal
 from app.models.user import User
@@ -124,6 +126,32 @@ async def test_process_job_success(monkeypatch, tmp_path, test_db):
     monkeypatch.setattr(service, "_wait_for_processing_slot", noop)
     monkeypatch.setattr(service, "load_model", noop)
     monkeypatch.setattr(service, "transcribe_audio", fake_transcribe)
+    monkeypatch.setattr(
+        service, "_load_model_from_record", AsyncMock(return_value={"name": "tiny"})
+    )
+    monkeypatch.setattr(
+        whisper_module.ProviderManager,
+        "get_snapshot",
+        classmethod(
+            lambda cls: {
+                "asr": [
+                    SimpleNamespace(
+                        set_id=1,
+                        entry_id=1,
+                        set_name="whisper",
+                        name="tiny",
+                        provider_type="asr",
+                        abs_path=str(tmp_path / "whisper" / "tiny" / "tiny.pt"),
+                        enabled=True,
+                        disable_reason=None,
+                        checksum=None,
+                    )
+                ],
+                "diarizers": [],
+            }
+        ),
+    )
+    monkeypatch.setattr(whisper_module, "get_asr_candidate_order", lambda *_, **__: ["tiny"])
 
     async with AsyncSessionLocal() as session:
         await service.process_job(job_id, session)
@@ -156,6 +184,32 @@ async def test_process_job_failure_sets_error(monkeypatch, tmp_path, test_db):
     monkeypatch.setattr(service, "_wait_for_processing_slot", noop)
     monkeypatch.setattr(service, "load_model", noop)
     monkeypatch.setattr(service, "transcribe_audio", failing_transcribe)
+    monkeypatch.setattr(
+        service, "_load_model_from_record", AsyncMock(return_value={"name": "tiny"})
+    )
+    monkeypatch.setattr(
+        whisper_module.ProviderManager,
+        "get_snapshot",
+        classmethod(
+            lambda cls: {
+                "asr": [
+                    SimpleNamespace(
+                        set_id=1,
+                        entry_id=1,
+                        set_name="whisper",
+                        name="tiny",
+                        provider_type="asr",
+                        abs_path=str(tmp_path / "whisper" / "tiny" / "tiny.pt"),
+                        enabled=True,
+                        disable_reason=None,
+                        checksum=None,
+                    )
+                ],
+                "diarizers": [],
+            }
+        ),
+    )
+    monkeypatch.setattr(whisper_module, "get_asr_candidate_order", lambda *_, **__: ["tiny"])
 
     async with AsyncSessionLocal() as session:
         await service.process_job(job_id, session)

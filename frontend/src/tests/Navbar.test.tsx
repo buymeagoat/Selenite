@@ -1,15 +1,21 @@
 import React, { useEffect } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/layout/Navbar';
 
 // Helper component to preset auth state
-const AuthPreset: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AuthPreset: React.FC<{ children: React.ReactNode; isAdmin?: boolean }> = ({ children, isAdmin = true }) => {
   const { login } = useAuth();
   
   useEffect(() => {
-    login('token', { username: 'alice', email: 'alice@example.com' });
+    login('token', {
+      id: 1,
+      username: 'alice',
+      email: 'alice@example.com',
+      is_admin: isAdmin,
+      created_at: new Date().toISOString()
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
   
@@ -19,6 +25,12 @@ const AuthPreset: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <AuthProvider>
     <AuthPreset>{children}</AuthPreset>
+  </AuthProvider>
+);
+
+const NonAdminWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <AuthProvider>
+    <AuthPreset isAdmin={false}>{children}</AuthPreset>
   </AuthProvider>
 );
 
@@ -38,5 +50,18 @@ describe('Navbar', () => {
     // After logout avatar should now show '?' initials when re-opened
     fireEvent.click(avatar);
     expect(screen.getByRole('button', { name: /\?/i })).toBeInTheDocument();
+  });
+
+  it('renders admin navigation button for admins', () => {
+    const handleNavigate = vi.fn();
+    render(<Navbar onNavigate={handleNavigate} activePage="admin" />, { wrapper: Wrapper });
+    const adminButton = screen.getByRole('button', { name: /Admin/i });
+    fireEvent.click(adminButton);
+    expect(handleNavigate).toHaveBeenCalledWith('admin');
+  });
+
+  it('hides admin button for non-admin users', () => {
+    render(<Navbar onNavigate={vi.fn()} activePage="dashboard" />, { wrapper: NonAdminWrapper });
+    expect(screen.queryByRole('button', { name: /Admin/i })).not.toBeInTheDocument();
   });
 });

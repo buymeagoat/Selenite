@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import TokenResponse, UserResponse
 from app.utils.security import verify_password, create_access_token
 from app.config import settings
 
@@ -50,4 +50,5 @@ def create_token_response(user: User) -> TokenResponse:
         access_token=access_token,
         token_type="bearer",
         expires_in=settings.access_token_expire_minutes * 60,  # Convert to seconds
+        user=UserResponse.model_validate(user),
     )

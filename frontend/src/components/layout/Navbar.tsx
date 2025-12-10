@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Settings as SettingsIcon, Menu, X } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, X, Shield } from 'lucide-react';
 
-type Page = 'dashboard' | 'settings';
+type Page = 'dashboard' | 'settings' | 'admin';
 
 interface NavbarProps {
   onNavigate?: (page: Page) => void;
@@ -14,6 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, activePage }) => {
   const [open, setOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const initials = user ? user.username.slice(0, 2).toUpperCase() : '?';
+  const isAdmin = Boolean(user?.is_admin);
 
   return (
     <header className="bg-white border-b border-sage-mid px-4 py-3 flex items-center justify-between">
@@ -39,6 +40,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, activePage }) => {
             aria-label="Settings"
           >
             <SettingsIcon className="w-5 h-5" />
+          </button>
+        )}
+        {onNavigate && isAdmin && (
+          <button
+            onClick={() => onNavigate('admin')}
+            className={`p-2 rounded transition hover:bg-sage-light ${
+              activePage === 'admin' ? 'text-forest-green bg-sage-light' : 'text-pine-mid hover:text-forest-green'
+            }`}
+            aria-label="Admin"
+          >
+            <Shield className="w-5 h-5" />
           </button>
         )}
         <div className="relative">
@@ -115,6 +127,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, activePage }) => {
                   <SettingsIcon className="w-5 h-5" />
                   <span>Settings</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      onNavigate('admin');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded text-left ${
+                      activePage === 'admin'
+                        ? 'bg-sage-light text-forest-green'
+                        : 'hover:bg-sage-light text-pine-deep'
+                    }`}
+                  >
+                    <Shield className="w-5 h-5" />
+                    <span>Admin</span>
+                  </button>
+                )}
               </>
             )}
             <button

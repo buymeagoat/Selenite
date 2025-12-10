@@ -5,6 +5,7 @@ import { SettingsProvider, useAdminSettings } from '../context/SettingsContext';
 import type { UserSettings } from '../services/settings';
 
 const mockSettings: UserSettings = {
+  default_asr_provider: 'whisper',
   default_model: 'medium',
   default_language: 'auto',
   default_diarizer: 'vad',
@@ -12,6 +13,9 @@ const mockSettings: UserSettings = {
   allow_job_overrides: true,
   enable_timestamps: true,
   max_concurrent_jobs: 3,
+  time_zone: 'UTC',
+  server_time_zone: 'UTC',
+  transcode_to_wav: true,
 };
 
 const TestConsumer: React.FC = () => {

@@ -19,8 +19,9 @@ python -m venv .venv
 
 2. Install dependencies:
 ```powershell
-pip install -r requirements-minimal.txt
+pip install -r requirements.txt
 ```
+> Note: `requirements.txt` includes the PyTorch CPU wheels via the extra index URL embedded at the top of the file.
 
 3. Copy environment file:
 ```powershell

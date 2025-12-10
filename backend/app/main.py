@@ -19,6 +19,7 @@ from app.routes import settings as settings_module
 from app.routes import exports as exports_module
 from app.routes import system as system_module
 from app.routes import diagnostics as diagnostics_module
+from app.routes import model_registry as model_registry_module
 from app.services.job_queue import queue, resume_queued_jobs
 from app.services.system_probe import SystemProbeService
 
@@ -36,6 +37,7 @@ settings_router = settings_module.router
 exports_router = exports_module.router
 system_router = system_module.router
 diagnostics_router = diagnostics_module.router
+model_registry_router = model_registry_module.router
 
 
 @asynccontextmanager
@@ -45,6 +47,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Selenite application")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"CORS origins: {settings.cors_origins_list}")
+    logger.info(f"CORS origin regex: {settings.cors_origin_regex}")
 
     # Run startup validation checks
     from app.startup_checks import run_startup_checks
@@ -52,8 +55,9 @@ async def lifespan(app: FastAPI):
     await run_startup_checks()
 
     # Initialize database and check migrations
-    from app.database import engine
+    from app.database import engine, AsyncSessionLocal
     from app.migrations_utils import check_migration_status
+    from app.services.provider_manager import ProviderManager
 
     current_rev, head_rev = await check_migration_status(engine)
     logger.info(f"Database migration status: {current_rev} (head: {head_rev})")
@@ -63,6 +67,13 @@ async def lifespan(app: FastAPI):
             "Database migrations are not up to date. "
             "Run 'alembic upgrade head' before starting in production."
         )
+
+    # Prime the provider manager cache so availability endpoints surface registry entries immediately
+    try:
+        async with AsyncSessionLocal() as session:
+            await ProviderManager.refresh(session)
+    except Exception as exc:
+        logger.warning("Provider catalog refresh failed during startup: %s", exc)
 
     # Expose queue via app state; only auto-start outside of unit tests
     app.state.queue = queue
@@ -97,10 +108,41 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Belt-and-suspenders CORS guardrail: always reflect Origin (when present) so browsers get CORS headers even on errors.
+@app.middleware("http")
+async def ensure_cors_headers(request, call_next):
+    origin = request.headers.get("origin")
+    if request.method.upper() == "OPTIONS":
+        from fastapi.responses import Response
+
+        resp = Response(status_code=200)
+    else:
+        try:
+            resp = await call_next(request)
+        except Exception:  # noqa: B902
+            from fastapi.responses import PlainTextResponse
+
+            # Preserve stack in server logs while still sending CORS headers
+            logger.exception("Request failed: %s %s", request.method, request.url)
+            resp = PlainTextResponse("Internal Server Error", status_code=500)
+
+    if origin:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "*"
+        resp.headers["Access-Control-Allow-Headers"] = (
+            request.headers.get("access-control-request-headers", "*") or "*"
+        )
+        resp.headers["Vary"] = "Origin"
+    return resp
+
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,6 +168,7 @@ app.include_router(settings_router)
 app.include_router(exports_router)
 app.include_router(system_router)
 app.include_router(diagnostics_router)
+app.include_router(model_registry_router)
 
 
 @app.get("/health")
@@ -144,11 +187,11 @@ async def health_check():
         logger.error(f"Database health check failed: {e}")
         db_status = "unhealthy"
 
-    # Check model directory
-    from pathlib import Path
+    # Check registered models
+    from app.services.provider_manager import ProviderManager
 
-    model_path = Path(settings.model_storage_path)
-    models_available = model_path.exists() and any(model_path.glob("*.pt"))
+    snapshot = ProviderManager.get_snapshot()
+    models_available = bool(snapshot["asr"])
 
     return {
         "status": "healthy" if db_status == "healthy" else "degraded",

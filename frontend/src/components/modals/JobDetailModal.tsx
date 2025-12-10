@@ -18,6 +18,9 @@ interface JobDetailModalProps {
   onViewTranscript: (jobId: string) => void;
   onUpdateTags: (jobId: string, tagIds: number[]) => void;
   availableTags?: Tag[];
+  timeZone?: string | null;
+  asrProviderHint?: string | null;
+  defaultDiarizerHint?: string | null;
 }
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
@@ -31,7 +34,10 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onStop,
   onViewTranscript,
   onUpdateTags,
-  availableTags = []
+  availableTags = [],
+  timeZone = null,
+  asrProviderHint = null,
+  defaultDiarizerHint = null,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
@@ -51,6 +57,16 @@ const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
 const canDelete = !['processing', 'cancelling'].includes(job.status);
 const canStop = job.status === 'processing' || job.status === 'queued';
   const hasMedia = true; // Media always exists if job was created
+  const mediaDuration = job.duration ?? 0;
+  const processingDuration =
+    job.started_at && job.completed_at
+      ? Math.max(
+          0,
+          Math.round(
+            (parseAsUTC(job.completed_at).getTime() - parseAsUTC(job.started_at).getTime()) / 1000
+          )
+        )
+      : null;
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -60,22 +76,65 @@ const canStop = job.status === 'processing' || job.status === 'queued';
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  function formatDuration(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}`;
+  }
 
-  const formatDate = (isoString: string): string => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('en-US', {
+function parseAsUTC(value: string): Date {
+  if (!value) return new Date();
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+  return new Date(hasZone ? value : `${value}Z`);
+}
+
+  function formatDate(isoString: string): string {
+    const date = parseAsUTC(isoString);
+    return date.toLocaleString(undefined, {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-  };
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: timeZone || undefined,
+    timeZoneName: 'short',
+  });
+  }
+
+  function languageName(code: string | null | undefined): string {
+    if (!code) return 'Unknown';
+    try {
+    const dn = new Intl.DisplayNames([navigator.language || 'en'], { type: 'language' });
+    return dn.of(code) || code;
+  } catch {
+    const map: Record<string, string> = {
+      en: 'English',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      it: 'Italian',
+      pt: 'Portuguese',
+      nl: 'Dutch',
+      ru: 'Russian',
+      zh: 'Chinese',
+      ja: 'Japanese',
+      ko: 'Korean',
+    };
+    return map[code.toLowerCase()] || code;
+    }
+  }
+
+  const diarizerDisplay = (() => {
+    if (job.diarizer_used) return job.diarizer_used;
+    if (defaultDiarizerHint) return `${defaultDiarizerHint} (failed)`;
+    return 'None';
+  })();
+
+  const speakerDetected = job.speaker_count ?? (job.has_speaker_labels ? 1 : 1);
+  const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} · Detected: ${speakerDetected}`;
 
   const handleDelete = () => {
     onDelete(job.id);
@@ -155,7 +214,7 @@ const canStop = job.status === 'processing' || job.status === 'queued';
               <div>
                 <div className="text-sm text-pine-mid">Duration</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {formatDuration(job.duration)}
+                  {mediaDuration > 0 ? formatDuration(mediaDuration) : 'Unknown'}
                 </div>
               </div>
               <div>
@@ -165,27 +224,39 @@ const canStop = job.status === 'processing' || job.status === 'queued';
                 </div>
               </div>
               <div>
-                <div className="text-sm text-pine-mid">Model</div>
+                <div className="text-sm text-pine-mid">ASR provider / entry</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {job.model_used}
+                  {(asrProviderHint || 'Unknown') + ' / ' + (job.model_used || 'Unknown')}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-pine-mid">Language</div>
+                <div className="text-sm text-pine-mid">Diarizer</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {job.language_detected}
+                  {diarizerDisplay}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-pine-mid">Languages</div>
+                <div className="text-base font-medium text-pine-deep">
+                  {languageName(job.language_detected)}
                 </div>
               </div>
               <div>
                 <div className="text-sm text-pine-mid">Speakers</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {job.has_speaker_labels ? `${job.speaker_count || 1} detected` : 'Not available'}
+                  {speakerSummary}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-pine-mid">File Size</div>
+                <div className="text-sm text-pine-mid">Source file size</div>
                 <div className="text-base font-medium text-pine-deep">
                   {formatFileSize(job.file_size)}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-pine-mid">Job processing duration</div>
+                <div className="text-base font-medium text-pine-deep">
+                  {processingDuration !== null ? formatDuration(processingDuration) : 'Unknown'}
                 </div>
               </div>
             </div>
@@ -223,21 +294,23 @@ const canStop = job.status === 'processing' || job.status === 'queued';
                   type="text"
                   value={tagInputValue}
                   onChange={(e) => setTagInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTag(tagInputValue);
+                    }
+                  }}
                   placeholder="Add tag"
                   className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none text-sm"
                 />
-                {tagInputValue.trim() && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-sage-mid rounded-lg shadow z-10">
-                    <div
-                      role="option"
-                      data-testid="tag-option"
-                      onClick={() => handleAddTag(tagInputValue.trim())}
-                      className="px-3 py-2 text-sm cursor-pointer hover:bg-sage-light"
-                    >
-                      Add #{tagInputValue.trim()}
-                    </div>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleAddTag(tagInputValue.trim())}
+                  disabled={!tagInputValue.trim()}
+                  className="mt-2 px-3 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50 text-sm"
+                >
+                  Add tag
+                </button>
               </div>
             </div>
 

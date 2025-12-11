@@ -34,6 +34,8 @@ vi.mock('../context/ToastContext', () => ({
   useToast: () => toastSpies,
 }));
 
+const updateAsrSettings = vi.hoisted(() => vi.fn().mockResolvedValue({}));
+
 vi.mock('../services/settings', () => ({
   fetchSettings: vi.fn().mockResolvedValue({
     default_asr_provider: null,
@@ -49,6 +51,7 @@ vi.mock('../services/settings', () => ({
     transcode_to_wav: true,
   }),
   updateSettings: vi.fn().mockResolvedValue({}),
+  updateAsrSettings,
 }));
 
 const mockSystemInfo = vi.hoisted(() => ({
@@ -206,8 +209,8 @@ describe('Admin page', () => {
     await act(async () => {
       fireEvent.click(saveButton);
     });
-    expect(updateSettings).toHaveBeenCalled();
-    const latestCall = vi.mocked(updateSettings).mock.calls.at(-1)?.[0];
+    expect(updateAsrSettings).toHaveBeenCalled();
+    const latestCall = vi.mocked(updateAsrSettings).mock.calls.at(-1)?.[0];
     expect(latestCall?.max_concurrent_jobs ?? Number(slider.value)).toBe(4);
   });
 

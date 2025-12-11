@@ -43,6 +43,11 @@ import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
 type RegistryTab = ProviderType;
 
 const MODELS_ROOT = '/backend/models';
+const CURATED_HELP = [
+  'Providers are pre-seeded (disabled) with folders under /backend/models/<provider>/<entry>/. Drop weights there and enable entries.',
+  'ASR: whisper, faster-whisper, wav2vec2/transformers, nemo conformer-ctc, vosk, coqui-stt.',
+  'Diarizers: pyannote pipeline, nemo-diarizer, speechbrain ecapa, resemblyzer clustering.',
+];
 
 interface SetFormState {
   id: number | null;
@@ -765,6 +770,11 @@ export const Admin: React.FC = () => {
             <p className="text-sm text-pine-mid">
               Add model sets (providers) and concrete entries that point to files under {MODELS_ROOT}.
             </p>
+            <ul className="text-xs text-pine-mid mt-2 list-disc list-inside space-y-1">
+              {CURATED_HELP.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
           <button
             onClick={handleAvailabilityRefresh}

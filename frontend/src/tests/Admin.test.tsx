@@ -75,8 +75,24 @@ const mockSystemInfo = vi.hoisted(() => ({
 const refreshSpy = vi.hoisted(() => vi.fn());
 
 const mockCapabilities = vi.hoisted(() => ({
-  asr: [{ provider: 'test-asr', display_name: 'test-asr', available: true, models: ['asr-entry'], notes: [] }],
-  diarizers: [{ key: 'diar-entry', display_name: 'diar-entry', requires_gpu: false, available: true, notes: [] }],
+  asr: [
+    {
+      provider: 'test-asr',
+      display_name: 'test-asr',
+      available: true,
+      models: ['asr-entry'],
+      notes: ['missing dependencies'],
+    },
+  ],
+  diarizers: [
+    {
+      key: 'diar-entry',
+      display_name: 'diar-entry',
+      requires_gpu: false,
+      available: true,
+      notes: [],
+    },
+  ],
 }));
 
 vi.mock('../services/system', () => ({
@@ -191,6 +207,7 @@ describe('Admin page', () => {
       fireEvent.click(refreshButton);
     });
     expect(screen.getByTestId('asr-provider-test-asr')).toBeInTheDocument();
+    expect(screen.getByTestId('availability-warnings')).toHaveTextContent(/missing dependencies/i);
   });
 
   it('allows adjusting throughput slider and surfaces storage summary', async () => {

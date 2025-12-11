@@ -63,6 +63,17 @@ def validate_configuration() -> list[str]:
             "Download Whisper models to 'backend/models' or update path."
         )
 
+    # Warn if legacy backend/storage exists; canonical path is project-root /storage
+    legacy_storage = Path(__file__).resolve().parents[2] / "storage"
+    project_storage = Path(settings.media_storage_path).resolve().parents[0]
+    if legacy_storage.exists() and legacy_storage.resolve() != project_storage:
+        logger.warning(
+            "Legacy storage directory detected at %s. Canonical storage root is %s. "
+            "Do not place new files in the legacy path; migrate data to the canonical root.",
+            legacy_storage,
+            project_storage,
+        )
+
     return errors
 
 

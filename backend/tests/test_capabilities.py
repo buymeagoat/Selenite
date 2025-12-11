@@ -89,6 +89,7 @@ def test_enforce_runtime_diarizer_disables_when_none_available(monkeypatch):
 
 
 def test_get_asr_candidate_order_deduplicates(monkeypatch):
+    monkeypatch.setattr("app.services.capabilities._assess_record", lambda r: {"available": True})
     record = ProviderRecord(
         set_id=1,
         entry_id=1,

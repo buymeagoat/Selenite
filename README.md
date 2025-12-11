@@ -12,7 +12,7 @@ Selenite is a self-hosted, privacy-focused transcription service that runs entir
 ## ✨ Features
 
 - **🔒 Local Processing**: All transcription happens on your device - complete privacy
-- **🧭 Admin-Managed Models**: Ships with zero bundled ASR/diarizer models; admins manually install providers, download checkpoints into `backend/models/<model_set>/<model_entry>/...`, and register them in the UI/API (no hidden fallbacks)
+- **🧭 Admin-Managed Models**: Curated ASR/diarizer providers ship pre-registered (folders created under `backend/models/<provider>/<entry>/...`) but with **no weights included**. Admins drop checkpoints into those folders, enable entries, and select defaults—no hidden fallbacks.
 - **🌍 90+ Languages**: Supports automatic language detection and translation (when the registered ASR model supports it)
 - **👥 Speaker Diarization**: Identify different speakers in conversations using registered diarizer entries
 - **⏱️ Timestamps**: Add precise timestamps to transcripts
@@ -50,10 +50,12 @@ cp .env.example .env
 ```
 
 3. **Install ASR/diarizer providers + place models (manual, admin-only)**:
-   - Inside the virtualenv, install only the providers you intend to run (examples):  
-     `pip install faster-whisper` (ASR), `pip install pyannote.audio` (diarizer), plus any GPU runtimes you prefer. Nothing is installed automatically.
-   - Download each model checkpoint manually into `backend/models/<model_set>/<model_entry>/...`. The `<model_set>` directory name should match the provider (e.g., `faster-whisper`), and `<model_entry>` should match the specific model variant (e.g., `medium-int8`).
-   - You must register every set + entry via the Admin UI (or REST) before creating jobs: create the model set (ASR or DIARIZER), add one or more entries pointed at the downloaded paths, enable them, and select the defaults. If the registry is empty or all entries are disabled, job creation is blocked with “Contact admin to register a model.”
+   - Inside the virtualenv run `pip install -r requirements.txt`. This installs the entire curated provider stack (CPU wheels by default; swap to CUDA wheels if desired).
+   - We create registry rows and folders for these providers (all disabled until you add weights):  
+     **ASR**: whisper, faster-whisper, wav2vec2 (base/lv60), nemo conformer-CTC (en), vosk (small/large en-US), coqui-stt (en-US), transformers (XLS-R/WavLM).  
+     **Diarizer**: pyannote pipeline (diarization-3.1, segmentation-3.0, wespeaker-voxceleb), nemo-diarizer, speechbrain (ecapa embedding pipeline), resemblyzer (encoder + clustering).
+   - Download each model checkpoint manually into `backend/models/<provider>/<entry>/...`. No weights are shipped or auto-downloaded.
+   - In Admin UI (or REST), enable the entries you populated and choose defaults. If the registry is empty or all entries are disabled, job creation is blocked with "Contact admin to register a model."
 
 4. **Frontend setup**:
 ```bash
@@ -80,11 +82,11 @@ This script:
 If you need to run the commands manually (Linux/macOS):
 
 ```bash
-# Terminal 1 – Backend API
+# Terminal 1 - Backend API
 cd backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-minimal.txt
+pip install -r requirements.txt
 python -m alembic upgrade head
 python -m app.seed
 export DISABLE_FILE_LOGS=1

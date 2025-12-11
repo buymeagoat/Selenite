@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import importlib.util
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING, Tuple
 
 from app.services.provider_manager import ProviderManager, ProviderRecord
@@ -11,6 +13,67 @@ if TYPE_CHECKING:
     from app.models.user_settings import UserSettings
 
 logger = logging.getLogger(__name__)
+
+# Dependency hints per provider (lightweight importlib spec checks, not full import).
+PROVIDER_DEPS: Dict[str, Dict[str, Any]] = {
+    # ASR
+    "whisper": {"deps": ["whisper"], "requires_gpu": False},
+    "faster-whisper": {"deps": ["faster_whisper", "ctranslate2"], "requires_gpu": False},
+    "wav2vec2": {"deps": ["transformers", "torch"], "requires_gpu": False},
+    "transformers": {"deps": ["transformers", "torch"], "requires_gpu": False},
+    "nemo": {"deps": ["nemo_toolkit"], "requires_gpu": False},
+    "vosk": {"deps": ["vosk"], "requires_gpu": False},
+    "coqui-stt": {"deps": ["stt_native_client", "coqui_stt"], "requires_gpu": False},
+    # Diarizer
+    "pyannote": {"deps": ["pyannote.audio"], "requires_gpu": False},
+    "nemo-diarizer": {"deps": ["nemo_toolkit"], "requires_gpu": False},
+    "speechbrain": {"deps": ["speechbrain"], "requires_gpu": False},
+    "resemblyzer": {"deps": ["resemblyzer", "webrtcvad"], "requires_gpu": False},
+}
+
+
+def _missing_deps(provider: str) -> List[str]:
+    meta = PROVIDER_DEPS.get(provider, {})
+    deps = meta.get("deps", [])
+    missing = [dep for dep in deps if importlib.util.find_spec(dep) is None]
+    return missing
+
+
+def _assess_record(record: ProviderRecord) -> Dict[str, Any]:
+    """Evaluate a provider record for availability, notes, and metadata."""
+
+    notes: List[str] = []
+    available = record.enabled
+    requires_gpu = PROVIDER_DEPS.get(record.set_name, {}).get("requires_gpu", False)
+    display_name = record.name
+
+    path = Path(record.abs_path)
+    if not path.exists():
+        available = False
+        notes.append("Path missing; add weights to the expected folder.")
+    elif path.is_dir():
+        if not any(path.iterdir()):
+            available = False
+            notes.append("Path is empty; drop model files here.")
+    else:
+        if not path.is_file():
+            available = False
+            notes.append("Path is not a file or directory.")
+
+    missing = _missing_deps(record.set_name)
+    if missing:
+        available = False
+        notes.append(f"Missing dependencies: {', '.join(missing)} (install via requirements.txt).")
+
+    if not record.enabled and record.disable_reason:
+        notes.append(record.disable_reason)
+
+    return {
+        "available": available,
+        "notes": notes,
+        "requires_gpu": requires_gpu,
+        "display_name": display_name,
+    }
 
 
 def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[Dict[str, Any]]:
@@ -22,6 +85,7 @@ def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[
 
     grouped: Dict[str, Dict[str, Any]] = {}
     for record in records:
+        assessment = _assess_record(record)
         group = grouped.setdefault(
             record.set_name,
             {
@@ -32,11 +96,11 @@ def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[
                 "notes": [],
             },
         )
-        if record.enabled:
+        if assessment["available"]:
             group["available"] = True
             group["models"].append(record.name)
-        elif record.disable_reason:
-            group["notes"].append(record.disable_reason)
+        if assessment["notes"]:
+            group["notes"].extend(assessment["notes"])
 
     return list(grouped.values())
 
@@ -52,16 +116,14 @@ def _build_diarizer_options_from_registry(
 
     options: List[Dict[str, Any]] = []
     for record in records:
-        notes: List[str] = []
-        if not record.enabled and record.disable_reason:
-            notes.append(record.disable_reason)
+        assessment = _assess_record(record)
         options.append(
             {
                 "key": record.name,
-                "display_name": record.name,
-                "requires_gpu": False,
-                "available": record.enabled,
-                "notes": notes,
+                "display_name": assessment["display_name"],
+                "requires_gpu": assessment["requires_gpu"],
+                "available": assessment["available"],
+                "notes": assessment["notes"],
             }
         )
 
@@ -69,9 +131,14 @@ def _build_diarizer_options_from_registry(
 
 
 def _collect_asr_models(records: Sequence[ProviderRecord]) -> List[str]:
-    """Return enabled ASR model entry names."""
+    """Return enabled & available ASR model entry names."""
 
-    return [record.name for record in records if record.enabled]
+    available: List[str] = []
+    for record in records:
+        assessment = _assess_record(record)
+        if assessment["available"]:
+            available.append(record.name)
+    return available
 
 
 def get_capabilities() -> Dict[str, Any]:

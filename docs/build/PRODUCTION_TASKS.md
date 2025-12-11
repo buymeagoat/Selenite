@@ -286,6 +286,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Production build scripts (frontend + backend)  (Moved to Future Enhancements)
 - [x] Database initialization and migration scripts
 - [x] Configurable storage paths for uploads/models
+- [ ] Reconcile storage root to `./storage` (legacy `backend/storage` is deprecated; keep data under the project root)
 - [x] Logging configuration (file output, log rotation)
 - [ ] Error reporting and monitoring setup  (Moved to Future Enhancements)
 - [ ] Production dependency lockfiles  (Moved to Future Enhancements)

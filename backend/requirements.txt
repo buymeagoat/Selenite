@@ -1,4 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
+# For CUDA builds, override the extra-index-url to the matching CUDA wheel URL and bump
+# torch/torchaudio/torchvision accordingly. CPU wheels are the baseline/default.
 
 # Core API
 fastapi==0.124.2
@@ -24,11 +26,24 @@ ffmpeg-python==0.2.0
 soundfile==0.13.1
 openai-whisper==20250625
 
+# Foundation DL stack (CPU by default; swap to CUDA wheels if available)
+torch==2.2.2+cpu
+torchaudio==2.2.2+cpu
+torchvision==0.17.2+cpu
+
+# ASR providers
+ctranslate2==4.4.0          # for faster-whisper backend
+faster-whisper==1.0.3
+transformers==4.44.2        # wav2vec2 / XLS-R / WavLM
+vosk==0.3.45                # Kaldi/Vosk runtime
+coqui-stt==1.4.0            # Coqui STT (DeepSpeech fork)
+nemo-toolkit==1.23.0        # NeMo Conformer-CTC & diarization
+
 # Diarization stack
-torch==2.5.1+cpu
-torchaudio==2.5.1+cpu
 pyannote.audio==3.1.1
 speechbrain==0.5.16
+resemblyzer==0.1.2
+webrtcvad==2.0.10
 
 # Tooling / tests
 pytest==9.0.2

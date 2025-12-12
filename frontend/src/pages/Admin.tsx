@@ -48,6 +48,19 @@ const CURATED_HELP = [
   'ASR: whisper, faster-whisper, wav2vec2/transformers, nemo conformer-ctc, vosk, coqui-stt.',
   'Diarizers: pyannote pipeline, nemo-diarizer, speechbrain ecapa, resemblyzer clustering.',
 ];
+const PROVIDER_EXPECTATIONS: Record<string, string> = {
+  whisper: 'Place whisper .pt file (e.g., tiny.pt) inside /backend/models/whisper/<entry>/',
+  'faster-whisper': 'Place CTranslate2 model folder inside /backend/models/faster-whisper/<entry>/',
+  wav2vec2: 'Place HF checkpoint under /backend/models/wav2vec2/<entry>/',
+  transformers: 'Place HF checkpoint under /backend/models/transformers/<entry>/',
+  nemo: 'Place NeMo Conformer-CTC files under /backend/models/nemo/<entry>/',
+  vosk: 'Place Vosk model folder under /backend/models/vosk/<entry>/',
+  'coqui-stt': 'Place Coqui STT model folder under /backend/models/coqui-stt/<entry>/',
+  'nemo-diarizer': 'Place NeMo diarization pipeline files under /backend/models/nemo-diarizer/<entry>/',
+  pyannote: 'Place pyannote pipeline files under /backend/models/pyannote/<entry>/',
+  speechbrain: 'Place SpeechBrain diarization artifacts under /backend/models/speechbrain/<entry>/',
+  resemblyzer: 'Place encoder/clustering artifacts under /backend/models/resemblyzer/<entry>/',
+};
 
 interface SetFormState {
   id: number | null;
@@ -1202,22 +1215,27 @@ export const Admin: React.FC = () => {
               )}
               {asrProviders.map((provider) => (
                 <div key={provider.provider} className="p-3 border border-sage-light rounded" data-testid={`asr-provider-${provider.provider}`}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-pine-deep">{provider.display_name}</p>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        provider.available ? 'bg-forest-green/10 text-forest-green' : 'bg-terracotta/10 text-terracotta'
-                      }`}
-                    >
-                      {provider.available ? 'Available' : 'Unavailable'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-pine-mid mt-1">Models: {provider.models.join(', ') || 'n/a'}</p>
-                  {provider.notes.length > 0 && (
-                    <ul className="mt-2 text-xs text-pine-mid list-disc list-inside space-y-1">
-                      {provider.notes.map((note, idx) => (
-                        <li key={idx}>{note}</li>
-                      ))}
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-pine-deep">{provider.display_name}</p>
+                <span
+                  className={`text-xs font-medium px-2 py-0.5 rounded ${
+                    provider.available ? 'bg-forest-green/10 text-forest-green' : 'bg-terracotta/10 text-terracotta'
+                  }`}
+                >
+                  {provider.available ? 'Available' : 'Unavailable'}
+                </span>
+              </div>
+              <p className="text-xs text-pine-mid mt-1">Models: {provider.models.join(', ') || 'n/a'}</p>
+              {PROVIDER_EXPECTATIONS[provider.provider] && (
+                <p className="text-xs text-pine-mid mt-1 italic">
+                  Expected files: {PROVIDER_EXPECTATIONS[provider.provider]}
+                </p>
+              )}
+              {provider.notes.length > 0 && (
+                <ul className="mt-2 text-xs text-pine-mid list-disc list-inside space-y-1">
+                  {provider.notes.map((note, idx) => (
+                    <li key={idx}>{note}</li>
+                  ))}
                     </ul>
                   )}
                 </div>

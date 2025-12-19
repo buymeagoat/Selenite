@@ -38,7 +38,20 @@ def upgrade() -> None:
             )
             """
         )
-        op.alter_column("model_entries", "type", existing_type=sa.String(length=20), nullable=False)
+        if bind.dialect.name == "sqlite":
+            with op.batch_alter_table("model_entries") as batch_op:
+                batch_op.alter_column(
+                    "type",
+                    existing_type=sa.String(length=20),
+                    nullable=False,
+                )
+        else:
+            op.alter_column(
+                "model_entries",
+                "type",
+                existing_type=sa.String(length=20),
+                nullable=False,
+            )
 
 
 def downgrade() -> None:

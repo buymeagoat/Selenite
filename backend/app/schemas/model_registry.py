@@ -29,8 +29,8 @@ class ModelSetUpdate(BaseModel):
     disable_reason: Optional[str] = None
 
 
-class ModelEntryCreate(BaseModel):
-    """Payload for registering a model entry under a set."""
+class ModelWeightCreate(BaseModel):
+    """Payload for registering a model weight under a set."""
 
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -38,8 +38,8 @@ class ModelEntryCreate(BaseModel):
     checksum: Optional[str] = Field(default=None, max_length=128)
 
 
-class ModelEntryUpdate(BaseModel):
-    """Payload for updating a model entry."""
+class ModelWeightUpdate(BaseModel):
+    """Payload for updating a model weight."""
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
@@ -49,8 +49,8 @@ class ModelEntryUpdate(BaseModel):
     disable_reason: Optional[str] = None
 
 
-class ModelEntryResponse(BaseModel):
-    """Response model for entries."""
+class ModelWeightResponse(BaseModel):
+    """Response model for weights."""
 
     id: int
     set_id: int
@@ -61,6 +61,7 @@ class ModelEntryResponse(BaseModel):
     abs_path: str
     enabled: bool
     disable_reason: Optional[str]
+    has_weights: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -85,5 +86,5 @@ class ModelSetResponse(BaseModel):
         from_attributes = True
 
 
-class ModelSetWithEntries(ModelSetResponse):
-    entries: list[ModelEntryResponse]
+class ModelSetWithWeights(ModelSetResponse):
+    weights: list[ModelWeightResponse]

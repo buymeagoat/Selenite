@@ -125,7 +125,7 @@ describe('JobDetailModal', () => {
     );
     
     expect(screen.getByText(/00:30:34/)).toBeInTheDocument(); // Duration
-    expect(screen.getByText('Unknown / medium')).toBeInTheDocument(); // Model (provider / entry)
+    expect(screen.getByText('Unknown / medium')).toBeInTheDocument(); // Model (provider / weight)
     expect(screen.getByText(/english/i)).toBeInTheDocument(); // Language
     expect(screen.getByText(/Requested:/i)).toBeInTheDocument(); // Speakers info
     expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size

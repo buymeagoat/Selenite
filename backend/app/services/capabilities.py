@@ -8,11 +8,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING, Tuple
 
 from app.services.provider_manager import ProviderManager, ProviderRecord
+from app.config import BACKEND_ROOT
+from app.config import settings
 
 if TYPE_CHECKING:
     from app.models.user_settings import UserSettings
 
 logger = logging.getLogger(__name__)
+
+
+class ModelResolutionError(Exception):
+    """Raised when a requested provider/model combination is invalid."""
+
 
 # Dependency hints per provider (lightweight importlib spec checks, not full import).
 PROVIDER_DEPS: Dict[str, Dict[str, Any]] = {
@@ -39,34 +46,54 @@ def _missing_deps(provider: str) -> List[str]:
     return missing
 
 
+def _resolve_record_path(record: ProviderRecord) -> Path:
+    """
+    Resolve a record path, allowing relative backend paths (e.g., /backend/models/..)
+    to be anchored to the project root. This keeps admin-configured paths portable.
+    """
+    raw = record.abs_path
+    # If already absolute, use as-is
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        return candidate
+    # Allow /backend/... style
+    normalized = raw.lstrip("/")
+    if normalized.startswith("backend"):
+        return (BACKEND_ROOT / normalized.removeprefix("backend/")).resolve()
+    # Fallback: anchor to model storage root
+    return (Path(settings.model_storage_path) / raw).resolve()
+
+
 def _assess_record(record: ProviderRecord) -> Dict[str, Any]:
     """Evaluate a provider record for availability, notes, and metadata."""
 
     notes: List[str] = []
-    available = record.enabled
+
+    available = True
     requires_gpu = PROVIDER_DEPS.get(record.set_name, {}).get("requires_gpu", False)
     display_name = record.name
 
-    path = Path(record.abs_path)
+    path = _resolve_record_path(record)
+    if not record.enabled:
+        available = False
+        if record.disable_reason:
+            notes.append(record.disable_reason)
+
     if not path.exists():
         available = False
-        notes.append("Path missing; add weights to the expected folder.")
     elif path.is_dir():
         if not any(path.iterdir()):
             available = False
-            notes.append("Path is empty; drop model files here.")
     else:
         if not path.is_file():
             available = False
-            notes.append("Path is not a file or directory.")
 
     missing = _missing_deps(record.set_name)
     if missing:
-        available = False
-        notes.append(f"Missing dependencies: {', '.join(missing)} (install via requirements.txt).")
-
-    if not record.enabled and record.disable_reason:
-        notes.append(record.disable_reason)
+        # We assume packages should be installed per requirements; surface as warning but do not hide the model.
+        notes.append(
+            f"Missing dependency: {', '.join(missing)}. See docs/application_documentation/DEPLOYMENT.md."
+        )
 
     return {
         "available": available,
@@ -77,11 +104,7 @@ def _assess_record(record: ProviderRecord) -> Dict[str, Any]:
 
 
 def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[Dict[str, Any]]:
-    """Group ASR registry records by provider (model set) and surface their entry names as models."""
-
-    if not records:
-        logger.warning("ASR registry empty; availability returns no providers")
-        return []
+    """Group ASR registry records by provider (model set) and surface their weight names as models."""
 
     grouped: Dict[str, Dict[str, Any]] = {}
     for record in records:
@@ -96,9 +119,9 @@ def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[
                 "notes": [],
             },
         )
+        group["models"].append(record.name)
         if assessment["available"]:
             group["available"] = True
-            group["models"].append(record.name)
         if assessment["notes"]:
             group["notes"].extend(assessment["notes"])
 
@@ -108,11 +131,7 @@ def _build_asr_options_from_registry(records: Sequence[ProviderRecord]) -> List[
 def _build_diarizer_options_from_registry(
     records: Sequence[ProviderRecord],
 ) -> List[Dict[str, Any]]:
-    """Return diarizer entries directly; each entry is a selectable backend."""
-
-    if not records:
-        logger.warning("Diarizer registry empty; availability returns no providers")
-        return []
+    """Return diarizer weights directly; each weight is a selectable backend."""
 
     options: List[Dict[str, Any]] = []
     for record in records:
@@ -120,6 +139,7 @@ def _build_diarizer_options_from_registry(
         options.append(
             {
                 "key": record.name,
+                "provider": record.set_name,
                 "display_name": assessment["display_name"],
                 "requires_gpu": assessment["requires_gpu"],
                 "available": assessment["available"],
@@ -131,7 +151,7 @@ def _build_diarizer_options_from_registry(
 
 
 def _collect_asr_models(records: Sequence[ProviderRecord]) -> List[str]:
-    """Return enabled & available ASR model entry names."""
+    """Return enabled & available ASR model weight names."""
 
     available: List[str] = []
     for record in records:
@@ -198,6 +218,7 @@ def _select_available_diarizer(
 def resolve_job_preferences(
     *,
     requested_model: Optional[str],
+    requested_provider: Optional[str],
     requested_diarizer: Optional[str],
     requested_diarization: Optional[bool],
     user_settings: Optional["UserSettings"],
@@ -210,14 +231,79 @@ def resolve_job_preferences(
 
     notes: List[str] = []
     snapshot = ProviderManager.get_snapshot()
-    valid_models = _collect_asr_models(snapshot["asr"])
+    asr_records = snapshot["asr"]
+    assessments = {(rec.set_name, rec.name): _assess_record(rec) for rec in asr_records}
 
-    if not valid_models:
-        notes.append("No ASR models available; register and enable one in the admin console.")
-        return {"model": None, "diarizer": None, "diarization_enabled": False, "notes": notes}
+    def is_available(rec: ProviderRecord) -> bool:
+        return assessments[(rec.set_name, rec.name)]["available"]
 
-    admin_default_model = user_settings.default_model if user_settings else None
-    model_choice = _resolve_model_choice(requested_model, admin_default_model, valid_models, notes)
+    grouped: Dict[str, List[ProviderRecord]] = {}
+    for rec in asr_records:
+        grouped.setdefault(rec.set_name, []).append(rec)
+
+    def first_available(records: List[ProviderRecord]) -> Optional[ProviderRecord]:
+        for rec in records:
+            if is_available(rec):
+                return rec
+        return None
+
+    def resolve_from_provider(provider: str, model: Optional[str]) -> ProviderRecord:
+        records = grouped.get(provider, [])
+        if not records:
+            raise ModelResolutionError(f"Provider '{provider}' is not registered.")
+        if model:
+            entry = next((rec for rec in records if rec.name == model), None)
+            if not entry:
+                raise ModelResolutionError(
+                    f"Model '{model}' is not registered under provider '{provider}'."
+                )
+            if not is_available(entry):
+                raise ModelResolutionError(
+                    f"Model '{model}' under provider '{provider}' is disabled or missing weights."
+                )
+            return entry
+        entry = first_available(records)
+        if entry:
+            return entry
+        raise ModelResolutionError(f"Provider '{provider}' has no enabled/available weights.")
+
+    chosen: Optional[ProviderRecord] = None
+
+    if requested_provider:
+        chosen = resolve_from_provider(requested_provider, requested_model)
+    elif requested_model:
+        matches = [rec for rec in asr_records if rec.name == requested_model]
+        if not matches:
+            raise ModelResolutionError(f"Model '{requested_model}' is not registered.")
+        chosen = next((rec for rec in matches if is_available(rec)), None)
+        if not chosen:
+            raise ModelResolutionError(f"Model '{requested_model}' is disabled or missing weights.")
+    else:
+        preferred_provider = user_settings.default_asr_provider if user_settings else None
+        preferred_model = user_settings.default_model if user_settings else None
+
+        if preferred_provider:
+            try:
+                chosen = resolve_from_provider(preferred_provider, preferred_model)
+            except ModelResolutionError as exc:
+                notes.append(str(exc))
+
+        if chosen is None and preferred_model:
+            matches = [rec for rec in asr_records if rec.name == preferred_model]
+            chosen = next((rec for rec in matches if is_available(rec)), None)
+            if chosen is None:
+                notes.append(f"Admin default model '{preferred_model}' unavailable; falling back.")
+
+        if chosen is None:
+            chosen = first_available(asr_records)
+
+    if chosen is None:
+        raise ModelResolutionError(
+            "No ASR models available; register and enable one in the admin console."
+        )
+
+    model_choice = chosen.name
+    provider_choice = chosen.set_name
 
     diarization_enabled = requested_diarization if requested_diarization is not None else True
 
@@ -233,6 +319,7 @@ def resolve_job_preferences(
 
     return {
         "model": model_choice,
+        "provider": provider_choice,
         "diarizer": diarizer_choice,
         "diarization_enabled": diarization_enabled,
         "notes": notes,

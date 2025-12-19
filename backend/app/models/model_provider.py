@@ -39,6 +39,11 @@ class ModelSet(Base):
         passive_deletes=True,
     )
 
+    @property
+    def weights(self):
+        """Expose ORM entries as model weights for serialization."""
+        return self.entries
+
     def __repr__(self) -> str:  # pragma: no cover - repr helper
         return "<ModelSet id={id} name={name} type={ptype} enabled={enabled}>".format(
             id=self.id,
@@ -49,7 +54,7 @@ class ModelSet(Base):
 
 
 class ModelEntry(Base):
-    """Concrete model entry under a model set."""
+    """Concrete model weight under a model set."""
 
     __tablename__ = "model_entries"
 

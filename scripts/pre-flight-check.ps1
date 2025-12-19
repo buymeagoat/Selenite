@@ -148,12 +148,12 @@ foreach ($hit in $consoleHits) {
 # 4. Reminder to run tests
 $testStamp = Join-Path $repoRoot ".last_tests_run"
 if (-not (Test-Path $testStamp)) {
-    Write-Host "[WARN] No .last_tests_run stamp found. Run ./run-tests.ps1 -SkipE2E before committing." -ForegroundColor Yellow
+    Write-Host "[WARN] No .last_tests_run stamp found. Run ./scripts/run-tests.ps1 -SkipE2E before committing." -ForegroundColor Yellow
 } else {
     $lastRun = Get-Item $testStamp
     Write-Info "Tests last marked as run: $($lastRun.LastWriteTime)"
     if ((Get-Date) - $lastRun.LastWriteTime -gt [TimeSpan]::FromHours(24)) {
-        Write-Host "[WARN] .last_tests_run is older than 24 hours; rerun ./run-tests.ps1 before committing." -ForegroundColor Yellow
+        Write-Host "[WARN] .last_tests_run is older than 24 hours; rerun ./scripts/run-tests.ps1 before committing." -ForegroundColor Yellow
     }
 }
 

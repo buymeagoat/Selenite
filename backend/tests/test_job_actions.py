@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.job import Job
 from app.utils.security import hash_password, create_access_token
-from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+from app.schemas.model_registry import ModelSetCreate, ModelWeightCreate
 from app.services.model_registry import ModelRegistryService
 from app.services.provider_manager import ProviderManager
 
@@ -46,10 +46,10 @@ async def test_db():
             ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
             actor="system",
         )
-    await ModelRegistryService.create_model_entry(
+    await ModelRegistryService.create_model_weight(
         session,
         model_set,
-        ModelEntryCreate(
+        ModelWeightCreate(
             name="test-entry",
             description="seed entry",
             abs_path=str(entry_path.resolve()),

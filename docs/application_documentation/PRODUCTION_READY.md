@@ -7,7 +7,7 @@
 ---
 
 ## 🔍 Verification Snapshot (Nov 21, 2025)
-- `./run-tests.ps1 -SkipE2E`  
+- `./scripts/run-tests.ps1 -SkipE2E`  
   - Backend: 313 pytest cases, **89%** statement coverage (see console log above).  
   - Frontend: Vitest coverage – **90.0% statements**, **69.4% functions**, **91.9% branches** (`frontend/coverage/coverage-summary.json`).  
 - `npm run e2e:full`  
@@ -236,7 +236,7 @@ curl http://localhost:8100/health
 pip-audit
 
 # 5. Run automated test suite
-pwsh ./run-tests.ps1    # add -SkipE2E when Playwright already executed separately
+pwsh ./scripts/run-tests.ps1    # add -SkipE2E when Playwright already executed separately
 ```
 
 ---
@@ -279,7 +279,7 @@ pwsh ./run-tests.ps1    # add -SkipE2E when Playwright already executed separate
 ## 📊 Metrics
 
 ### Code Quality
-- Backend: 313 pytest cases, ~89% statement coverage (see `run-tests.ps1` output)
+- Backend: 313 pytest cases, ~89% statement coverage (see `scripts/run-tests.ps1` output)
 - Frontend: Vitest coverage – 90% statements / 69% functions / 91.9% branches
 - E2E: 85 Playwright specs (Chromium/Firefox/WebKit) – 100% pass on latest run
 - Security: 0 critical vulnerabilities (pip-audit clean)

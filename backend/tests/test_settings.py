@@ -15,7 +15,7 @@ from app.utils.security import hash_password, create_access_token
 from app.database import AsyncSessionLocal, engine, Base
 from app.routes import settings as settings_routes
 from app.schemas.settings import SettingsUpdateRequest
-from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+from app.schemas.model_registry import ModelSetCreate, ModelWeightCreate
 from app.services.model_registry import ModelRegistryService
 from app.services.provider_manager import ProviderManager
 
@@ -65,16 +65,16 @@ async def test_db():
             (asr_entry_one, "asr-model-1"),
             (asr_entry_two, "asr-model-2"),
         ]:
-            await ModelRegistryService.create_model_entry(
+            await ModelRegistryService.create_model_weight(
                 session,
                 asr_set,
-                ModelEntryCreate(name=name, abs_path=str(entry_path.resolve()), checksum=None),
+                ModelWeightCreate(name=name, abs_path=str(entry_path.resolve()), checksum=None),
                 actor="system",
             )
-        await ModelRegistryService.create_model_entry(
+        await ModelRegistryService.create_model_weight(
             session,
             diar_set,
-            ModelEntryCreate(name="diar-entry", abs_path=str(diar_entry.resolve()), checksum=None),
+            ModelWeightCreate(name="diar-entry", abs_path=str(diar_entry.resolve()), checksum=None),
             actor="system",
         )
         await ProviderManager.refresh(session)
@@ -229,7 +229,7 @@ class TestUpdateSettings:
             response = await client.put("/settings", json=update_data, headers=auth_headers)
             assert response.status_code == 400
             detail = response.json().get("detail")
-            assert detail == "Default ASR model must reference an enabled registry entry."
+            assert detail == "Default ASR model must reference an existing registry entry."
 
     async def test_update_settings_invalid_diarizer(self, test_db, auth_headers, default_settings):
         """Invalid diarizer should be rejected."""

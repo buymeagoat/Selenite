@@ -11,11 +11,13 @@ from sqlalchemy import text
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.user_settings import UserSettings
+from app.models.model_provider import ModelEntry, ModelSet
 from app.models.job import Job
 from app.models.tag import Tag
 from app.models.transcript import Transcript
 from app.utils.security import hash_password
 from sqlalchemy import select, delete
+from app.config import BACKEND_ROOT
 
 
 async def clear_test_data():
@@ -76,6 +78,99 @@ async def seed_e2e_database():
             db.add(admin_settings)
             await db.commit()
             print("Created admin user settings")
+
+        # Ensure E2E model registry defaults (so UI + tests can select enabled weights)
+        model_root = (BACKEND_ROOT / "models").resolve()
+        e2e_asr_root = model_root / "e2e-asr"
+        e2e_asr_weight = e2e_asr_root / "base"
+        e2e_diar_root = model_root / "e2e-diarizer"
+        e2e_diar_weight = e2e_diar_root / "diar-weight"
+
+        for path in (e2e_asr_weight, e2e_diar_weight):
+            path.mkdir(parents=True, exist_ok=True)
+            placeholder = path / ".e2e-placeholder"
+            if not placeholder.exists():
+                placeholder.write_text("e2e test weight placeholder\n", encoding="utf-8")
+
+        asr_set = (
+            await db.execute(
+                select(ModelSet).where(ModelSet.type == "asr").where(ModelSet.name == "e2e-asr")
+            )
+        ).scalar_one_or_none()
+        if not asr_set:
+            asr_set = ModelSet(
+                type="asr",
+                name="e2e-asr",
+                description="E2E test ASR set",
+                abs_path=str(e2e_asr_root),
+                enabled=True,
+            )
+            db.add(asr_set)
+            await db.commit()
+            await db.refresh(asr_set)
+
+        diar_set = (
+            await db.execute(
+                select(ModelSet)
+                .where(ModelSet.type == "diarizer")
+                .where(ModelSet.name == "e2e-diarizer")
+            )
+        ).scalar_one_or_none()
+        if not diar_set:
+            diar_set = ModelSet(
+                type="diarizer",
+                name="e2e-diarizer",
+                description="E2E test diarizer set",
+                abs_path=str(e2e_diar_root),
+                enabled=True,
+            )
+            db.add(diar_set)
+            await db.commit()
+            await db.refresh(diar_set)
+
+        asr_weight = (
+            await db.execute(
+                select(ModelEntry)
+                .where(ModelEntry.set_id == asr_set.id)
+                .where(ModelEntry.name == "base")
+            )
+        ).scalar_one_or_none()
+        if not asr_weight:
+            asr_weight = ModelEntry(
+                set_id=asr_set.id,
+                type="asr",
+                name="base",
+                description="E2E base ASR weight",
+                abs_path=str(e2e_asr_weight),
+                enabled=True,
+            )
+            db.add(asr_weight)
+
+        diar_weight = (
+            await db.execute(
+                select(ModelEntry)
+                .where(ModelEntry.set_id == diar_set.id)
+                .where(ModelEntry.name == "diar-weight")
+            )
+        ).scalar_one_or_none()
+        if not diar_weight:
+            diar_weight = ModelEntry(
+                set_id=diar_set.id,
+                type="diarizer",
+                name="diar-weight",
+                description="E2E diarizer weight",
+                abs_path=str(e2e_diar_weight),
+                enabled=True,
+            )
+            db.add(diar_weight)
+
+        if admin_settings:
+            admin_settings.default_asr_provider = "e2e-asr"
+            admin_settings.default_model = "base"
+            admin_settings.default_diarizer_provider = "e2e-diarizer"
+            admin_settings.default_diarizer = "diar-weight"
+
+        await db.commit()
 
         # Create sample tags
         tags = []

@@ -14,7 +14,7 @@ PROJECT CONTEXT:
 - Single-user desktop application for transcribing audio/video files
 - Backend: FastAPI (Python 3.11+) with SQLAlchemy + SQLite
 - Frontend: React 18 + Vite with Tailwind CSS
-- Transcription: OpenAI Whisper (local models in /models directory)
+- Transcription: OpenAI Whisper (local models in /backend/models directory)
 - UI Theme: Pine forest color palette (deep greens, sage, earth tones)
 
 DEVELOPMENT APPROACH:

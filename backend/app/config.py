@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=(".env.test", ".env"), case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=(str(PROJECT_ROOT / ".env"), str(PROJECT_ROOT / ".env.test")),
+        case_sensitive=False,
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -153,7 +156,19 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_storage_paths(self) -> "Settings":
         """Ensure storage directories exist."""
-        for path_attr in ["media_storage_path", "transcript_storage_path"]:
+
+        def _normalize(path_str: str) -> str:
+            p = Path(path_str)
+            # Anchor relative paths to the project root to avoid accidental backend/storage duplication.
+            if not p.is_absolute():
+                p = (PROJECT_ROOT / p).resolve()
+            return str(p)
+
+        self.media_storage_path = _normalize(self.media_storage_path)
+        self.transcript_storage_path = _normalize(self.transcript_storage_path)
+        self.model_storage_path = _normalize(self.model_storage_path)
+
+        for path_attr in ["media_storage_path", "transcript_storage_path", "model_storage_path"]:
             path = Path(getattr(self, path_attr))
             path.mkdir(parents=True, exist_ok=True)
         return self
@@ -175,7 +190,7 @@ class Settings(BaseSettings):
 
         path_obj = Path(db_path)
         if not path_obj.is_absolute():
-            abs_path = (BACKEND_ROOT / path_obj).resolve()
+            abs_path = (PROJECT_ROOT / path_obj).resolve()
             url = url.set(database=str(abs_path))
             self.database_url = str(url)
         return self

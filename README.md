@@ -12,9 +12,9 @@ Selenite is a self-hosted, privacy-focused transcription service that runs entir
 ## ✨ Features
 
 - **🔒 Local Processing**: All transcription happens on your device - complete privacy
-- **🧭 Admin-Managed Models**: Curated ASR/diarizer providers ship pre-registered (folders created under `backend/models/<provider>/<entry>/...`) but with **no weights included**. Admins drop checkpoints into those folders, enable entries, and select defaults—no hidden fallbacks.
+- **🧭 Admin-Managed Models**: Curated ASR/diarizer providers ship pre-registered (folders created under `backend/models/<provider>/<weight>/...`) but with **no weights included**. Admins drop checkpoints into those folders, enable weights, and select defaults—no hidden fallbacks.
 - **🌍 90+ Languages**: Supports automatic language detection and translation (when the registered ASR model supports it)
-- **👥 Speaker Diarization**: Identify different speakers in conversations using registered diarizer entries
+- **👥 Speaker Diarization**: Identify different speakers in conversations using registered diarizer weights
 - **⏱️ Timestamps**: Add precise timestamps to transcripts
 - **🏷️ Tag Organization**: Organize jobs with custom colored tags
 - **🔍 Search & Filter**: Quickly find jobs by name, status, date, or tags
@@ -30,6 +30,8 @@ Selenite is a self-hosted, privacy-focused transcription service that runs entir
 - **FFmpeg** for audio processing
 - **8GB+ RAM** (16GB recommended for larger models)
 - **10GB+ storage** for application and models
+
+> Storage is canonicalized to `./storage` (with `storage/media` and `storage/transcripts`). Any legacy `backend/storage` paths are deprecated; keep all media and transcript files under the project-root `storage` directory.
 
 ### Installation
 
@@ -54,8 +56,8 @@ cp .env.example .env
    - We create registry rows and folders for these providers (all disabled until you add weights):  
      **ASR**: whisper, faster-whisper, wav2vec2 (base/lv60), nemo conformer-CTC (en), vosk (small/large en-US), coqui-stt (en-US), transformers (XLS-R/WavLM).  
      **Diarizer**: pyannote pipeline (diarization-3.1, segmentation-3.0, wespeaker-voxceleb), nemo-diarizer, speechbrain (ecapa embedding pipeline), resemblyzer (encoder + clustering).
-   - Download each model checkpoint manually into `backend/models/<provider>/<entry>/...`. No weights are shipped or auto-downloaded.
-   - In Admin UI (or REST), enable the entries you populated and choose defaults. If the registry is empty or all entries are disabled, job creation is blocked with "Contact admin to register a model."
+   - Download each model checkpoint manually into `backend/models/<provider>/<weight>/...`. No weights are shipped or auto-downloaded.
+   - In Admin UI (or REST), enable the weights you populated and choose defaults. If the registry is empty or all weights are disabled, job creation is blocked with "Contact admin to register a model weight."
 
 4. **Frontend setup**:
 ```bash
@@ -70,7 +72,7 @@ The fastest way is to run the automated bootstrap script from the repository roo
 ```powershell
 # PowerShell (Windows)
 cd Selenite
-.\bootstrap.ps1
+.\scripts\bootstrap.ps1
 ```
 
 This script:
@@ -105,7 +107,7 @@ python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 9
 ```
 
 > We no longer maintain a separate "dev server." Everything runs with production settings to mirror the actual deployment.
-> ASR/diarizer providers and model files are never downloaded automatically—install them in the backend venv, place checkpoints under `backend/models/<set>/<entry>/...`, and register + enable them via the Admin UI before running real jobs.
+> ASR/diarizer providers and model files are never downloaded automatically—install them in the backend venv, place checkpoints under `backend/models/<set>/<weight>/...`, and register + enable them via the Admin UI before running real jobs.
 
 6. **Open in browser**: Navigate to `http://localhost:5173`
 
@@ -115,21 +117,21 @@ Default credentials: `admin` / (your configured password)
 
 ### Model Registry Workflow (Admins)
 
-- No models ship with the app. Providers must be installed manually in the backend virtualenv, and model files must live under `backend/models/<model_set>/<model_entry>/...` (anything outside this tree is rejected).
-- Use the Admin tab (or `/model-registry` API) to create model sets (ASR or diarizer) and model entries (specific checkpoints). Each entry stores the absolute path you downloaded.
-- Enable or disable sets/entries at any time; disabled entries require a reason. `/system/availability` reports only enabled, registered items.
-- Before users can create jobs, pick the default ASR provider/model and (if used) diarizer provider/model from the registered, enabled entries.
+- No models ship with the app. Providers must be installed manually in the backend virtualenv, and model files must live under `backend/models/<model_set>/<model_weight>/...` (anything outside this tree is rejected).
+- Use the Admin tab (or `/model-registry` API) to create model sets (ASR or diarizer) and model weights (specific checkpoints). Each weight stores the absolute path you downloaded.
+- Enable or disable sets/weights at any time; disabled weights require a reason. `/system/availability` reports only enabled, registered items.
+- Before users can create jobs, pick the default ASR provider/model and (if used) diarizer provider/model from the registered, enabled weights.
 - Manual verification checkpoints (UI-only for operators):
-  1) After registering sets/entries, click **Rescan availability** in Admin → Model Registry and confirm the expected entries appear.
-  2) In Admin → Advanced ASR & Diarization, choose defaults from the enabled registry entries.
-  3) Open New Job; if no ASR entries are enabled, the submit button is disabled with “Contact admin to register a model.”
+  1) After registering sets/weights, click **Rescan availability** in Admin → Model Registry and confirm the expected weights appear.
+  2) In Admin → Advanced ASR & Diarization, choose defaults from the enabled registry weights.
+  3) Open New Job; if no ASR weights are enabled, the submit button is disabled with “Contact admin to register a model.”
 
 ### Automated Test Runner
 
 Once the stack is bootstrapped (or anytime you need to verify a change), run the entire automated test battery from the repo root with:
 
 ```powershell
-.\run-tests.ps1
+.\scripts\run-tests.ps1
 ```
 
 This script installs backend/frontend dependencies if needed, executes `pytest --cov=app`, runs `npm run test:coverage` + `npm run coverage:summary`, and finishes with the Playwright suite (`npm run e2e:full`). Common switches:
@@ -139,17 +141,19 @@ This script installs backend/frontend dependencies if needed, executes `pytest -
 
 Every invocation writes a timestamped log and copies coverage/Playwright artifacts into `docs/memorialization/test-runs/<run-id>` (gitignored). If you run tests manually (e.g., `npm run e2e:full`), copy the outputs into that folder so the historical record stays complete.
 
-On Linux/macOS use PowerShell Core: `pwsh ./run-tests.ps1 [-SkipE2E ...]`.
+On Linux/macOS use PowerShell Core: `pwsh ./scripts/run-tests.ps1 [-SkipE2E ...]`.
 
-> **Test data isolation:** `run-tests.ps1` automatically switches the backend to `ENVIRONMENT=testing`, uses a dedicated SQLite file (`selenite.test.db`), and writes media/transcripts into `storage/test-media` + `storage/test-transcripts`. Those folders (and the DB) are purged before the suites start and deleted again when the script finishes, so real production data stays untouched. If you execute suites manually, export the same environment variables first and remove the temporary DB/storage after the run.
+> **Test data isolation:** `scripts/run-tests.ps1` automatically switches the backend to `ENVIRONMENT=testing`, uses a dedicated SQLite file in `scratch/tests/selenite.test.db`, and writes media/transcripts into `scratch/tests/media` + `scratch/tests/transcripts`. Those folders (and the DB) are purged before the suites start and deleted again when the script finishes, so real production data stays untouched. If you execute suites manually, export the same environment variables first and remove the temporary DB/storage after the run.
 
 > **Composite output:** When the script finishes (even on failure) it prints a concise table showing the status of the backend, frontend, and E2E suites plus paths to the saved transcript/artifacts so you can review the results quickly.
 
-> **Port hygiene:** Before launching the Playwright harness, the script automatically kills any processes listening on ports `8100` or `5173` (the production backend/frontend ports). This mirrors the manual “kill stray python/node” instructions in `BOOTSTRAP.md` so repeated runs never collide with a stale dev server. If you manage the servers yourself, stop them before invoking `run-tests.ps1`.
+> **Port hygiene:** Before launching the Playwright harness, the script automatically kills any processes listening on ports `8100` or `5173` (the production backend/frontend ports). This mirrors the manual "kill stray python/node" instructions in `BOOTSTRAP.md` so repeated runs never collide with a stale dev server. If you manage the servers yourself, stop them before invoking `scripts/run-tests.ps1`.
 
 > **Environment reset:** Any environment variables the runner overrides (`ENVIRONMENT`, `DATABASE_URL`, etc.) are restored at the end, so your shell goes back to production defaults. You no longer get “testing-mode” backends after running the suite.
 
 > **Repository hygiene:** The final step runs `python scripts/check_repo_hygiene.py`, which loads `repo-hygiene-policy.json` (v1.0.0) and fails if stray databases, storage folders, or Playwright artifacts remain. Keeping the repo clean is enforced automatically; bump the policy version whenever new directories or generated files are introduced.
+
+> **Alignment drift enforcement:** Immediately after backend pytest completes, the runner calls `python scripts/check_alignment.py`. This tool inspects the DB and filesystem to ensure every registry path still lives under `backend/models/<set>/<weight>`, that no legacy `/models` or `/backend/storage` folders were recreated, and that canonical `storage/media` + `storage/transcripts` remain in place. The suite fails fast if drift is detected so issues never sneak into later stages. You can run it manually at any time with `python scripts/check_alignment.py` (optional `--json` output) when triaging path/storage questions.
 
 ## 📖 Documentation
 
@@ -294,16 +298,16 @@ DATABASE_URL=sqlite+aiosqlite:///./selenite.db
 # Storage
 MEDIA_STORAGE_PATH=./storage/media
 TRANSCRIPT_STORAGE_PATH=./storage/transcripts
-MODEL_STORAGE_PATH=./backend/models  # registry entries must live under backend/models/<model_set>/<model_entry>/...
+MODEL_STORAGE_PATH=./backend/models  # registry weights must live under backend/models/<model_set>/<model_weight>/...
 
 # Transcription
 MAX_CONCURRENT_JOBS=3
 DEFAULT_LANGUAGE=auto
 # Defaults must reference enabled registry items; set after registering:
 # DEFAULT_ASR_PROVIDER=your-set-name
-# DEFAULT_ASR_MODEL=your-entry-name
+# DEFAULT_ASR_MODEL=your-weight-name
 # DEFAULT_DIARIZER_PROVIDER=your-diarizer-set
-# DEFAULT_DIARIZER_MODEL=your-diarizer-entry
+# DEFAULT_DIARIZER_MODEL=your-diarizer-weight
 
 # Server
 HOST=0.0.0.0
@@ -312,6 +316,9 @@ CORS_ORIGINS=http://localhost:5173
 
 # Logging
 Selenite writes structured logs to the `logs/` directory. Every backend start creates fresh files named `selenite-YYYYMMDD-HHMMSS.log` and `error-YYYYMMDD-HHMMSS.log`, so historical runs remain available for troubleshooting. Log rotation (10 MB, 5 backups per file) still applies, but files are never overwritten—do not delete them unless you are explicitly archiving old runs.
+
+- Backend/API log files live at `logs/`.
+- Frontend/Vitest artifacts live at `logs/frontend/` (e.g., `logs/frontend/src_tests_*.log`). Do **not** recreate the legacy `vitest-logs/` directory at the repo root; the hygiene checks will fail if it reappears.
 
 ```bash
 LOG_LEVEL=INFO
@@ -424,16 +431,16 @@ Contributions are welcome! Please follow these steps:
 - Write tests for new features
 - Update documentation as needed
 - Keep commits focused and descriptive
-- Keep any temporary diagnostics (HTML/PS1, scripts, captured responses) inside the gitignored `scratch/` directory and keep them out of builds—never commit files with hardcoded credentials/IPs or helper pages meant only for troubleshooting.
+- Keep any temporary diagnostics (HTML/PS1, scripts, captured responses) inside the gitignored repo-root `scratch/` directory (the only allowed scratch location) and keep them out of builds—never commit files with hardcoded credentials/IPs or helper pages meant only for troubleshooting.
 
 ### Pre-flight Guardrails
 
 Before opening a PR (or handing work back to the admin):
 
 1. Run `./scripts/pre-flight-check.ps1` and fix any failures (missing auth guards, hardcoded credentials/IPs, stray debug logging).
-2. Run `./run-tests.ps1 -SkipE2E` (or the full suite) so `.last_tests_run` is refreshed and cite the outcome in your summary.
+2. Run `./scripts/run-tests.ps1 -SkipE2E` (or the full suite) so `.last_tests_run` is refreshed and cite the outcome in your summary.
 3. Update `docs/build/PRODUCTION_TASKS.md` and any manual verification docs for every code/doc/test change.
-4. Keep temporary diagnostics under a gitignored scratch directory—never ship IPs/credentials or debug HTML/PS1 files in the build.
+4. Keep temporary diagnostics under the single gitignored `scratch/` directory at the repo root—never ship IPs/credentials or debug HTML/PS1 files in the build.
 
 ### Work Tracking Policy
 

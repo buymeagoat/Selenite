@@ -134,7 +134,7 @@ function parseAsUTC(value: string): Date {
   })();
 
   const speakerDetected = job.speaker_count ?? (job.has_speaker_labels ? 1 : 1);
-  const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} · Detected: ${speakerDetected}`;
+  const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} | Detected: ${speakerDetected}`;
 
   const handleDelete = () => {
     onDelete(job.id);
@@ -224,7 +224,7 @@ function parseAsUTC(value: string): Date {
                 </div>
               </div>
               <div>
-                <div className="text-sm text-pine-mid">ASR provider / entry</div>
+                <div className="text-sm text-pine-mid">ASR model / weight</div>
                 <div className="text-base font-medium text-pine-deep">
                   {(asrProviderHint || 'Unknown') + ' / ' + (job.model_used || 'Unknown')}
                 </div>

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   AlertTriangle,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 
 import { useToast } from '../context/ToastContext';
@@ -26,40 +27,42 @@ import {
   type CapabilityResponse,
 } from '../services/system';
 import {
-  createModelEntry,
+  createModelWeight,
   createModelSet,
-  deleteModelEntry,
+  deleteModelWeight,
   deleteModelSet,
   listModelSets,
-  updateModelEntry,
+  updateModelWeight,
   updateModelSet,
-  type ModelEntry,
-  type ModelSetWithEntries,
+  type ModelWeight,
+  type ModelSetWithWeights,
   type ProviderType,
 } from '../services/modelRegistry';
-import { devError } from '../lib/debug';
+import { browseFiles, type FileEntry } from '../services/fileBrowser';
+import { devError, devInfo } from '../lib/debug';
 import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
 
 type RegistryTab = ProviderType;
 
 const MODELS_ROOT = '/backend/models';
 const CURATED_HELP = [
-  'Providers are pre-seeded (disabled) with folders under /backend/models/<provider>/<entry>/. Drop weights there and enable entries.',
+  'Providers are pre-seeded (disabled) with folders under /backend/models/<provider>/<weight>/. Drop weights there and enable model sets.',
   'ASR: whisper, faster-whisper, wav2vec2/transformers, nemo conformer-ctc, vosk, coqui-stt.',
   'Diarizers: pyannote pipeline, nemo-diarizer, speechbrain ecapa, resemblyzer clustering.',
 ];
+const LAST_SET_KEY_PREFIX = 'selenite:last-registry-set';
 const PROVIDER_EXPECTATIONS: Record<string, string> = {
-  whisper: 'Place whisper .pt file (e.g., tiny.pt) inside /backend/models/whisper/<entry>/',
-  'faster-whisper': 'Place CTranslate2 model folder inside /backend/models/faster-whisper/<entry>/',
-  wav2vec2: 'Place HF checkpoint under /backend/models/wav2vec2/<entry>/',
-  transformers: 'Place HF checkpoint under /backend/models/transformers/<entry>/',
-  nemo: 'Place NeMo Conformer-CTC files under /backend/models/nemo/<entry>/',
-  vosk: 'Place Vosk model folder under /backend/models/vosk/<entry>/',
-  'coqui-stt': 'Place Coqui STT model folder under /backend/models/coqui-stt/<entry>/',
-  'nemo-diarizer': 'Place NeMo diarization pipeline files under /backend/models/nemo-diarizer/<entry>/',
-  pyannote: 'Place pyannote pipeline files under /backend/models/pyannote/<entry>/',
-  speechbrain: 'Place SpeechBrain diarization artifacts under /backend/models/speechbrain/<entry>/',
-  resemblyzer: 'Place encoder/clustering artifacts under /backend/models/resemblyzer/<entry>/',
+  whisper: 'Place whisper .pt file (e.g., tiny.pt) inside /backend/models/whisper/<weight>/',
+  'faster-whisper': 'Place CTranslate2 model folder inside /backend/models/faster-whisper/<weight>/',
+  wav2vec2: 'Place HF checkpoint under /backend/models/wav2vec2/<weight>/',
+  transformers: 'Place HF checkpoint under /backend/models/transformers/<weight>/',
+  nemo: 'Place NeMo Conformer-CTC files under /backend/models/nemo/<weight>/',
+  vosk: 'Place Vosk model folder under /backend/models/vosk/<weight>/',
+  'coqui-stt': 'Place Coqui STT model folder under /backend/models/coqui-stt/<weight>/',
+  'nemo-diarizer': 'Place NeMo diarization pipeline files under /backend/models/nemo-diarizer/<weight>/',
+  pyannote: 'Place pyannote pipeline files under /backend/models/pyannote/<weight>/',
+  speechbrain: 'Place SpeechBrain diarization artifacts under /backend/models/speechbrain/<weight>/',
+  resemblyzer: 'Place encoder/clustering artifacts under /backend/models/resemblyzer/<weight>/',
 };
 
 interface SetFormState {
@@ -71,7 +74,7 @@ interface SetFormState {
   disable_reason: string;
 }
 
-interface EntryFormState {
+interface WeightFormState {
   id: number | null;
   name: string;
   description: string;
@@ -109,6 +112,7 @@ export const Admin: React.FC = () => {
   const [defaultModel, setDefaultModel] = useState('');
   const [defaultLanguage, setDefaultLanguage] = useState('auto');
   const [defaultDiarizer, setDefaultDiarizer] = useState('');
+  const [defaultDiarizerProvider, setDefaultDiarizerProvider] = useState('');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
   const [diarizationEnabled, setDiarizationEnabled] = useState(false);
   const [allowJobOverrides, setAllowJobOverrides] = useState(false);
@@ -123,9 +127,12 @@ export const Admin: React.FC = () => {
   const [capabilities, setCapabilities] = useState<CapabilityResponse | null>(null);
   const [isLoadingCapabilities, setIsLoadingCapabilities] = useState(true);
   const [registryLoading, setRegistryLoading] = useState(true);
-  const [registrySets, setRegistrySets] = useState<ModelSetWithEntries[]>([]);
+  const [registrySets, setRegistrySets] = useState<ModelSetWithWeights[]>([]);
   const [registryTab, setRegistryTab] = useState<RegistryTab>('asr');
   const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+  const [selectedSetName, setSelectedSetName] = useState<string>('');
+  const [savedLastAsrSet, setSavedLastAsrSet] = useState<string>('');
+  const [savedLastDiarizerSet, setSavedLastDiarizerSet] = useState<string>('');
   const [setForm, setSetForm] = useState<SetFormState>({
     id: null,
     name: '',
@@ -134,7 +141,7 @@ export const Admin: React.FC = () => {
     enabled: true,
     disable_reason: '',
   });
-  const [entryForm, setEntryForm] = useState<EntryFormState>({
+  const [weightForm, setWeightForm] = useState<WeightFormState>({
     id: null,
     name: '',
     description: '',
@@ -144,8 +151,16 @@ export const Admin: React.FC = () => {
     disable_reason: '',
   });
   const [isSavingSet, setIsSavingSet] = useState(false);
-  const [isSavingEntry, setIsSavingEntry] = useState(false);
+  const [isSavingWeight, setIsSavingWeight] = useState(false);
   const [availabilityNotes, setAvailabilityNotes] = useState<string[]>([]);
+  const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false);
+  const [fileBrowserScope, setFileBrowserScope] = useState<'models'>('models');
+  const [fileBrowserTarget, setFileBrowserTarget] = useState<'set' | 'weight' | null>(null);
+  const [fileBrowserCwd, setFileBrowserCwd] = useState<string>('/');
+  const [fileBrowserEntries, setFileBrowserEntries] = useState<FileEntry[]>([]);
+  const [fileBrowserLoading, setFileBrowserLoading] = useState(false);
+  const [fileBrowserError, setFileBrowserError] = useState<string | null>(null);
+  const [fileBrowserSelected, setFileBrowserSelected] = useState<string>('');
 
   const broadcastSettingsUpdated = () => {
     window.dispatchEvent(new CustomEvent('selenite:settings-updated'));
@@ -156,17 +171,41 @@ export const Admin: React.FC = () => {
     [registrySets, registryTab]
   );
   const activeSet = filteredSets.find((set) => set.id === selectedSetId) ?? filteredSets[0];
-  const activeEntries = activeSet?.entries ?? [];
+  const activeWeights = activeSet?.weights ?? [];
+  const activeSetHasWeightFiles = activeWeights.some((weight) => weight.has_weights);
+  const enableSetBlocked = !setForm.enabled && !activeSetHasWeightFiles;
 
-  const availableAsrModels = useMemo(
-    () => capabilities?.asr.flatMap((provider) => provider.models).filter(Boolean) ?? [],
-    [capabilities]
+  const registryAsrSets = useMemo(
+    () => registrySets.filter((set) => set.type === 'asr'),
+    [registrySets]
   );
-  const asrProviders = useMemo(() => capabilities?.asr ?? [], [capabilities]);
-  const activeProviderModels = useMemo(() => {
-    const match = asrProviders.find((p) => p.provider === defaultAsrProvider);
-    return match?.models ?? [];
-  }, [asrProviders, defaultAsrProvider]);
+  const asrProviderOptions = useMemo(() => {
+    return registryAsrSets.map((set) => {
+      const weights = set.weights.map((weight) => {
+        const hasFiles = weight.has_weights ?? false;
+        return {
+          name: weight.name,
+          available: Boolean(set.enabled && weight.enabled && hasFiles),
+        };
+      });
+      return {
+        name: set.name,
+        available: weights.some((weight) => weight.available),
+        weights,
+      };
+    });
+  }, [registryAsrSets]);
+  const availableAsrProviderOptions = useMemo(
+    () => asrProviderOptions.filter((provider) => provider.available),
+    [asrProviderOptions]
+  );
+  const asrWeightsForSelectedProvider = useMemo(() => {
+    if (!defaultAsrProvider) {
+      return [];
+    }
+    const match = asrProviderOptions.find((provider) => provider.name === defaultAsrProvider);
+    return match?.weights.filter((weight) => weight.available) ?? [];
+  }, [asrProviderOptions, defaultAsrProvider]);
   const availableDiarizers = useMemo(
     () => capabilities?.diarizers.filter((opt) => opt.available) ?? [],
     [capabilities]
@@ -195,6 +234,7 @@ export const Admin: React.FC = () => {
         setDefaultModel(settingsData.default_model ?? '');
         setDefaultLanguage(settingsData.default_language ?? 'auto');
         setDefaultDiarizer(settingsData.default_diarizer ?? '');
+        setDefaultDiarizerProvider(settingsData.default_diarizer_provider ?? '');
         setDiarizationEnabled(settingsData.diarization_enabled);
         setAllowJobOverrides(settingsData.allow_job_overrides);
         setEnableTimestamps(settingsData.enable_timestamps);
@@ -206,11 +246,29 @@ export const Admin: React.FC = () => {
         setCapabilities(capabilityData);
         setRegistrySets(registry);
         setAvailabilityNotes(collectAvailabilityNotes(capabilityData));
+        setSavedLastAsrSet(settingsData.last_selected_asr_set ?? '');
+        setSavedLastDiarizerSet(settingsData.last_selected_diarizer_set ?? '');
+        debugSelection('loaded-settings', 'asr', {
+          last_asr: settingsData.last_selected_asr_set,
+          last_diar: settingsData.last_selected_diarizer_set,
+        });
         if (registry.length > 0) {
-          const firstSet = registry.find((set) => set.type === registryTab) ?? registry[0];
-          setRegistryTab(firstSet.type);
-          setSelectedSetId(firstSet.id);
-          setSetForm(buildSetForm(firstSet));
+          const storedName = getStoredSetName(registryTab);
+          const setsForTab = registry.filter((s) => s.type === registryTab);
+          const preferred =
+            (storedName ? setsForTab.find((s) => s.name === storedName) : undefined) ??
+            setsForTab[0] ??
+            registry[0];
+          if (preferred) {
+            setRegistryTab(preferred.type);
+            selectSetForTab(preferred.type, preferred.id, preferred.name);
+            setSetForm(buildSetForm(preferred));
+            debugSelection('initial-choose', preferred.type, {
+              storedName,
+              chosenId: preferred.id,
+              chosenName: preferred.name,
+            });
+          }
         }
       } catch (error) {
         devError('Failed to load admin data:', error);
@@ -235,59 +293,74 @@ export const Admin: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
+  // Keep selection stable per tab and restore last chosen set for that tab
   useEffect(() => {
-    if (!filteredSets.length) {
-      setSelectedSetId(null);
-      setSetForm({
-        id: null,
-        name: '',
-        description: '',
-        abs_path: '',
-        enabled: true,
-        disable_reason: '',
-      });
-      return;
+    applySelectionForTab(registryTab, registrySets, selectedSetId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registryTab, registrySets, savedLastAsrSet, savedLastDiarizerSet]);
+
+  // Whenever selectedSetId changes, refresh the form to the current set
+  useEffect(() => {
+    if (!selectedSetId) return;
+    const match = registrySets.find((s) => s.id === selectedSetId);
+    if (match) {
+      setSetForm(buildSetForm(match));
     }
-    const match = filteredSets.find((set) => set.id === selectedSetId) ?? filteredSets[0];
-    setSelectedSetId(match.id);
-    setSetForm(buildSetForm(match));
-  }, [filteredSets, selectedSetId]);
+  }, [selectedSetId, registrySets]);
 
   useEffect(() => {
     if (!capabilities) return;
 
-    const providerKeys = asrProviders.map((p) => p.provider);
-    if (providerKeys.length && defaultAsrProvider && !providerKeys.includes(defaultAsrProvider)) {
-      setDefaultAsrProvider(providerKeys[0]);
-    } else if (!defaultAsrProvider && providerKeys.length) {
-      setDefaultAsrProvider(providerKeys[0]);
+    // Only fill in defaults when nothing is selected; do not override user choice if provider is missing/unavailable.
+    if (!availableAsrProviderOptions.length) {
+      if (defaultAsrProvider) {
+        setDefaultAsrProvider('');
+      }
+      if (defaultModel) {
+        setDefaultModel('');
+      }
+      return;
     }
+    if (!defaultAsrProvider) {
+      setDefaultAsrProvider(availableAsrProviderOptions[0].name);
+      return;
+    }
+    if (!availableAsrProviderOptions.some((provider) => provider.name === defaultAsrProvider)) {
+      setDefaultAsrProvider(availableAsrProviderOptions[0].name);
+    }
+  }, [availableAsrProviderOptions, capabilities, defaultAsrProvider, defaultModel]);
 
-    if (activeProviderModels.length && defaultModel && !activeProviderModels.includes(defaultModel)) {
-      setDefaultModel(activeProviderModels[0]);
-    } else if (!defaultModel && activeProviderModels.length) {
-      setDefaultModel(activeProviderModels[0]);
+  useEffect(() => {
+    if (!defaultAsrProvider) {
+      if (defaultModel) {
+        setDefaultModel('');
+      }
+      return;
     }
-    if (availableDiarizers.length && defaultDiarizer && !availableDiarizers.find((d) => d.key === defaultDiarizer)) {
-      setDefaultDiarizer(availableDiarizers[0].key);
+    if (!asrWeightsForSelectedProvider.length) {
+      if (defaultModel) {
+        setDefaultModel('');
+      }
+      return;
     }
-  }, [activeProviderModels, availableDiarizers, asrProviders, capabilities, defaultModel, defaultDiarizer, defaultAsrProvider]);
+    if (!asrWeightsForSelectedProvider.some((weight) => weight.name === defaultModel)) {
+      setDefaultModel(asrWeightsForSelectedProvider[0].name);
+    }
+  }, [asrWeightsForSelectedProvider, defaultAsrProvider, defaultModel]);
 
   const collectAvailabilityNotes = (cap: CapabilityResponse | null): string[] => {
     if (!cap) return [];
     const notes: string[] = [];
     if (!cap.asr.length) {
-      notes.push('No ASR models registered. Add an ASR set and entry to enable jobs.');
+      notes.push('No ASR models registered. Add an ASR set and weight to enable jobs.');
     }
-    cap.asr.forEach((provider) => provider.notes.forEach((note) => notes.push(`${provider.provider}: ${note}`)));
     if (!cap.diarizers.length) {
-      notes.push('No diarization entries registered.');
+      notes.push('No diarization weights registered.');
     }
-    cap.diarizers.forEach((opt) => opt.notes.forEach((note) => notes.push(`${opt.key}: ${note}`)));
     return notes;
   };
 
-  const buildSetForm = (set: ModelSetWithEntries): SetFormState => ({
+  const buildSetForm = (set: ModelSetWithWeights): SetFormState => ({
     id: set.id,
     name: set.name,
     description: set.description ?? '',
@@ -296,8 +369,8 @@ export const Admin: React.FC = () => {
     disable_reason: set.disable_reason ?? '',
   });
 
-  const resetEntryForm = () =>
-    setEntryForm({
+  const resetWeightForm = () =>
+    setWeightForm({
       id: null,
       name: '',
       description: '',
@@ -311,12 +384,154 @@ export const Admin: React.FC = () => {
     if (!path) return 'Path is required.';
     const normalized = normalizePath(path);
     if (!pathStartsWith(MODELS_ROOT, normalized)) {
-      return `Path must live under ${MODELS_ROOT}/<set>/<entry>`;
+      return `Path must live under ${MODELS_ROOT}/<set>/<weight>`;
     }
     if (scopePath && !pathStartsWith(scopePath, normalized)) {
-      return 'Entry path must live under its model set directory.';
+      return 'Weight path must live under its model set directory.';
     }
     return null;
+  };
+
+  const openFileBrowser = async (target: 'set' | 'weight', initialPath?: string) => {
+    setFileBrowserTarget(target);
+    setIsFileBrowserOpen(true);
+    setFileBrowserLoading(true);
+    setFileBrowserError(null);
+    const startPath = initialPath && initialPath.trim() ? initialPath : '/';
+    try {
+      const resp = await browseFiles(fileBrowserScope, startPath);
+      setFileBrowserCwd(resp.cwd);
+      setFileBrowserEntries(resp.entries);
+      setFileBrowserSelected(resp.cwd);
+    } catch (err) {
+      setFileBrowserError(err instanceof Error ? err.message : 'Unable to browse files.');
+    } finally {
+      setFileBrowserLoading(false);
+    }
+  };
+
+  const navigateFileBrowser = async (nextPath: string) => {
+    setFileBrowserLoading(true);
+    setFileBrowserError(null);
+    try {
+      const resp = await browseFiles(fileBrowserScope, nextPath);
+      setFileBrowserCwd(resp.cwd);
+      setFileBrowserEntries(resp.entries);
+      setFileBrowserSelected(resp.cwd);
+    } catch (err) {
+      setFileBrowserError(err instanceof Error ? err.message : 'Unable to browse files.');
+    } finally {
+      setFileBrowserLoading(false);
+    }
+  };
+
+  const applyFileBrowserSelection = () => {
+    if (!fileBrowserTarget) return;
+    const selectedPath = fileBrowserSelected || fileBrowserCwd;
+    if (fileBrowserTarget === 'set') {
+      setSetForm((prev) => ({ ...prev, abs_path: selectedPath.startsWith('/') ? selectedPath : `/${selectedPath}` }));
+    } else {
+      setWeightForm((prev) => ({ ...prev, abs_path: selectedPath.startsWith('/') ? selectedPath : `/${selectedPath}` }));
+    }
+    setIsFileBrowserOpen(false);
+  };
+
+  const parentPath = (cwd: string) => {
+    if (cwd === '/' || cwd === '') return '/';
+    const parts = cwd.split('/').filter(Boolean);
+    parts.pop();
+    return '/' + parts.join('/');
+  };
+
+  const rememberSelectedSet = (tab: RegistryTab, setId: number | null, setName: string | null) => {
+    const key = `${LAST_SET_KEY_PREFIX}:${tab}`;
+    if (setId && setName) {
+      localStorage.setItem(key, setName);
+    } else {
+      localStorage.removeItem(key);
+    }
+  };
+
+  const debugSelection = (action: string, tab: RegistryTab, payload: Record<string, unknown>) => {
+    const detail = { tab, ...payload };
+    // Always log to console for troubleshooting, even in production.
+    // eslint-disable-next-line no-console
+    console.info(`[registry-select] ${action}`, detail);
+    devInfo(`[registry-select] ${action}`, detail);
+  };
+
+  const persistLastSelectedSet = async (tab: RegistryTab, setName: string | null) => {
+    if (!setName) return;
+    try {
+      if (tab === 'asr') {
+        await updateSettings({ last_selected_asr_set: setName || null });
+      } else {
+        await updateSettings({ last_selected_diarizer_set: setName || null });
+      }
+      debugSelection('persist', tab, { setName });
+    } catch (err) {
+      devError('Failed to persist last-selected set', err);
+    }
+  };
+
+  const selectSetForTab = (tab: RegistryTab, setId: number | null, setName: string | null) => {
+    setSelectedSetId(setId);
+    setSelectedSetName(setName || '');
+    if (setId && setName) {
+      if (tab === 'asr') {
+        setSavedLastAsrSet(setName);
+      } else {
+        setSavedLastDiarizerSet(setName);
+      }
+      rememberSelectedSet(tab, setId, setName);
+      void persistLastSelectedSet(tab, setName);
+      debugSelection('select', tab, { setId, setName });
+    }
+  };
+
+  const getStoredSetName = (tab: RegistryTab): string | null => {
+    if (tab === 'asr' && savedLastAsrSet) return savedLastAsrSet || null;
+    if (tab === 'diarizer' && savedLastDiarizerSet) return savedLastDiarizerSet || null;
+    const raw = localStorage.getItem(`${LAST_SET_KEY_PREFIX}:${tab}`);
+    return raw || null;
+  };
+
+  const applySelectionForTab = (tab: RegistryTab, sets: ModelSetWithWeights[], currentId: number | null) => {
+    const setsForTab = sets.filter((s) => s.type === tab);
+    if (!setsForTab.length) {
+      selectSetForTab(tab, null, '');
+      setSetForm({
+        id: null,
+        name: '',
+        description: '',
+        abs_path: '',
+        enabled: true,
+        disable_reason: '',
+      });
+      return;
+    }
+
+    const storedName = getStoredSetName(tab);
+    const keepCurrent = currentId && setsForTab.some((s) => s.id === currentId) ? currentId : null;
+    const chosen =
+      setsForTab.find((s) => s.id === keepCurrent) ??
+      (storedName ? setsForTab.find((s) => s.name === storedName) : undefined) ??
+      (selectedSetName ? setsForTab.find((s) => s.name === selectedSetName) : undefined) ??
+      setsForTab[0];
+
+    if (chosen) {
+      if (chosen.id !== selectedSetId || chosen.name !== selectedSetName) {
+        selectSetForTab(tab, chosen.id, chosen.name);
+      }
+      debugSelection('apply', tab, {
+        storedName,
+        selectedSetId,
+        selectedSetName,
+        chosenId: chosen.id,
+        chosenName: chosen.name,
+      });
+      setSetForm(buildSetForm(chosen));
+    }
   };
 
   const refreshRegistry = async (preserveSelection = true) => {
@@ -325,7 +540,7 @@ export const Admin: React.FC = () => {
       const data = await listModelSets();
       setRegistrySets(data);
       if (!data.length) {
-        setSelectedSetId(null);
+        selectSetForTab(registryTab, null, '');
         setSetForm({
           id: null,
           name: '',
@@ -339,10 +554,27 @@ export const Admin: React.FC = () => {
       if (preserveSelection && selectedSetId && data.find((s) => s.id === selectedSetId)) {
         return;
       }
-      const first = data.find((s) => s.type === registryTab) ?? data[0];
-      setRegistryTab(first.type);
-      setSelectedSetId(first.id);
-      setSetForm(buildSetForm(first));
+
+      const setsForTab = data.filter((s) => s.type === registryTab);
+      const preferredName =
+        registryTab === 'asr' ? savedLastAsrSet || selectedSetName : savedLastDiarizerSet || selectedSetName;
+
+      const chosen =
+        (selectedSetId ? data.find((s) => s.id === selectedSetId) : undefined) ??
+        (preferredName ? setsForTab.find((s) => s.name === preferredName) : undefined) ??
+        (setsForTab.length ? setsForTab[0] : data[0]);
+
+      if (chosen) {
+        setRegistryTab(chosen.type);
+        selectSetForTab(chosen.type, chosen.id, chosen.name);
+        setSetForm(buildSetForm(chosen));
+        debugSelection('refresh-choose', chosen.type, {
+          selectedSetId,
+          preferredName,
+          chosenId: chosen.id,
+          chosenName: chosen.name,
+        });
+      }
     } catch (error) {
       devError('Failed to refresh registry', error);
       showError('Failed to refresh model registry.');
@@ -351,15 +583,11 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleSaveSet = async () => {
+  const handleSaveSetMetadata = async () => {
     if (!isAdmin) return;
     const pathError = validatePath(setForm.abs_path);
     if (pathError) {
       showError(pathError);
-      return;
-    }
-    if (!setForm.enabled && !setForm.disable_reason.trim()) {
-      showError('Provide a disable reason when turning off a set.');
       return;
     }
     setIsSavingSet(true);
@@ -369,8 +597,6 @@ export const Admin: React.FC = () => {
           name: setForm.name,
           description: setForm.description || null,
           abs_path: setForm.abs_path,
-          enabled: setForm.enabled,
-          disable_reason: setForm.disable_reason || null,
         });
       } else {
         const created = await createModelSet({
@@ -379,17 +605,50 @@ export const Admin: React.FC = () => {
           description: setForm.description || null,
           abs_path: setForm.abs_path,
         });
-        setSelectedSetId(created.id);
+        selectSetForTab(registryTab, created.id, created.name ?? setForm.name);
       }
-      showSuccess('Model set saved');
-      await refreshRegistry(false);
-      await handleAvailabilityRefresh();
+      showSuccess('Model set metadata saved');
+      await refreshRegistry(true);
     } catch (error) {
-      devError('Failed to save set', error);
+      devError('Failed to save set metadata', error);
       if (error instanceof ApiError) {
         showError(error.message);
       } else {
-        showError('Unable to save model set');
+        showError('Unable to save model set metadata');
+      }
+    } finally {
+      setIsSavingSet(false);
+    }
+  };
+
+  const handleSaveSetAvailability = async () => {
+    if (!isAdmin) return;
+    if (!setForm.id) {
+      showError('Save the model set metadata before updating availability.');
+      return;
+    }
+    const originalEnabled = activeSet?.id === setForm.id ? activeSet.enabled : true;
+    const togglingSetOff = Boolean(originalEnabled && !setForm.enabled);
+    const needsDisableReason = togglingSetOff && !setForm.disable_reason.trim();
+    if (needsDisableReason) {
+      showError('Provide a disable reason when turning off a set.');
+      return;
+    }
+    setIsSavingSet(true);
+    try {
+      await updateModelSet(setForm.id, {
+        enabled: setForm.enabled,
+        disable_reason: setForm.disable_reason || null,
+      });
+      showSuccess('Model set availability updated');
+      await refreshRegistry(true);
+      await handleAvailabilityRefresh();
+    } catch (error) {
+      devError('Failed to update set availability', error);
+      if (error instanceof ApiError) {
+        showError(error.message);
+      } else {
+        showError('Unable to update model set availability');
       }
     } finally {
       setIsSavingSet(false);
@@ -402,8 +661,8 @@ export const Admin: React.FC = () => {
     try {
       await deleteModelSet(setForm.id);
       showSuccess('Model set deleted');
-      setSelectedSetId(null);
-      await refreshRegistry(false);
+      selectSetForTab(registryTab, null, '');
+      await refreshRegistry(true);
       await handleAvailabilityRefresh();
     } catch (error) {
       devError('Failed to delete set', error);
@@ -411,8 +670,8 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleEditEntry = (entry: ModelEntry) => {
-    setEntryForm({
+  const handleEditWeight = (entry: ModelWeight) => {
+    setWeightForm({
       id: entry.id,
       name: entry.name,
       description: entry.description ?? '',
@@ -423,88 +682,115 @@ export const Admin: React.FC = () => {
     });
   };
 
-  const handleSaveEntry = async () => {
+  const handleSaveWeightMetadata = async () => {
     if (!selectedSetId) {
       showError('Select a model set before adding entries.');
       return;
     }
-    const pathError = validatePath(entryForm.abs_path, activeSet?.abs_path);
+    const pathError = validatePath(weightForm.abs_path, activeSet?.abs_path);
     if (pathError) {
       showError(pathError);
       return;
     }
-    if (!entryForm.enabled && !entryForm.disable_reason.trim()) {
-      showError('Provide a disable reason when turning off an entry.');
-      return;
-    }
-    setIsSavingEntry(true);
+    setIsSavingWeight(true);
     try {
-      if (entryForm.id) {
-        await updateModelEntry(entryForm.id, {
-          name: entryForm.name,
-          description: entryForm.description || null,
-          abs_path: entryForm.abs_path,
-          checksum: entryForm.checksum || null,
-          enabled: entryForm.enabled,
-          disable_reason: entryForm.disable_reason || null,
+      if (weightForm.id) {
+        await updateModelWeight(weightForm.id, {
+          name: weightForm.name,
+          description: weightForm.description || null,
+          abs_path: weightForm.abs_path,
+          checksum: weightForm.checksum || null,
         });
       } else {
-        await createModelEntry(selectedSetId, {
-          name: entryForm.name,
-          description: entryForm.description || null,
-          abs_path: entryForm.abs_path,
-          checksum: entryForm.checksum || null,
+        await createModelWeight(selectedSetId, {
+          name: weightForm.name,
+          description: weightForm.description || null,
+          abs_path: weightForm.abs_path,
+          checksum: weightForm.checksum || null,
         });
       }
-      showSuccess('Model entry saved');
-      resetEntryForm();
-      await refreshRegistry();
-      await handleAvailabilityRefresh();
+      showSuccess('Model weight metadata saved');
+      resetWeightForm();
+      await refreshRegistry(true);
     } catch (error) {
-      devError('Failed to save entry', error);
+      devError('Failed to save weight metadata', error);
       if (error instanceof ApiError) {
         showError(error.message);
       } else {
-        showError('Unable to save model entry.');
+        showError('Unable to save model weight metadata.');
       }
     } finally {
-      setIsSavingEntry(false);
+      setIsSavingWeight(false);
     }
   };
 
-  const handleDeleteEntry = async (entryId: number) => {
-    if (!confirm('Delete this model entry?')) return;
+  const handleSaveWeightAvailability = async () => {
+    if (!weightForm.id) {
+      showError('Save the model weight metadata before updating availability.');
+      return;
+    }
+    const originalWeight = activeSet?.weights?.find((weight) => weight.id === weightForm.id);
+    const weightWasEnabled = originalWeight?.enabled ?? true;
+    const togglingWeightOff = Boolean(weightWasEnabled && !weightForm.enabled);
+    const requiresReason = togglingWeightOff && !weightForm.disable_reason.trim();
+    if (requiresReason) {
+      showError('Provide a disable reason when turning off a weight.');
+      return;
+    }
+    setIsSavingWeight(true);
     try {
-      await deleteModelEntry(entryId);
-      showSuccess('Model entry deleted');
-      resetEntryForm();
-      await refreshRegistry();
+      await updateModelWeight(weightForm.id, {
+        enabled: weightForm.enabled,
+        disable_reason: weightForm.disable_reason || null,
+      });
+      showSuccess('Model weight availability updated');
+      await refreshRegistry(true);
       await handleAvailabilityRefresh();
     } catch (error) {
-      devError('Failed to delete entry', error);
-      showError('Unable to delete model entry.');
+      devError('Failed to update weight availability', error);
+      if (error instanceof ApiError) {
+        showError(error.message);
+      } else {
+        showError('Unable to update model weight availability.');
+      }
+    } finally {
+      setIsSavingWeight(false);
     }
   };
 
-  const handleToggleEntry = async (entry: ModelEntry) => {
+  const handleDeleteWeight = async (weightId: number) => {
+    if (!confirm('Delete this model weight?')) return;
+    try {
+      await deleteModelWeight(weightId);
+      showSuccess('Model weight deleted');
+      resetWeightForm();
+      await refreshRegistry(true);
+      await handleAvailabilityRefresh();
+    } catch (error) {
+      devError('Failed to delete weight', error);
+      showError('Unable to delete model weight.');
+    }
+  };
+
+  const handleToggleWeight = async (entry: ModelWeight) => {
     const targetState = !entry.enabled;
     const reason =
-      targetState === false ? prompt('Provide a reason for disabling this entry', entry.disable_reason ?? '') : null;
+      targetState === false ? prompt('Provide a reason for disabling this weight', entry.disable_reason ?? '') : null;
     if (targetState === false && (!reason || !reason.trim())) {
       showError('Disable reason is required.');
       return;
     }
     try {
-      await updateModelEntry(entry.id, {
+      await updateModelWeight(entry.id, {
         enabled: targetState,
         disable_reason: targetState ? null : reason,
       });
-      showInfo(`Entry ${targetState ? 'enabled' : 'disabled'}`);
-      await refreshRegistry();
+      showInfo(`Weight ${targetState ? 'enabled' : 'disabled'}`);
+      await refreshRegistry(true);
       await handleAvailabilityRefresh();
     } catch (error) {
-      devError('Failed to toggle entry', error);
-      showError('Unable to update entry state.');
+      devError('Failed to toggle weight', error);
+      showError('Unable to update weight state.');
     }
   };
 
@@ -525,9 +811,11 @@ export const Admin: React.FC = () => {
 
   const handleSaveAsrDefaults = async () => {
     try {
+      const provider = defaultAsrProvider || null;
+      const model = provider ? defaultModel || null : null;
       await updateAsrSettings({
-        default_asr_provider: defaultAsrProvider || null,
-        default_model: defaultModel || null,
+        default_asr_provider: provider,
+        default_model: model,
         default_language: defaultLanguage,
         enable_timestamps: enableTimestamps,
         max_concurrent_jobs: maxConcurrentJobs,
@@ -546,8 +834,11 @@ export const Admin: React.FC = () => {
 
   const handleSaveDiarizationDefaults = async () => {
     try {
+      const provider = diarizationEnabled ? defaultDiarizerProvider || null : null;
+      const weight = provider ? defaultDiarizer || null : null;
       await updateDiarizationSettings({
-        default_diarizer: diarizationEnabled ? defaultDiarizer || null : null,
+        default_diarizer_provider: provider,
+        default_diarizer: weight,
         diarization_enabled: diarizationEnabled,
         allow_job_overrides: allowJobOverrides,
       });
@@ -565,11 +856,16 @@ export const Admin: React.FC = () => {
 
   const handleSaveTimeZones = async () => {
     try {
+      const provider = defaultAsrProvider || null;
+      const model = provider ? defaultModel || null : null;
+      const diarProvider = diarizationEnabled ? defaultDiarizerProvider || null : null;
+      const diarWeight = diarProvider ? defaultDiarizer || null : null;
       await updateSettings({
-        default_asr_provider: defaultAsrProvider || null,
-        default_model: defaultModel || null,
+        default_asr_provider: provider,
+        default_model: model,
         default_language: defaultLanguage || undefined,
-        default_diarizer: diarizationEnabled ? defaultDiarizer || null : null,
+        default_diarizer_provider: diarProvider,
+        default_diarizer: diarWeight,
         diarization_enabled: diarizationEnabled,
         allow_job_overrides: allowJobOverrides,
         enable_timestamps: enableTimestamps,
@@ -738,7 +1034,89 @@ export const Admin: React.FC = () => {
   };
 
   const diarizerOptions = capabilities?.diarizers ?? [];
-  const selectedDiarizer = diarizerOptions.find((opt) => opt.key === defaultDiarizer);
+  const diarizerOptionMap = useMemo(() => {
+    const map = new Map<string, CapabilityResponse['diarizers'][number]>();
+    diarizerOptions.forEach((option) => map.set(option.key, option));
+    return map;
+  }, [diarizerOptions]);
+  const registryDiarizerSets = useMemo(
+    () => registrySets.filter((set) => set.type === 'diarizer'),
+    [registrySets]
+  );
+  const diarizerProviders = useMemo(() => {
+    return registryDiarizerSets.map((set) => {
+      const weights = set.weights.map((weight) => {
+        const weightHasFiles = weight.has_weights ?? false;
+        const capability = diarizerOptionMap.get(weight.name);
+        const available =
+          Boolean(set.enabled && weight.enabled && weightHasFiles) &&
+          (capability ? capability.available : true);
+        return {
+          key: weight.name,
+          display_name: capability?.display_name ?? weight.name,
+          available,
+          notes: capability?.notes ?? [],
+        };
+      });
+      return {
+        name: set.name,
+        available: weights.some((weight) => weight.available),
+        weights,
+      };
+    });
+  }, [registryDiarizerSets, diarizerOptionMap]);
+  const weightsForSelectedProvider = useMemo(() => {
+    if (!defaultDiarizerProvider) {
+      return [];
+    }
+    const match = diarizerProviders.find((provider) => provider.name === defaultDiarizerProvider);
+    return match?.weights ?? [];
+  }, [defaultDiarizerProvider, diarizerProviders]);
+  const selectedDiarizer = diarizerOptionMap.get(defaultDiarizer) ?? null;
+
+  useEffect(() => {
+    if (!diarizerProviders.length) {
+      setDefaultDiarizerProvider('');
+      return;
+    }
+    const providerFromWeight = defaultDiarizer
+      ? diarizerProviders.find((provider) =>
+          provider.weights.some((weight) => weight.key === defaultDiarizer)
+        )
+      : null;
+    if (!defaultDiarizerProvider) {
+      setDefaultDiarizerProvider((providerFromWeight ?? diarizerProviders[0]).name);
+      return;
+    }
+    if (!diarizerProviders.find((provider) => provider.name === defaultDiarizerProvider)) {
+      setDefaultDiarizerProvider(diarizerProviders[0].name);
+      return;
+    }
+    if (providerFromWeight && providerFromWeight.name !== defaultDiarizerProvider) {
+      setDefaultDiarizerProvider(providerFromWeight.name);
+    }
+  }, [defaultDiarizerProvider, defaultDiarizer, diarizerProviders]);
+
+  useEffect(() => {
+    if (!defaultDiarizerProvider) {
+      if (defaultDiarizer) {
+        setDefaultDiarizer('');
+      }
+      return;
+    }
+    if (!weightsForSelectedProvider.length) {
+      if (defaultDiarizer) {
+        setDefaultDiarizer('');
+      }
+      return;
+    }
+    if (!weightsForSelectedProvider.some((weight) => weight.key === defaultDiarizer)) {
+      const fallback =
+        weightsForSelectedProvider.find((weight) => weight.available) ||
+        weightsForSelectedProvider[0];
+      setDefaultDiarizer(fallback?.key ?? '');
+    }
+  }, [defaultDiarizerProvider, defaultDiarizer, weightsForSelectedProvider]);
 
   if (!isAdmin) {
     return (
@@ -766,7 +1144,76 @@ export const Admin: React.FC = () => {
     : null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto flex flex-col gap-6">
+    <>
+      {isFileBrowserOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-sage-mid">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-semibold text-pine-deep">Browse files</h3>
+                <p className="text-xs text-pine-mid font-mono">/backend/models{fileBrowserCwd}</p>
+              </div>
+              <button
+                className="text-pine-mid hover:text-pine-deep"
+                onClick={() => setIsFileBrowserOpen(false)}
+                aria-label="Close file browser"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-4 py-2 border-b border-sage-mid flex items-center gap-2 text-sm font-mono">
+              <button
+                className="px-2 py-1 border border-sage-mid rounded hover:bg-sage-light disabled:opacity-50"
+                onClick={() => navigateFileBrowser(parentPath(fileBrowserCwd))}
+                disabled={fileBrowserCwd === '/'}
+              >
+                Up
+              </button>
+              <span className="text-pine-mid">{fileBrowserCwd}</span>
+            </div>
+            <div className="flex-1 overflow-auto">
+              {fileBrowserError && <div className="p-3 text-sm text-terracotta">{fileBrowserError}</div>}
+              {fileBrowserLoading ? (
+                <div className="p-4 text-sm text-pine-mid">Loading...</div>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <tbody>
+                    {fileBrowserEntries.map((entry) => (
+                      <tr
+                        key={entry.path}
+                        className={`cursor-pointer hover:bg-sage-light ${
+                          fileBrowserSelected === entry.path ? 'bg-sage-light/70' : ''
+                        }`}
+                        onClick={() => setFileBrowserSelected(entry.path)}
+                        onDoubleClick={() =>
+                          entry.is_dir ? navigateFileBrowser(entry.path) : setFileBrowserSelected(entry.path)
+                        }
+                      >
+                        <td className="px-4 py-2 font-mono">
+                          {entry.is_dir ? '📁' : '📄'} {entry.name}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-sage-mid">
+              <button className="px-4 py-2 border border-sage-mid rounded-lg" onClick={() => setIsFileBrowserOpen(false)}>
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-forest-green text-white rounded-lg disabled:opacity-50"
+                onClick={applyFileBrowserSelection}
+                disabled={!fileBrowserSelected && !fileBrowserCwd}
+              >
+                Select path
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="p-6 max-w-5xl mx-auto flex flex-col gap-6">
       <div className="flex items-center gap-3 order-0">
         <Shield className="w-7 h-7 text-forest-green" />
         <div>
@@ -808,7 +1255,14 @@ export const Admin: React.FC = () => {
                 key={tab}
                 onClick={() => {
                   setRegistryTab(tab);
-                  resetEntryForm();
+                  const storedName = getStoredSetName(tab);
+                  if (storedName) {
+                    const match = registrySets.find((s) => s.type === tab && s.name === storedName);
+                    if (match) {
+                      selectSetForTab(tab, match.id, match.name);
+                    }
+                  }
+                  resetWeightForm();
                 }}
                 className={`px-3 py-2 rounded-lg border ${
                   registryTab === tab ? 'border-forest-green bg-forest-green/10 text-forest-green' : 'border-sage-mid text-pine-deep'
@@ -820,6 +1274,48 @@ export const Admin: React.FC = () => {
             ))}
           </div>
 
+          {!!filteredSets.length && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" data-testid="registry-set-summary">
+              {filteredSets.map((set) => {
+                const enabledWeights = set.weights.filter((w) => w.enabled);
+                const availableWeights = enabledWeights.filter((w) => w.has_weights !== false);
+                const showNames = enabledWeights.length ? enabledWeights.map((w) => w.name).join(', ') : 'None';
+                const statusLabel =
+                  set.enabled && availableWeights.length
+                    ? 'Available'
+                    : set.enabled
+                    ? 'Pending files'
+                    : 'Unavailable';
+                return (
+                  <div
+                    key={set.id}
+                    className="border border-sage-mid rounded-lg p-3 flex flex-col gap-1"
+                    data-testid={`${registryTab}-provider-${set.name}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-pine-deep">{set.name}</p>
+                        <p className="text-xs text-pine-mid truncate">{set.abs_path}</p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${
+                          set.enabled && availableWeights.length
+                            ? 'bg-forest-green/10 text-forest-green'
+                            : 'bg-terracotta/10 text-terracotta'
+                        }`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-pine-mid">
+                      Weights: <span className="font-medium text-pine-deep">{showNames}</span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="border border-sage-mid rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -827,16 +1323,16 @@ export const Admin: React.FC = () => {
                 <button
                   className="text-xs text-pine-mid flex items-center gap-1"
                   onClick={() => {
-                    setSelectedSetId(null);
+                    selectSetForTab(registryTab, null, '');
                     setSetForm({
                       id: null,
                       name: '',
                       description: '',
                       abs_path: '',
-                      enabled: true,
+                      enabled: false,
                       disable_reason: '',
                     });
-                    resetEntryForm();
+                    resetWeightForm();
                   }}
                   data-testid="new-set"
                 >
@@ -844,10 +1340,14 @@ export const Admin: React.FC = () => {
                 </button>
               </div>
 
-              <label className="text-sm font-medium text-pine-deep">Choose set</label>
+          <label className="text-sm font-medium text-pine-deep">Choose set</label>
               <select
                 value={selectedSetId ?? ''}
-                onChange={(e) => setSelectedSetId(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) => {
+                  const id = e.target.value ? Number(e.target.value) : null;
+                  const match = filteredSets.find((s) => s.id === id);
+                  selectSetForTab(registryTab, id, match?.name ?? '');
+                }}
                 className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                 data-testid="set-select"
                 disabled={registryLoading || !filteredSets.length}
@@ -879,22 +1379,45 @@ export const Admin: React.FC = () => {
                 <FolderOpen className="w-4 h-4" />
                 Model set path
               </label>
-              <input
-                value={setForm.abs_path}
-                onChange={(e) => setSetForm((prev) => ({ ...prev, abs_path: e.target.value }))}
-                placeholder={`${MODELS_ROOT}/<provider>`}
-                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none font-mono text-sm"
-              />
+              <div className="flex gap-2">
+                <input
+                  value={setForm.abs_path}
+                  onChange={(e) => setSetForm((prev) => ({ ...prev, abs_path: e.target.value }))}
+                  placeholder={`${MODELS_ROOT}/<provider>`}
+                  className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  className="px-3 py-2 border border-sage-mid rounded-lg text-sm hover:bg-sage-light"
+                  onClick={() => openFileBrowser('set', setForm.abs_path)}
+                  data-testid="browse-set-path"
+                >
+                  Browse
+                </button>
+              </div>
 
-              <label className="flex items-center gap-2 text-sm text-pine-deep">
+              <label
+                className="flex items-center gap-2 text-sm text-pine-deep"
+                title={
+                  enableSetBlocked
+                    ? 'Add at least one model weight (files present under /backend/models/...) before enabling this set.'
+                    : undefined
+                }
+              >
                 <input
                   type="checkbox"
                   checked={setForm.enabled}
                   onChange={(e) => setSetForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-                  className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                  className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green disabled:opacity-50"
+                  disabled={enableSetBlocked}
                 />
                 Enable this set
               </label>
+              {enableSetBlocked && (
+                <p className="text-xs text-pine-mid">
+                  Add at least one weight with files, then re-enable the set (see docs/application_documentation/DEPLOYMENT.md).
+                </p>
+              )}
               {!setForm.enabled && (
                 <input
                   value={setForm.disable_reason}
@@ -904,14 +1427,23 @@ export const Admin: React.FC = () => {
                 />
               )}
 
-              <div className="flex gap-2 justify-between">
+              <div className="flex flex-wrap gap-2 justify-between">
                 <button
-                  onClick={handleSaveSet}
+                  onClick={handleSaveSetMetadata}
                   className="flex-1 px-3 py-2 bg-forest-green text-white rounded-lg flex items-center gap-2 justify-center hover:bg-pine-deep transition disabled:opacity-50"
                   disabled={isSavingSet}
-                  data-testid="save-set"
+                  data-testid="save-set-metadata"
                 >
-                  <Save className="w-4 h-4" /> Save
+                  <Save className="w-4 h-4" /> Save metadata
+                </button>
+                <button
+                  onClick={handleSaveSetAvailability}
+                  className="flex-1 px-3 py-2 border border-forest-green text-forest-green rounded-lg flex items-center gap-2 justify-center hover:bg-forest-green/10 transition disabled:opacity-50"
+                  disabled={isSavingSet || !setForm.id}
+                  data-testid="save-set-availability"
+                  title={!setForm.id ? 'Save metadata before updating availability.' : undefined}
+                >
+                  <Save className="w-4 h-4" /> Update availability
                 </button>
                 {setForm.id && (
                   <button
@@ -928,136 +1460,170 @@ export const Admin: React.FC = () => {
 
             <div className="lg:col-span-2 border border-sage-mid rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-md font-semibold text-pine-deep">Entries in set</h3>
+                <h3 className="text-md font-semibold text-pine-deep">Model set weights</h3>
                 <button
                   className="text-xs text-pine-mid flex items-center gap-1"
-                  onClick={resetEntryForm}
-                  data-testid="new-entry"
+                  onClick={resetWeightForm}
+                  data-testid="new-weight"
                 >
-                  <Plus className="w-3 h-3" /> New entry
+                  <Plus className="w-3 h-3" /> New weight
                 </button>
               </div>
               {!filteredSets.length ? (
                 <p className="text-sm text-pine-mid">Create a model set to add entries.</p>
-              ) : activeEntries.length === 0 ? (
+              ) : activeWeights.length === 0 ? (
                 <p className="text-sm text-pine-mid">No entries yet. Point to a model file under this set.</p>
               ) : (
-                <div className="space-y-3" data-testid="entry-list">
-                  {activeEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="border border-sage-mid rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3"
-                      data-testid={`entry-${entry.id}`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-pine-deep">{entry.name}</span>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              entry.enabled ? 'bg-forest-green/10 text-forest-green' : 'bg-terracotta/10 text-terracotta'
-                            }`}
-                          >
-                            {entry.enabled ? 'Enabled' : 'Disabled'}
-                          </span>
+                <div className="space-y-3" data-testid="weight-list">
+                  {activeWeights.map((entry) => {
+                    const weightHasFiles = entry.has_weights ?? false;
+                    const toggleBlocked = !entry.enabled && !weightHasFiles;
+                    return (
+                      <div
+                        key={entry.id}
+                        className="border border-sage-mid rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        data-testid={`weight-${entry.id}`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-pine-deep">{entry.name}</span>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded ${
+                                entry.enabled ? 'bg-forest-green/10 text-forest-green' : 'bg-terracotta/10 text-terracotta'
+                              }`}
+                            >
+                              {entry.enabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-pine-mid font-mono mt-1 truncate">{entry.abs_path}</p>
+                          {entry.disable_reason && !entry.enabled && (
+                            <p className="text-xs text-terracotta mt-1">Reason: {entry.disable_reason}</p>
+                          )}
+                          {!weightHasFiles && (
+                            <p className="text-xs text-pine-mid mt-1">
+                              Weight files not detected; add files under this path then re-enable (see docs/application_documentation/DEPLOYMENT.md).
+                            </p>
+                          )}
                         </div>
-                        <p className="text-xs text-pine-mid font-mono mt-1 truncate">{entry.abs_path}</p>
-                        {entry.disable_reason && !entry.enabled && (
-                          <p className="text-xs text-terracotta mt-1">Reason: {entry.disable_reason}</p>
-                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          <button
+                            onClick={() => handleEditWeight(entry)}
+                            className="px-3 py-2 border border-sage-mid rounded-lg text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleWeight(entry)}
+                            className="px-3 py-2 border border-sage-mid rounded-lg text-sm disabled:opacity-50"
+                            data-testid={`toggle-weight-${entry.id}`}
+                            disabled={toggleBlocked}
+                            title={
+                              toggleBlocked
+                                ? 'Upload model weight files before enabling.'
+                                : undefined
+                            }
+                          >
+                            {entry.enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteWeight(entry.id)}
+                            className="px-3 py-2 border border-terracotta text-terracotta rounded-lg text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => handleEditEntry(entry)}
-                          className="px-3 py-2 border border-sage-mid rounded-lg text-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleToggleEntry(entry)}
-                          className="px-3 py-2 border border-sage-mid rounded-lg text-sm"
-                          data-testid={`toggle-entry-${entry.id}`}
-                        >
-                          {entry.enabled ? 'Disable' : 'Enable'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEntry(entry.id)}
-                          className="px-3 py-2 border border-terracotta text-terracotta rounded-lg text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               <div className="border-t border-sage-mid pt-3">
                 <h4 className="text-sm font-semibold text-pine-deep mb-2">
-                  {entryForm.id ? 'Edit entry' : 'Add entry'}
+                  {weightForm.id ? 'Edit weight' : 'Add weight'}
                 </h4>
                 <div className="grid md:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-pine-deep">Name</label>
                     <input
-                      value={entryForm.name}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, name: e.target.value }))}
+                      value={weightForm.name}
+                      onChange={(e) => setWeightForm((prev) => ({ ...prev, name: e.target.value }))}
                       className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                     />
                     <label className="text-sm font-medium text-pine-deep">Description</label>
                     <textarea
-                      value={entryForm.description}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, description: e.target.value }))}
+                      value={weightForm.description}
+                      onChange={(e) => setWeightForm((prev) => ({ ...prev, description: e.target.value }))}
                       className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                       rows={2}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-pine-deep flex items-center gap-2">
-                      <FolderOpen className="w-4 h-4" />
-                      Entry path
-                    </label>
-                    <input
-                      value={entryForm.abs_path}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, abs_path: e.target.value }))}
-                      placeholder={`${MODELS_ROOT}/${activeSet?.name ?? '<set>'}/<entry>/...`}
-                      className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none font-mono text-sm"
-                    />
+              <label className="text-sm font-medium text-pine-deep flex items-center gap-2">
+                <FolderOpen className="w-4 h-4" />
+                Entry path
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={weightForm.abs_path}
+                  onChange={(e) => setWeightForm((prev) => ({ ...prev, abs_path: e.target.value }))}
+                  placeholder={`${MODELS_ROOT}/${activeSet?.name ?? '<set>'}/<weight>/...`}
+                  className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  className="px-3 py-2 border border-sage-mid rounded-lg text-sm hover:bg-sage-light"
+                  onClick={() => openFileBrowser('weight', weightForm.abs_path || activeSet?.abs_path)}
+                  data-testid="browse-weight-path"
+                >
+                  Browse
+                </button>
+              </div>
                     <label className="text-sm font-medium text-pine-deep">Checksum (optional)</label>
                     <input
-                      value={entryForm.checksum}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, checksum: e.target.value }))}
+                      value={weightForm.checksum}
+                      onChange={(e) => setWeightForm((prev) => ({ ...prev, checksum: e.target.value }))}
                       className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                     />
                     <label className="flex items-center gap-2 text-sm text-pine-deep">
                       <input
                         type="checkbox"
-                        checked={entryForm.enabled}
-                        onChange={(e) => setEntryForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                        checked={weightForm.enabled}
+                        onChange={(e) => setWeightForm((prev) => ({ ...prev, enabled: e.target.checked }))}
                         className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
                       />
-                      Enable this entry
+                      Enable this weight
                     </label>
-                    {!entryForm.enabled && (
+                    {!weightForm.enabled && (
                       <input
-                        value={entryForm.disable_reason}
-                        onChange={(e) => setEntryForm((prev) => ({ ...prev, disable_reason: e.target.value }))}
+                        value={weightForm.disable_reason}
+                        onChange={(e) => setWeightForm((prev) => ({ ...prev, disable_reason: e.target.value }))}
                         placeholder="Disable reason (required)"
                         className="w-full px-3 py-2 border border-terracotta rounded-lg text-sm"
                       />
                     )}
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-3">
+                <div className="flex flex-wrap justify-end gap-2 mt-3">
                   <button
-                    onClick={handleSaveEntry}
+                    onClick={handleSaveWeightMetadata}
                     className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
-                    disabled={isSavingEntry}
-                    data-testid="save-entry"
+                    disabled={isSavingWeight}
+                    data-testid="save-weight-metadata"
                   >
-                    Save entry
+                    Save weight metadata
                   </button>
                   <button
-                    onClick={resetEntryForm}
+                    onClick={handleSaveWeightAvailability}
+                    className="px-4 py-2 border border-forest-green text-forest-green rounded-lg hover:bg-forest-green/10 transition disabled:opacity-50"
+                    disabled={isSavingWeight || !weightForm.id}
+                    data-testid="save-weight-availability"
+                    title={!weightForm.id ? 'Save metadata before updating availability.' : undefined}
+                  >
+                    Update availability
+                  </button>
+                  <button
+                    onClick={resetWeightForm}
                     className="px-4 py-2 border border-sage-mid rounded-lg text-pine-deep"
                   >
                     Reset
@@ -1099,22 +1665,61 @@ export const Admin: React.FC = () => {
             </label>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
+                <label htmlFor="default-diarizer-provider" className="block text-sm font-medium text-pine-deep mb-1">
+                  Default Diarizer Set
+                </label>
+                <select
+                  id="default-diarizer-provider"
+                  value={defaultDiarizerProvider}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDefaultDiarizerProvider(value);
+                    if (value !== defaultDiarizerProvider) {
+                      setDefaultDiarizer('');
+                    }
+                  }}
+                  disabled={
+                    isLoadingCapabilities || !diarizationEnabled || !diarizerProviders.length
+                  }
+                  className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+                  data-testid="default-diarizer-provider"
+                >
+                  {!diarizerProviders.length && <option value="">No diarizers registered</option>}
+                  {diarizerProviders.map((provider) => (
+                    <option key={provider.name} value={provider.name}>
+                      {provider.available ? provider.name : `${provider.name} (unavailable)`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label htmlFor="default-diarizer" className="block text-sm font-medium text-pine-deep mb-1">
-                  Default Diarizer
+                  Default Diarizer Weight
                 </label>
                 <select
                   id="default-diarizer"
                   value={defaultDiarizer}
                   onChange={(e) => setDefaultDiarizer(e.target.value)}
-                  disabled={isLoadingCapabilities || !diarizationEnabled || !availableDiarizers.length}
+                  disabled={
+                    isLoadingCapabilities ||
+                    !diarizationEnabled ||
+                    !weightsForSelectedProvider.length
+                  }
                   className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                   data-testid="default-diarizer"
                   data-ready={(!isLoadingSettings && !isLoadingCapabilities).toString()}
                 >
-                  {!availableDiarizers.length && <option value="">No diarizers registered</option>}
-                  {availableDiarizers.map((option) => (
+                  {!weightsForSelectedProvider.length && (
+                    <option value="">No weights registered</option>
+                  )}
+                  {weightsForSelectedProvider.map((option) => (
                     <option key={option.key} value={option.key}>
                       {option.display_name}
+                      {!option.available
+                        ? option.notes.length
+                          ? ` (${option.notes.join(', ')})`
+                          : ' (unavailable)'
+                        : ''}
                     </option>
                   ))}
                 </select>
@@ -1151,7 +1756,7 @@ export const Admin: React.FC = () => {
 
           <div className="border border-sage-mid rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-md font-semibold text-pine-deep">ASR Providers</h3>
+              <h3 className="text-md font-semibold text-pine-deep">ASR Models</h3>
               <button
                 type="button"
                 className="text-xs text-pine-mid underline flex items-center gap-1"
@@ -1165,20 +1770,23 @@ export const Admin: React.FC = () => {
                 htmlFor="default-asr-provider"
                 className="block text-sm font-medium text-pine-deep mb-1"
               >
-                Default ASR Provider
+                Default ASR Model
               </label>
+              <p className="text-xs text-pine-mid mb-2">
+                Global default for all new jobs. The Model Registry tab remembers your last selection separately.
+              </p>
               <select
                 id="default-asr-provider"
                 value={defaultAsrProvider}
                 onChange={(e) => setDefaultAsrProvider(e.target.value)}
-                disabled={isLoadingCapabilities || !asrProviders.length}
+                disabled={isLoadingCapabilities || !availableAsrProviderOptions.length}
                 className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                 data-testid="default-asr-provider"
               >
-                {!asrProviders.length && <option value="">No ASR providers registered</option>}
-                {asrProviders.map((provider) => (
-                  <option key={provider.provider} value={provider.provider}>
-                    {provider.display_name}
+                {!availableAsrProviderOptions.length && <option value="">No ASR model sets ready</option>}
+                {availableAsrProviderOptions.map((provider) => (
+                  <option key={provider.name} value={provider.name}>
+                    {provider.name}
                   </option>
                 ))}
               </select>
@@ -1188,60 +1796,32 @@ export const Admin: React.FC = () => {
                 htmlFor="default-asr-model"
                 className="block text-sm font-medium text-pine-deep mb-1"
               >
-                Default ASR Model
+                Default ASR Weight
               </label>
               <select
                 id="default-asr-model"
                 value={defaultModel}
                 onChange={(e) => setDefaultModel(e.target.value)}
-                disabled={isLoadingCapabilities || !activeProviderModels.length}
+                disabled={isLoadingCapabilities || !asrWeightsForSelectedProvider.length}
                 className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                 data-testid="default-asr-model"
               >
-                {!activeProviderModels.length && <option value="">No ASR models registered</option>}
-                {activeProviderModels.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
+                {!asrWeightsForSelectedProvider.length && (
+                  <option value="">No ASR weights available for this set</option>
+                )}
+                {asrWeightsForSelectedProvider.map((weight) => (
+                  <option key={weight.name} value={weight.name}>
+                    {weight.name}
                   </option>
                 ))}
               </select>
-              {!activeProviderModels.length && (
-                <p className="text-xs text-terracotta mt-1">Register and enable an ASR entry before users can create jobs.</p>
-              )}
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              {asrProviders.length === 0 && (
-                <p className="text-sm text-pine-mid">No ASR providers registered.</p>
-              )}
-              {asrProviders.map((provider) => (
-                <div key={provider.provider} className="p-3 border border-sage-light rounded" data-testid={`asr-provider-${provider.provider}`}>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-pine-deep">{provider.display_name}</p>
-                <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded ${
-                    provider.available ? 'bg-forest-green/10 text-forest-green' : 'bg-terracotta/10 text-terracotta'
-                  }`}
-                >
-                  {provider.available ? 'Available' : 'Unavailable'}
-                </span>
-              </div>
-              <p className="text-xs text-pine-mid mt-1">Models: {provider.models.join(', ') || 'n/a'}</p>
-              {PROVIDER_EXPECTATIONS[provider.provider] && (
-                <p className="text-xs text-pine-mid mt-1 italic">
-                  Expected files: {PROVIDER_EXPECTATIONS[provider.provider]}
+              {defaultAsrProvider && !asrWeightsForSelectedProvider.length && (
+                <p className="text-xs text-terracotta mt-1">
+                  Enable a weight with files under /backend/models/{defaultAsrProvider}/… before setting it as default
+                  (see docs/application_documentation/DEPLOYMENT.md).
                 </p>
               )}
-              {provider.notes.length > 0 && (
-                <ul className="mt-2 text-xs text-pine-mid list-disc list-inside space-y-1">
-                  {provider.notes.map((note, idx) => (
-                    <li key={idx}>{note}</li>
-                  ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
             </div>
-
             <div className="flex justify-end mt-4">
               <button
                 onClick={handleSaveAsrDefaults}
@@ -1319,6 +1899,36 @@ export const Admin: React.FC = () => {
                   {storageProject?.path ?? 'Run Detect to load path'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          <div className="border border-sage-mid rounded-lg p-4" data-testid="audio-handling-card">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-md font-semibold text-pine-deep">Audio Handling</h3>
+              <span className="text-xs text-pine-mid">Transcoding guardrail</span>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={transcodeToWav}
+                onChange={(e) => setTranscodeToWav(e.target.checked)}
+                className="mt-1"
+              />
+              <div>
+                <p className="text-sm text-pine-deep font-medium">Transcode uploads to WAV (recommended)</p>
+                <p className="text-xs text-pine-mid">
+                  Converts non-WAV inputs to WAV before transcription/diarization to avoid codec/backend issues on
+                  CPU-only hosts. Admins can disable this if they prefer raw inputs.
+                </p>
+              </div>
+            </label>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={handleSaveTimeZones}
+                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
+              >
+                Save System Settings
+              </button>
             </div>
           </div>
         </div>
@@ -1412,35 +2022,6 @@ export const Admin: React.FC = () => {
               className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
             >
               Save Time Zones
-            </button>
-          </div>
-        </div>
-        <div className="border border-sage-mid rounded-lg p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-md font-semibold text-pine-deep">Audio Handling</h3>
-            <span className="text-xs text-pine-mid">Transcoding guardrail</span>
-          </div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={transcodeToWav}
-              onChange={(e) => setTranscodeToWav(e.target.checked)}
-              className="mt-1"
-            />
-            <div>
-              <p className="text-sm text-pine-deep font-medium">Transcode uploads to WAV (recommended)</p>
-              <p className="text-xs text-pine-mid">
-                Converts non-WAV inputs to WAV before transcription/diarization to avoid codec/backend issues on
-                CPU-only hosts. Admins can disable this if they prefer raw inputs.
-              </p>
-            </div>
-          </label>
-          <div className="flex justify-end mt-4">
-            <button
-              onClick={handleSaveTimeZones}
-              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
-            >
-              Save System Settings
             </button>
           </div>
         </div>
@@ -1570,5 +2151,6 @@ export const Admin: React.FC = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };

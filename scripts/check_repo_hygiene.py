@@ -30,6 +30,18 @@ def fail(messages: Iterable[str]) -> None:
 def _dir_is_empty(path: Path) -> bool:
     return not any(path.rglob("*"))
 
+def _clear_dir_contents(path: Path) -> None:
+    if not path.exists() or not path.is_dir():
+        return
+    for child in path.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            try:
+                child.unlink(missing_ok=True)
+            except Exception:
+                pass
+
 
 def load_policy() -> dict:
     try:
@@ -61,7 +73,11 @@ def main() -> None:
 
     # Best-effort cleanup of transient artifacts (test DBs, temp storage)
     transient_paths = [
-        REPO_ROOT / "backend" / "selenite.test.db",
+        REPO_ROOT / "scratch" / "tests" / "selenite.test.db",
+        REPO_ROOT / "scratch" / "tests" / "media",
+        REPO_ROOT / "scratch" / "tests" / "transcripts",
+    ]
+    transient_storage_dirs = [
         REPO_ROOT / "storage" / "test-media",
         REPO_ROOT / "storage" / "test-transcripts",
     ]
@@ -73,6 +89,11 @@ def main() -> None:
                 shutil.rmtree(path, ignore_errors=True)
         except Exception:
             # Do not block hygiene on cleanup failures; the check will catch leftovers if present.
+            pass
+    for path in transient_storage_dirs:
+        try:
+            _clear_dir_contents(path)
+        except Exception:
             pass
 
     # Clean git status if required.
@@ -111,6 +132,26 @@ def main() -> None:
     for legacy in legacy_paths:
         if legacy.exists():
             errors.append(f"Legacy storage path should not exist: {legacy}")
+
+    # Canonical temp directories (e.g., scratch)
+    temp_dir_entries = [Path(rel) for rel in policy.get("temp_directories", [])]
+    temp_keywords = [kw.lower() for kw in policy.get("temp_dir_keywords", []) if isinstance(kw, str)]
+    allowed_root_temp = {
+        (REPO_ROOT / entry).resolve()
+        for entry in temp_dir_entries
+        if len(entry.parts) == 1
+    }
+    if temp_keywords:
+        for child in REPO_ROOT.iterdir():
+            if not child.is_dir():
+                continue
+            name_lower = child.name.lower()
+            if any(keyword in name_lower for keyword in temp_keywords):
+                if child.resolve() not in allowed_root_temp:
+                    errors.append(
+                        f"Unapproved temporary directory at repo root: {child}. "
+                        f"Allowed temp roots: {[str(path.relative_to(REPO_ROOT)) for path in allowed_root_temp]}"
+                    )
 
     # Directories that must be empty/absent
     def has_files(path: Path) -> bool:

@@ -42,6 +42,7 @@ describe('job services', () => {
 
     await createJob({
       file,
+      provider: 'whisper',
       model: 'large',
       language: 'en',
       enable_timestamps: true,
@@ -52,6 +53,7 @@ describe('job services', () => {
     expect(apiUpload).toHaveBeenCalledWith('/jobs', expect.any(FormData));
     const formData = (apiUpload as any).mock.calls[0][1] as FormData;
     const entries = Array.from(formData.entries());
+    expect(entries).toContainEqual(['provider', 'whisper']);
     expect(entries).toContainEqual(['model', 'large']);
     expect(entries).toContainEqual(['language', 'en']);
     expect(entries).toContainEqual(['enable_timestamps', 'true']);

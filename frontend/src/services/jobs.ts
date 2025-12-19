@@ -54,6 +54,7 @@ export interface FetchJobsParams {
 
 export interface CreateJobParams {
   file: File;
+  provider?: string;
   model?: string;
   language?: string;
   enable_timestamps?: boolean;
@@ -91,6 +92,10 @@ export async function fetchJob(jobId: string): Promise<Job> {
 export async function createJob(params: CreateJobParams): Promise<CreateJobResponse> {
   const formData = new FormData();
   formData.append('file', params.file);
+
+  if (params.provider) {
+    formData.append('provider', params.provider);
+  }
   
   if (params.model) {
     formData.append('model', params.model);

@@ -10,6 +10,7 @@ export interface UserSettings {
   default_asr_provider: string | null;
   default_model: string;
   default_language: string;
+  default_diarizer_provider: string | null;
   default_diarizer: string;
   diarization_enabled: boolean;
   allow_job_overrides: boolean;
@@ -18,12 +19,15 @@ export interface UserSettings {
   time_zone: string | null;
   server_time_zone: string;
    transcode_to_wav: boolean;
+  last_selected_asr_set: string | null;
+  last_selected_diarizer_set: string | null;
 }
 
 export interface UpdateSettingsParams {
   default_asr_provider?: string | null;
   default_model?: string | null;
   default_language?: string;
+  default_diarizer_provider?: string | null;
   default_diarizer?: string | null;
   diarization_enabled?: boolean;
   allow_job_overrides?: boolean;
@@ -32,6 +36,8 @@ export interface UpdateSettingsParams {
   time_zone?: string | null;
   server_time_zone?: string | null;
   transcode_to_wav?: boolean;
+  last_selected_asr_set?: string | null;
+  last_selected_diarizer_set?: string | null;
 }
 
 export interface UpdateAsrSettingsParams {
@@ -42,13 +48,16 @@ export interface UpdateAsrSettingsParams {
   enable_timestamps?: boolean;
   max_concurrent_jobs?: number;
   time_zone?: string | null;
+  last_selected_asr_set?: string | null;
 }
 
 export interface UpdateDiarizationSettingsParams {
+  default_diarizer_provider?: string | null;
   default_diarizer?: string | null;
   diarization_enabled?: boolean;
   allow_job_overrides?: boolean;
   time_zone?: string | null;
+  last_selected_diarizer_set?: string | null;
 }
 
 /**

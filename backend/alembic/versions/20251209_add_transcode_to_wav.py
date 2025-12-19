@@ -18,6 +18,7 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    is_sqlite = bind.dialect.name == "sqlite"
     inspector = sa.inspect(bind)
     cols = [c["name"] for c in inspector.get_columns("system_preferences")]
     if "transcode_to_wav" not in cols:
@@ -25,8 +26,9 @@ def upgrade() -> None:
             "system_preferences",
             sa.Column("transcode_to_wav", sa.Boolean(), nullable=False, server_default=sa.true()),
         )
-        # remove server_default after applying
-        op.alter_column("system_preferences", "transcode_to_wav", server_default=None)
+        # remove server_default after applying (SQLite doesn't support ALTER COLUMN DROP DEFAULT)
+        if not is_sqlite:
+            op.alter_column("system_preferences", "transcode_to_wav", server_default=None)
 
 
 def downgrade() -> None:

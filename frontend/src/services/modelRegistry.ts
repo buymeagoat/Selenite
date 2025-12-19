@@ -14,7 +14,7 @@ export interface ModelSet {
   updated_at: string;
 }
 
-export interface ModelEntry {
+export interface ModelWeight {
   id: number;
   set_id: number;
   type: ProviderType;
@@ -24,11 +24,12 @@ export interface ModelEntry {
   checksum?: string | null;
   enabled: boolean;
   disable_reason?: string | null;
+  has_weights?: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export type ModelSetWithEntries = ModelSet & { entries: ModelEntry[] };
+export type ModelSetWithWeights = ModelSet & { weights: ModelWeight[] };
 
 export interface ModelSetCreatePayload {
   type: ProviderType;
@@ -45,14 +46,14 @@ export interface ModelSetUpdatePayload {
   disable_reason?: string | null;
 }
 
-export interface ModelEntryCreatePayload {
+export interface ModelWeightCreatePayload {
   name: string;
   description?: string | null;
   abs_path: string;
   checksum?: string | null;
 }
 
-export interface ModelEntryUpdatePayload {
+export interface ModelWeightUpdatePayload {
   name?: string;
   description?: string | null;
   abs_path?: string;
@@ -61,8 +62,8 @@ export interface ModelEntryUpdatePayload {
   disable_reason?: string | null;
 }
 
-export async function listModelSets(): Promise<ModelSetWithEntries[]> {
-  return apiGet<ModelSetWithEntries[]>('/models/providers');
+export async function listModelSets(): Promise<ModelSetWithWeights[]> {
+  return apiGet<ModelSetWithWeights[]>('/models/providers');
 }
 
 export async function createModelSet(payload: ModelSetCreatePayload): Promise<ModelSet> {
@@ -77,20 +78,20 @@ export async function deleteModelSet(setId: number): Promise<void> {
   await apiDelete(`/models/providers/${setId}`);
 }
 
-export async function createModelEntry(
+export async function createModelWeight(
   setId: number,
-  payload: ModelEntryCreatePayload
-): Promise<ModelEntry> {
-  return apiPost<ModelEntry>(`/models/providers/${setId}/entries`, payload);
+  payload: ModelWeightCreatePayload
+): Promise<ModelWeight> {
+  return apiPost<ModelWeight>(`/models/providers/${setId}/weights`, payload);
 }
 
-export async function updateModelEntry(
-  entryId: number,
-  payload: ModelEntryUpdatePayload
-): Promise<ModelEntry> {
-  return apiPatch<ModelEntry>(`/models/providers/entries/${entryId}`, payload);
+export async function updateModelWeight(
+  weightId: number,
+  payload: ModelWeightUpdatePayload
+): Promise<ModelWeight> {
+  return apiPatch<ModelWeight>(`/models/providers/weights/${weightId}`, payload);
 }
 
-export async function deleteModelEntry(entryId: number): Promise<void> {
-  await apiDelete(`/models/providers/entries/${entryId}`);
+export async function deleteModelWeight(weightId: number): Promise<void> {
+  await apiDelete(`/models/providers/weights/${weightId}`);
 }

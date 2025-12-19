@@ -1,37 +1,59 @@
 {
   "policy_version": "1.0.0",
-  "last_updated": "2025-11-22",
+  "last_updated": "2025-12-19",
   "allowed_databases": [
     "selenite.db",
-    "selenite.test.db",
     "backend/selenite.db"
   ],
   "storage": {
-    "canonical_root": "backend/storage",
+    "canonical_root": "storage",
     "allowed_subdirectories": [
       "media",
-      "transcripts"
+      "transcripts",
+      "backups"
     ],
     "test_subdirectories": [
       "test-media",
       "test-transcripts"
+    ],
+    "legacy_paths": [
+      "backend/storage"
     ]
   },
+  "temp_directories": [
+    "scratch",
+    "scratch/tests",
+    "scratch/tests/media",
+    "scratch/tests/transcripts",
+    "docs/memorialization/test-runs"
+  ],
+  "temp_dir_keywords": [
+    "scratch"
+  ],
   "must_be_empty": [
-    "storage/test-media",
-    "storage/test-transcripts",
     "frontend/playwright-report",
     "frontend/test-results"
   ],
   "forbidden_globs": [
     "frontend/playwright-report/**",
-    "frontend/test-results/**"
+    "frontend/test-results/**",
+    "vitest-logs",
+    "vitest-logs/**",
+    "backend/scratch",
+    "backend/scratch/**",
+    "*.log",
+    "*.ps1",
+    "piplist.txt"
   ],
   "require_clean_git_status": false,
   "log_directories": [
     {
       "path": "logs",
       "max_size_mb": 200
+    },
+    {
+      "path": "logs/frontend",
+      "max_size_mb": 50
     },
     {
       "path": "docs/memorialization/test-runs",

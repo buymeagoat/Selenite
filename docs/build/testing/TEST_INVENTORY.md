@@ -1,6 +1,6 @@
 # Test Inventory and Expected “Green” Outcomes
 
-Audit-friendly list of automated tests with what they cover and what “pass/green” means. Use this with `run-tests.ps1` or manual runs to know exactly what’s being validated.
+Audit-friendly list of automated tests with what they cover and what “pass/green” means. Use this with `scripts/run-tests.ps1` or manual runs to know exactly what’s being validated.
 
 ## Backend (pytest)
 | File | What it tests | Green outcome |
@@ -78,5 +78,5 @@ Audit-friendly list of automated tests with what they cover and what “pass/gre
 | `/health` + login with seed admin | HTTP 200 on health; login succeeds (or clear hint to reset password) |
 
 ### How to use
-- Run `.\run-tests.ps1` for the full battery; each suite must report PASS.
+- Run `.cscripts\run-tests.ps1` for the full battery; each suite must report PASS.
 - For manual runs, mark green when all assertions in the file pass (test runner exit code 0) and the described behavior is observed. Suites that fail any file are non-green.***

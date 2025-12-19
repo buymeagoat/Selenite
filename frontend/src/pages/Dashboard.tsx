@@ -121,6 +121,7 @@ export const Dashboard: React.FC = () => {
 
   const handleNewJob = async (jobData: {
     file: File;
+    provider?: string;
     model?: string;
     language?: string;
     enableTimestamps: boolean;
@@ -131,6 +132,7 @@ export const Dashboard: React.FC = () => {
     try {
       const response = await createJob({
         file: jobData.file,
+        provider: jobData.provider,
         model: jobData.model,
         language: jobData.language,
         enable_timestamps: jobData.enableTimestamps,
@@ -677,6 +679,7 @@ export const Dashboard: React.FC = () => {
         defaultModel={adminSettings?.default_model}
         defaultLanguage={adminSettings?.default_language}
         defaultDiarizer={adminSettings?.default_diarizer}
+        defaultDiarizerProvider={adminSettings?.default_diarizer_provider ?? undefined}
       />
     </>
   );

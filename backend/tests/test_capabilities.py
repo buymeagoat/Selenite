@@ -92,7 +92,7 @@ def test_get_asr_candidate_order_deduplicates(monkeypatch):
     monkeypatch.setattr("app.services.capabilities._assess_record", lambda r: {"available": True})
     record = ProviderRecord(
         set_id=1,
-        entry_id=1,
+        weight_id=1,
         set_name="faster-whisper",
         name="medium",
         provider_type="asr",

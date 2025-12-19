@@ -7,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
+from app.config import settings
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.job import Job
@@ -84,7 +85,7 @@ async def sample_job_id(db: AsyncSession):
     db.add(job)
 
     # Create transcript file
-    transcript_dir = Path("./storage/transcripts")
+    transcript_dir = Path(settings.transcript_storage_path)
     transcript_dir.mkdir(parents=True, exist_ok=True)
     transcript_path = transcript_dir / f"{job_id}.txt"
     transcript_path.write_text("This is a test transcript.", encoding="utf-8")

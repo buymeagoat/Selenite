@@ -11,13 +11,13 @@ from app.database import get_db
 from app.models.user import User
 from app.routes.auth import get_current_user
 from app.schemas.model_registry import (
-    ModelEntryCreate,
-    ModelEntryResponse,
-    ModelEntryUpdate,
+    ModelWeightCreate,
+    ModelWeightResponse,
+    ModelWeightUpdate,
     ModelSetCreate,
     ModelSetResponse,
     ModelSetUpdate,
-    ModelSetWithEntries,
+    ModelSetWithWeights,
 )
 from app.services.model_registry import ModelRegistryService
 
@@ -33,7 +33,7 @@ def _require_admin(user: User) -> None:
         )
 
 
-@router.get("", response_model=list[ModelSetWithEntries])
+@router.get("", response_model=list[ModelSetWithWeights])
 async def list_model_sets(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
@@ -135,15 +135,15 @@ async def delete_model_set(
 
 
 @router.post(
-    "/{set_id}/entries", response_model=ModelEntryResponse, status_code=status.HTTP_201_CREATED
+    "/{set_id}/weights", response_model=ModelWeightResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_model_entry(
+async def create_model_weight(
     set_id: int,
-    payload: ModelEntryCreate,
+    payload: ModelWeightCreate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """Create a concrete model entry under a set."""
+    """Create a concrete model weight under a set."""
 
     _require_admin(current_user)
 
@@ -152,69 +152,74 @@ async def create_model_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model set not found")
 
     try:
-        entry = await ModelRegistryService.create_model_entry(
+        entry = await ModelRegistryService.create_model_weight(
             session, model_set, payload, current_user.username
         )
     except ValueError as exc:
         logger.warning(
-            "Failed to create model entry %s under set %s: %s", payload.name, model_set.name, exc
+            "Failed to create model weight %s under set %s: %s", payload.name, model_set.name, exc
         )
-        _raise_entry_error(exc)
+        _raise_weight_error(exc)
     return entry
 
 
-@router.patch("/entries/{entry_id}", response_model=ModelEntryResponse)
-async def update_model_entry(
-    entry_id: int,
-    payload: ModelEntryUpdate,
+@router.patch("/weights/{weight_id}", response_model=ModelWeightResponse)
+async def update_model_weight(
+    weight_id: int,
+    payload: ModelWeightUpdate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """Update metadata or toggle a model entry."""
+    """Update metadata or toggle a model weight."""
 
     _require_admin(current_user)
 
-    entry = await ModelRegistryService.get_entry_by_id(session, entry_id)
+    entry = await ModelRegistryService.get_weight_by_id(session, weight_id)
     if not entry:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model weight not found")
 
     try:
-        updated = await ModelRegistryService.update_model_entry(
+        updated = await ModelRegistryService.update_model_weight(
             session, entry, payload, current_user.username
         )
     except ValueError as exc:
-        _raise_entry_error(exc)
+        _raise_weight_error(exc)
     return updated
 
 
-@router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_model_entry(
-    entry_id: int,
+@router.delete("/weights/{weight_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_model_weight(
+    weight_id: int,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """Delete a model entry."""
+    """Delete a model weight."""
 
     _require_admin(current_user)
 
-    entry = await ModelRegistryService.get_entry_by_id(session, entry_id)
+    entry = await ModelRegistryService.get_weight_by_id(session, weight_id)
     if not entry:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model weight not found")
 
-    await ModelRegistryService.delete_model_entry(session, entry, current_user.username)
+    await ModelRegistryService.delete_model_weight(session, entry, current_user.username)
     return {"detail": "deleted"}
 
 
-def _raise_entry_error(exc: ValueError) -> None:
+def _raise_weight_error(exc: ValueError) -> None:
     message = str(exc)
-    if message == "entry_name_exists":
+    if message in {"entry_name_exists", "weight_name_exists"}:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Entry name already exists"
+            status_code=status.HTTP_409_CONFLICT, detail="Weight name already exists"
         ) from exc
     if message == "disable_reason_required":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Disable reason required when turning an entry off",
+            detail="Disable reason required when turning a weight off",
+        ) from exc
+    if message == "missing_weights":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot enable a model weight until its files exist on disk",
         ) from exc
     _raise_path_error(exc)
     raise exc

@@ -3,9 +3,11 @@ import { test, expect, Page } from '@playwright/test';
 // Helpers
 const openSettings = async (page: Page) => {
   await page.goto('/');
-  const settingsButton = page.getByLabel('Settings').first();
+  const settingsButton = page.getByRole('button', { name: /^settings$/i }).first();
   if (await settingsButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await settingsButton.click();
+    await page.waitForURL(/\/settings/, { timeout: 5000 });
+    await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
     return;
   }
   const toggle = page.getByLabel(/toggle menu/i);
@@ -13,6 +15,8 @@ const openSettings = async (page: Page) => {
   const mobileSettings = page.getByRole('button', { name: /^settings$/i }).last();
   await expect(mobileSettings).toBeVisible();
   await mobileSettings.click();
+  await page.waitForURL(/\/settings/, { timeout: 5000 });
+  await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
 };
 
 test.describe('Tag Management (prod-parity)', () => {
@@ -58,10 +62,9 @@ test.describe('Tag Management (prod-parity)', () => {
 
     const newTagName = `TestTag-${Date.now()}`;
     await tagInput.fill(newTagName);
-
-    const tagOption = page.getByRole('option', { name: newTagName });
-    await expect(tagOption).toBeVisible({ timeout: 3000 });
-    await tagOption.click();
+    const addButton = modal.getByRole('button', { name: /^add tag$/i });
+    await expect(addButton).toBeEnabled();
+    await addButton.click();
 
     await expect(modal.locator('[data-testid="tag-chip"]', { hasText: newTagName })).toBeVisible();
   });
@@ -104,9 +107,9 @@ test.describe('Tag Management (prod-parity)', () => {
     await expect(tagInput).toBeVisible();
     const tempTag = `Removable-${Date.now()}`;
     await tagInput.fill(tempTag);
-    const addOption = page.getByRole('option', { name: tempTag });
-    await expect(addOption).toBeVisible({ timeout: 3000 });
-    await addOption.click();
+    const addButton = modal.getByRole('button', { name: /^add tag$/i });
+    await expect(addButton).toBeEnabled();
+    await addButton.click();
 
     const tagChips = modal.locator('[data-testid="tag-chip"]');
     await expect(tagChips.filter({ hasText: tempTag }).first()).toBeVisible({ timeout: 10000 });
@@ -115,9 +118,7 @@ test.describe('Tag Management (prod-parity)', () => {
     await expect(removeButton).toBeVisible({ timeout: 2000 });
     await removeButton.click();
 
-    await expect(async () => {
-      const texts = await tagChips.allTextContents();
-      expect(texts.some(t => t.includes(tempTag))).toBe(false);
-    }).toPass({ timeout: 3000 });
+    const removedChip = tagChips.filter({ hasText: tempTag });
+    await expect(removedChip).toHaveCount(0, { timeout: 10000 });
   });
 });

@@ -137,7 +137,7 @@ async def test_process_job_success(monkeypatch, tmp_path, test_db):
                 "asr": [
                     SimpleNamespace(
                         set_id=1,
-                        entry_id=1,
+                        weight_id=1,
                         set_name="whisper",
                         name="tiny",
                         provider_type="asr",
@@ -195,7 +195,7 @@ async def test_process_job_failure_sets_error(monkeypatch, tmp_path, test_db):
                 "asr": [
                     SimpleNamespace(
                         set_id=1,
-                        entry_id=1,
+                        weight_id=1,
                         set_name="whisper",
                         name="tiny",
                         provider_type="asr",

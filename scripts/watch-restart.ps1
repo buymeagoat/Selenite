@@ -6,8 +6,8 @@
   backend endpoint `/system/full-restart`. When detected it:
     1. Logs detection
     2. Removes the sentinel file
-    3. Executes `./stop-selenite.ps1`
-    4. Executes `./start-selenite.ps1`
+    3. Executes `./scripts/stop-selenite.ps1`
+    4. Executes `./scripts/start-selenite.ps1`
   Runs indefinitely until terminated (Ctrl+C). Safe: does not execute arbitrary commands.
 .PARAMETER IntervalSeconds
   Polling interval in seconds (default 5).
@@ -39,10 +39,10 @@ while ($true) {
       Write-Log "Flag removed. Content: $content"
 
       Write-Log "Stopping existing processes..."
-      ./stop-selenite.ps1
+      ./scripts/stop-selenite.ps1
 
       Write-Log "Starting services..."
-      ./start-selenite.ps1
+      ./scripts/start-selenite.ps1
 
       Write-Log "Restart cycle complete. Continuing to monitor."    
     }

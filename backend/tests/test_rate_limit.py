@@ -4,7 +4,6 @@ import asyncio
 from typing import Iterable, Tuple
 
 import pytest
-from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 from starlette.responses import Response
@@ -139,9 +138,8 @@ async def test_rate_limit_middleware_blocks_after_threshold(reset_rate_limiter):
         response = await middleware.dispatch(_build_request("/auth/login", "POST"), call_next)
         assert response.status_code == 200
 
-    with pytest.raises(HTTPException) as exc:
-        await middleware.dispatch(_build_request("/auth/login", "POST"), call_next)
-    assert exc.value.status_code == 429
+    response = await middleware.dispatch(_build_request("/auth/login", "POST"), call_next)
+    assert response.status_code == 429
 
 
 @pytest.mark.asyncio

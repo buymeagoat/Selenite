@@ -3,12 +3,27 @@ import { X, AlertTriangle } from 'lucide-react';
 import { FileDropzone } from '../upload/FileDropzone';
 import { useAdminSettings } from '../../context/SettingsContext';
 import { fetchCapabilities, type CapabilityResponse } from '../../services/system';
+import { listModelSets, type ModelSetWithWeights } from '../../services/modelRegistry';
+
+type DiarizerWeightOption = {
+  key: string;
+  display_name: string;
+  available: boolean;
+  notes: string[];
+};
+
+type DiarizerProviderGroup = {
+  name: string;
+  available: boolean;
+  weights: DiarizerWeightOption[];
+};
 
 interface NewJobModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (jobData: {
     file: File;
+    provider?: string;
     model?: string;
     language?: string;
     enableTimestamps: boolean;
@@ -19,6 +34,7 @@ interface NewJobModalProps {
   defaultModel?: string;
   defaultLanguage?: string;
   defaultDiarizer?: string;
+  defaultDiarizerProvider?: string;
 }
 
 export const NewJobModal: React.FC<NewJobModalProps> = ({
@@ -28,18 +44,21 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   defaultModel,
   defaultLanguage,
   defaultDiarizer,
+  defaultDiarizerProvider,
 }) => {
   const { settings: adminSettings } = useAdminSettings();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const resolvedDefaults = useMemo(
     () => ({
+      provider: adminSettings?.default_asr_provider ?? '',
       model: adminSettings?.default_model ?? defaultModel ?? '',
       language: adminSettings?.default_language ?? defaultLanguage ?? 'auto',
+      diarizerProvider: adminSettings?.default_diarizer_provider ?? defaultDiarizerProvider ?? '',
       diarizer: adminSettings?.default_diarizer ?? defaultDiarizer ?? '',
       timestamps: true,
     }),
-    [adminSettings, defaultModel, defaultLanguage, defaultDiarizer]
+    [adminSettings, defaultModel, defaultLanguage, defaultDiarizer, defaultDiarizerProvider]
   );
 
   const [model, setModel] = useState(resolvedDefaults.model);
@@ -48,12 +67,18 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [enableSpeakerDetection, setEnableSpeakerDetection] = useState(true);
   const [speakerCount, setSpeakerCount] = useState<number | 'auto'>('auto');
   const [diarizer, setDiarizer] = useState(resolvedDefaults.diarizer);
+  const [diarizerProvider, setDiarizerProvider] = useState(resolvedDefaults.diarizerProvider);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
   const [capabilities, setCapabilities] = useState<CapabilityResponse | null>(null);
   const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
+  const [registrySets, setRegistrySets] = useState<ModelSetWithWeights[]>([]);
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [registryLoading, setRegistryLoading] = useState(true);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,28 +99,124 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         }
       }
     };
+    const loadRegistry = async () => {
+      try {
+        const data = await listModelSets();
+        if (cancelled) return;
+        setRegistrySets(data);
+        setRegistryError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setRegistryError(err instanceof Error ? err.message : 'Unable to load model registry');
+      } finally {
+        if (!cancelled) {
+          setRegistryLoading(false);
+        }
+      }
+    };
     loadCapabilities();
+    loadRegistry();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const diarizerOptions = useMemo(() => capabilities?.diarizers ?? [], [capabilities]);
-  const availableDiarizers = diarizerOptions.filter((option) => option.available);
-  const supportsDiarization = availableDiarizers.length > 0;
+  const diarizerCapabilities = useMemo(() => capabilities?.diarizers ?? [], [capabilities]);
+  const diarizerCapabilityMap = useMemo(() => {
+    const map = new Map<string, CapabilityResponse['diarizers'][number]>();
+    diarizerCapabilities.forEach((option) => map.set(option.key, option));
+    return map;
+  }, [diarizerCapabilities]);
+  const registryDiarizerSets = useMemo(
+    () => registrySets.filter((set) => set.type === 'diarizer'),
+    [registrySets]
+  );
+  const diarizerProviderGroups = useMemo<DiarizerProviderGroup[]>(() => {
+    return registryDiarizerSets.map((set) => {
+      const weights = set.weights.map((weight) => {
+        const capability = diarizerCapabilityMap.get(weight.name);
+        const hasWeights = weight.has_weights ?? false;
+        const available =
+          Boolean(set.enabled && weight.enabled && hasWeights) &&
+          (capability ? capability.available : true);
+        return {
+          key: weight.name,
+          display_name: capability?.display_name ?? weight.name,
+          available,
+          notes: capability?.notes ?? [],
+        } as DiarizerWeightOption;
+      });
+      return {
+        name: set.name,
+        available: weights.some((weight) => weight.available),
+        weights,
+      };
+    });
+  }, [registryDiarizerSets, diarizerCapabilityMap]);
+  const diarizerWeightsForProvider = useMemo<DiarizerWeightOption[]>(() => {
+    if (!diarizerProvider) return [];
+    return diarizerProviderGroups.find((group) => group.name === diarizerProvider)?.weights ?? [];
+  }, [diarizerProvider, diarizerProviderGroups]);
+  const availableDiarizerWeights = useMemo(
+    () => diarizerProviderGroups.flatMap((group) => group.weights.filter((weight) => weight.available)),
+    [diarizerProviderGroups]
+  );
+  const supportsDiarization = availableDiarizerWeights.length > 0;
   const detectSpeakersDisabled = capabilitiesLoading || !supportsDiarization;
 
-  const asrModelOptions = useMemo(() => {
-    if (!capabilities?.asr?.length) return [];
-    return capabilities.asr.flatMap((provider) =>
-      provider.models.map((model) => ({
-        value: model,
-        label: `${model} (${provider.provider})`,
-      }))
-    );
-  }, [capabilities]);
-
-  const hasAsrModels = asrModelOptions.length > 0;
+  const asrProviders = useMemo(() => registrySets.filter((set) => set.type === 'asr'), [registrySets]);
+  const providerOptions = useMemo(
+    () =>
+      asrProviders.map((set) => {
+        const enabledWeights = set.weights.filter((weight) => weight.enabled && weight.has_weights);
+        const hasWeights = set.weights.some((weight) => weight.has_weights);
+        const isUsable = set.enabled && enabledWeights.length > 0;
+        let label = set.name;
+        if (!set.enabled) {
+          label = `${set.name} (disabled)`;
+        } else if (!hasWeights) {
+          label = `${set.name} (missing weights)`;
+        } else if (!enabledWeights.length) {
+          label = `${set.name} (weights disabled)`;
+        }
+        return {
+          value: set.name,
+          label,
+          enabled: set.enabled,
+          weights: set.weights,
+          hasWeights,
+          hasEnabledWeights: enabledWeights.length > 0,
+          isUsable,
+        };
+      }),
+    [asrProviders]
+  );
+  const activeProvider = providerOptions.find((p) => p.value === selectedProvider);
+  const weightOptions = useMemo(() => {
+    if (!activeProvider) return [];
+    return activeProvider.weights.map((weight) => {
+      const hasWeights = Boolean(weight.has_weights);
+      const effectiveEnabled = Boolean(activeProvider.isUsable && weight.enabled && hasWeights);
+      let label = weight.name;
+      if (!weight.enabled) {
+        label = `${weight.name} (disabled)`;
+      } else if (!hasWeights) {
+        label = `${weight.name} (missing files)`;
+      }
+      return {
+        value: weight.name,
+        label,
+        enabled: effectiveEnabled,
+        hasWeights,
+        isUsable: effectiveEnabled,
+      };
+    });
+  }, [activeProvider]);
+  const selectedWeightOption = weightOptions.find((opt) => opt.value === model);
+  const providerReady = Boolean(activeProvider?.isUsable);
+  const weightReady = Boolean(selectedWeightOption?.isUsable);
+  const hasEnabledAsrModels = providerReady && weightOptions.some((opt) => opt.isUsable);
+  const canSubmit = Boolean(selectedFile && providerReady && weightReady && !isSubmitting);
 
   const detectSpeakersHelpText = useMemo(() => {
     if (capabilitiesLoading) {
@@ -112,31 +233,108 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      setIsInitialized(false);
       return;
     }
-    const availableModelValues = asrModelOptions.map((opt) => opt.value);
-    const resolvedModel = availableModelValues.includes(resolvedDefaults.model)
-      ? resolvedDefaults.model
-      : availableModelValues[0] ?? '';
-    setModel(hasAsrModels ? resolvedModel : '');
+    if (!providerOptions.length) {
+      setSelectedProvider('');
+      setModel('');
+      return;
+    }
+    if (isInitialized) {
+      return;
+    }
+
+    const providerFromSettings = resolvedDefaults.provider
+      ? providerOptions.find((p) => p.value === resolvedDefaults.provider && p.isUsable)?.value
+      : '';
+    const providerFromModel = resolvedDefaults.model
+      ? providerOptions.find(
+          (p) => p.isUsable && p.weights.some((weight) => weight.name === resolvedDefaults.model)
+        )?.value
+      : '';
+    const fallbackProvider =
+      providerOptions.find((p) => p.isUsable)?.value || providerOptions[0]?.value || '';
+    const nextProvider = providerFromSettings || providerFromModel || fallbackProvider || '';
+    setSelectedProvider(nextProvider);
+
+    const weightsForProvider =
+      providerOptions.find((p) => p.value === nextProvider)?.weights ?? [];
+    const preferredWeight = resolvedDefaults.model
+      ? weightsForProvider.find(
+          (weight) => weight.name === resolvedDefaults.model && weight.enabled && weight.has_weights
+        )
+      : undefined;
+    const firstEnabledWeight = weightsForProvider.find(
+      (weight) => weight.enabled && weight.has_weights
+    );
+    const fallbackWeight =
+      weightsForProvider.find((weight) => weight.has_weights) || weightsForProvider[0];
+    const resolvedModelName = preferredWeight?.name || firstEnabledWeight?.name || fallbackWeight?.name || '';
+    setModel(resolvedModelName || '');
     setLanguage(resolvedDefaults.language);
     setEnableTimestamps(resolvedDefaults.timestamps);
-    const preferred = resolvedDefaults.diarizer;
-    const preferredAvailable = diarizerOptions.find(
-      (option) => option.key === preferred && option.available
-    );
-    const fallbackAvailable = diarizerOptions.find((option) => option.available);
-    const fallbackAny = diarizerOptions[0];
-    setDiarizer(preferredAvailable?.key ?? fallbackAvailable?.key ?? fallbackAny?.key ?? preferred);
+    let inferredDiarizerProvider = '';
+    if (resolvedDefaults.diarizerProvider) {
+      const match = diarizerProviderGroups.find((group) => group.name === resolvedDefaults.diarizerProvider);
+      if (match) {
+        inferredDiarizerProvider = match.name;
+      }
+    }
+    if (!inferredDiarizerProvider && diarizerProviderGroups.length) {
+      inferredDiarizerProvider = diarizerProviderGroups[0].name;
+    }
+    setDiarizerProvider(inferredDiarizerProvider);
+    const weightsForSelectedProvider =
+      diarizerProviderGroups.find((group) => group.name === inferredDiarizerProvider)?.weights ?? [];
+    const preferredDiarizerWeight = resolvedDefaults.diarizer
+      ? weightsForSelectedProvider.find((weight) => weight.key === resolvedDefaults.diarizer)
+      : undefined;
+    const fallbackDiarizerWeight =
+      weightsForSelectedProvider.find((weight) => weight.available) || weightsForSelectedProvider[0];
+    setDiarizer(preferredDiarizerWeight?.key ?? fallbackDiarizerWeight?.key ?? '');
     setEnableSpeakerDetection(supportsDiarization);
     setSpeakerCount('auto');
-  }, [isOpen, resolvedDefaults, diarizerOptions, supportsDiarization, hasAsrModels, asrModelOptions]);
+    setIsInitialized(true);
+  }, [isOpen, resolvedDefaults, diarizerProviderGroups, supportsDiarization, providerOptions, isInitialized]);
 
   useEffect(() => {
     if (!enableSpeakerDetection) {
       setSpeakerCount('auto');
     }
   }, [enableSpeakerDetection]);
+
+  useEffect(() => {
+    if (!diarizerProviderGroups.length) {
+      if (diarizerProvider) {
+        setDiarizerProvider('');
+      }
+      if (diarizer) {
+        setDiarizer('');
+      }
+      return;
+    }
+    if (!diarizerProvider) {
+      setDiarizerProvider(diarizerProviderGroups[0].name);
+      return;
+    }
+    if (!diarizerProviderGroups.find((group) => group.name === diarizerProvider)) {
+      setDiarizerProvider(diarizerProviderGroups[0].name);
+      return;
+    }
+    if (!diarizerWeightsForProvider.length) {
+      if (diarizer) {
+        setDiarizer('');
+      }
+      return;
+    }
+    if (!diarizerWeightsForProvider.some((weight) => weight.key === diarizer)) {
+      const fallback =
+        diarizerWeightsForProvider.find((weight) => weight.available) ||
+        diarizerWeightsForProvider[0];
+      setDiarizer(fallback?.key ?? '');
+    }
+  }, [diarizerProviderGroups, diarizerProvider, diarizerWeightsForProvider, diarizer]);
 
   if (!isOpen) return null;
 
@@ -146,13 +344,18 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setError('');
   };
 
+  const handleProviderChange = (value: string) => {
+    setSelectedProvider(value);
+    const weightsForProvider =
+      providerOptions.find((p) => p.value === value)?.weights ?? [];
+    const firstEnabled = weightsForProvider.find((weight) => weight.enabled && weight.has_weights);
+    const firstWithFiles = weightsForProvider.find((weight) => weight.has_weights);
+    const firstAny = weightsForProvider[0];
+    setModel(firstEnabled?.name || firstWithFiles?.name || firstAny?.name || '');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!hasAsrModels) {
-      setError('No ASR models available. Contact admin to register a model.');
-      return;
-    }
 
     if (!selectedFile) {
       setError('Please select a file');
@@ -186,6 +389,29 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       return;
     }
 
+    const selectedWeight = weightOptions.find((opt) => opt.value === model);
+
+    if (!selectedProvider) {
+      setError('Select a model set before starting a job.');
+      return;
+    }
+    if (!providerReady) {
+      setError('Selected model set is unavailable. Choose an enabled set.');
+      return;
+    }
+    if (!hasEnabledAsrModels) {
+      setError('No ASR weights available. Contact admin to register a weight.');
+      return;
+    }
+    if (!selectedWeight) {
+      setError('Select a model weight before starting a job.');
+      return;
+    }
+    if (!selectedWeight.isUsable) {
+      setError('Selected model weight is unavailable. Choose an enabled weight.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
 
@@ -200,13 +426,13 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     try {
       await onSubmit({
         file: selectedFile,
+        provider: selectedProvider,
         model: modelOverride,
         language: languageOverride,
         enableTimestamps,
         enableSpeakerDetection: diarizationActive,
         diarizer: diarizationActive ? diarizerOverride : undefined,
-        speakerCount:
-          diarizationActive && speakerCount !== 'auto' ? speakerCount : null,
+        speakerCount: diarizationActive && speakerCount !== 'auto' ? speakerCount : null,
       });
 
       setSelectedFile(null);
@@ -281,31 +507,75 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             />
           </div>
 
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
+            <label
+              htmlFor="provider"
+              className="block text-sm font-medium text-pine-deep mb-2"
+            >
+              ASR Model
+            </label>
+            <select
+              id="provider"
+              value={selectedProvider}
+              onChange={(e) => handleProviderChange(e.target.value)}
+              disabled={isSubmitting || registryLoading || !providerOptions.length}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+              data-testid="provider-select"
+            >
+              {!providerOptions.length && <option value="">No providers registered</option>}
+              {providerOptions.map((opt) => (
+                <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             <label
               htmlFor="model"
               className="block text-sm font-medium text-pine-deep mb-2"
             >
-              Model
+              ASR Model Weight
             </label>
             <select
               id="model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              disabled={isSubmitting || !hasAsrModels}
+              disabled={
+                isSubmitting ||
+                !selectedProvider ||
+                registryLoading ||
+                !providerReady ||
+                !weightOptions.length
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
               data-testid="model-select"
             >
-              {!hasAsrModels && <option value="">No models registered</option>}
-              {asrModelOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
+            {!weightOptions.length && <option value="">No model weights registered</option>}
+            {weightOptions.map((opt) => (
+                <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
                   {opt.label}
                 </option>
               ))}
             </select>
-            {!hasAsrModels && (
+            {!providerReady && selectedProvider && (
               <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Contact admin to register a model.
+                <AlertTriangle className="w-3 h-3" /> Selected ASR model set is unavailable.
+                Enable the set and add weights.
+              </p>
+            )}
+            {!weightOptions.length && providerReady && (
+              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Contact admin to register a model weight.
+              </p>
+            )}
+            {registryError && (
+              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> {registryError}
+              </p>
+            )}
+            {providerReady && selectedWeightOption && !weightReady && (
+              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Selected weight cannot be used. Choose an enabled weight with
+                files.
               </p>
             )}
           </div>
@@ -376,15 +646,35 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                 {enableSpeakerDetection && supportsDiarization && (
                   <>
                     <div className="flex flex-col gap-2 text-sm text-pine-deep">
-                      <label className="text-sm text-pine-mid">Speaker labeling method</label>
+                      <label className="text-sm text-pine-mid">Diarizer set</label>
+                      <select
+                        value={diarizerProvider}
+                        onChange={(e) => setDiarizerProvider(e.target.value)}
+                        disabled={detectSpeakersDisabled || !diarizerProviderGroups.length}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                        data-testid="diarizer-provider-select"
+                      >
+                        {!diarizerProviderGroups.length && <option value="">No diarizers registered</option>}
+                        {diarizerProviderGroups.map((group) => (
+                          <option key={group.name} value={group.name}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2 text-sm text-pine-deep">
+                      <label className="text-sm text-pine-mid">Diarizer weight</label>
                       <select
                         value={diarizer}
                         onChange={(e) => setDiarizer(e.target.value)}
-                        disabled={detectSpeakersDisabled}
+                        disabled={detectSpeakersDisabled || !diarizerWeightsForProvider.length}
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
                         data-testid="diarizer-select"
                       >
-                        {diarizerOptions.map((option) => (
+                        {!diarizerWeightsForProvider.length && (
+                          <option value="">No weights in this set</option>
+                        )}
+                        {diarizerWeightsForProvider.map((option) => (
                           <option key={option.key} value={option.key} disabled={!option.available}>
                             {option.display_name}
                             {!option.available && option.notes.length
@@ -395,11 +685,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                           </option>
                         ))}
                       </select>
-                      {!availableDiarizers.find((option) => option.key === diarizer) && (
-                        <p className="text-xs text-terracotta">
-                          Selected diarization model is unavailable; choose another option.
-                        </p>
-                      )}
+            {!availableDiarizerWeights.find((option) => option.key === diarizer) && diarizer && (
+              <p className="text-xs text-terracotta">
+                Selected diarization model is unavailable; choose another option.
+              </p>
+            )}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
                       <label className="text-sm text-pine-mid">Speakers:</label>
@@ -446,7 +736,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!selectedFile || isSubmitting || !hasAsrModels}
+              disabled={!canSubmit}
               className="px-6 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               data-testid="start-transcription-btn"
             >

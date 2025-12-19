@@ -54,6 +54,13 @@ frontend/test-results/
 # Environment
 .env
 .env.local
+.env.test
+
+# Local script overrides (may contain sensitive host/IP info)
+scripts/*.local.ps1
+scripts/*-local.ps1
+scripts/*.private.ps1
+scripts/*-private.ps1
 
 # Database
 *.db
@@ -63,6 +70,7 @@ frontend/test-results/
 
 # Storage (uploaded files)
 storage/
+storage/backups/
 
 # Stray nested folder created accidentally
 backend/backend/

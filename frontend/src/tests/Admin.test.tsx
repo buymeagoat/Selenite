@@ -39,9 +39,10 @@ const updateAsrSettings = vi.hoisted(() => vi.fn().mockResolvedValue({}));
 vi.mock('../services/settings', () => ({
   fetchSettings: vi.fn().mockResolvedValue({
     default_asr_provider: null,
-    default_model: 'asr-entry',
+    default_model: 'asr-weight',
     default_language: 'auto',
-    default_diarizer: 'diar-entry',
+    default_diarizer_provider: 'pyannote',
+    default_diarizer: 'diar-weight',
     diarization_enabled: true,
     allow_job_overrides: true,
     enable_timestamps: true,
@@ -49,6 +50,8 @@ vi.mock('../services/settings', () => ({
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
+    last_selected_asr_set: 'whisper',
+    last_selected_diarizer_set: 'pyannote',
   }),
   updateSettings: vi.fn().mockResolvedValue({}),
   updateAsrSettings,
@@ -80,14 +83,15 @@ const mockCapabilities = vi.hoisted(() => ({
       provider: 'test-asr',
       display_name: 'test-asr',
       available: true,
-      models: ['asr-entry'],
+      models: ['asr-weight'],
       notes: ['missing dependencies'],
     },
   ],
   diarizers: [
     {
-      key: 'diar-entry',
-      display_name: 'diar-entry',
+      key: 'diar-weight',
+      provider: 'pyannote',
+      display_name: 'diar-weight',
       requires_gpu: false,
       available: true,
       notes: [],
@@ -115,14 +119,14 @@ const mockRegistry = vi.hoisted(() => ([
     abs_path: '/backend/models/test-asr',
     enabled: true,
     disable_reason: null,
-    entries: [
+    weights: [
       {
         id: 10,
         set_id: 1,
         type: 'asr',
-        name: 'asr-entry',
+        name: 'asr-weight',
         description: '',
-        abs_path: '/backend/models/test-asr/asr-entry/model.bin',
+        abs_path: '/backend/models/test-asr/asr-weight/model.bin',
         checksum: null,
         enabled: true,
         disable_reason: null,
@@ -139,14 +143,14 @@ const mockRegistry = vi.hoisted(() => ([
     abs_path: '/backend/models/test-diar',
     enabled: true,
     disable_reason: null,
-    entries: [
+    weights: [
       {
         id: 20,
         set_id: 2,
         type: 'diarizer',
-        name: 'diar-entry',
+        name: 'diar-weight',
         description: '',
-        abs_path: '/backend/models/test-diar/diar-entry/model.bin',
+        abs_path: '/backend/models/test-diar/diar-weight/model.bin',
         checksum: null,
         enabled: true,
         disable_reason: null,
@@ -162,9 +166,9 @@ vi.mock('../services/modelRegistry', () => ({
   createModelSet: vi.fn(),
   updateModelSet: vi.fn(),
   deleteModelSet: vi.fn(),
-  createModelEntry: vi.fn(),
-  updateModelEntry: vi.fn(),
-  deleteModelEntry: vi.fn(),
+  createModelWeight: vi.fn(),
+  updateModelWeight: vi.fn(),
+  deleteModelWeight: vi.fn(),
 }));
 
 const renderAdmin = async () => {
@@ -201,13 +205,19 @@ describe('Admin page', () => {
   it('shows registry data and availability refresh', async () => {
     await renderAdmin();
     expect(screen.getByTestId('set-select')).toBeInTheDocument();
-    expect(screen.getByTestId('entry-list')).toBeInTheDocument();
+    expect(screen.getByTestId('weight-list')).toBeInTheDocument();
     const refreshButton = screen.getByTestId('rescan-availability');
     await act(async () => {
       fireEvent.click(refreshButton);
     });
     expect(screen.getByTestId('asr-provider-test-asr')).toBeInTheDocument();
-    expect(screen.getByTestId('availability-warnings')).toHaveTextContent(/missing dependencies/i);
+    expect(screen.queryByTestId('availability-warnings')).not.toBeInTheDocument();
+    const providerCard = screen.getByTestId('asr-provider-test-asr');
+    expect(
+      within(providerCard).getByText(/available/i, {
+        selector: 'span',
+      })
+    ).toBeInTheDocument();
   });
 
   it('allows adjusting throughput slider and surfaces storage summary', async () => {

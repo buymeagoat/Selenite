@@ -53,7 +53,7 @@ async def test_db():
 
         # Seed minimal ASR registry entry so jobs can be created
         from app.config import BACKEND_ROOT
-        from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+        from app.schemas.model_registry import ModelSetCreate, ModelWeightCreate
         from app.services.model_registry import ModelRegistryService
 
         models_root = BACKEND_ROOT / "models"
@@ -67,10 +67,10 @@ async def test_db():
             ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
             actor="system",
         )
-        await ModelRegistryService.create_model_entry(
+        await ModelRegistryService.create_model_weight(
             session,
             model_set,
-            ModelEntryCreate(
+            ModelWeightCreate(
                 name="test-entry",
                 description="seed entry",
                 abs_path=str(entry_path.resolve()),

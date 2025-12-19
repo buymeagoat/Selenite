@@ -24,7 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, activePage }) => {
           setMobileMenuOpen(false);
         }}
         className="text-xl font-semibold transition"
-        style={{ color: activePage === 'dashboard' ? '#0e8a60' : '#0f2e1f' }}
+        style={{ color: activePage === 'dashboard' ? '#0b5a3c' : '#0f2e1f' }}
       >
         Selenite
       </button>

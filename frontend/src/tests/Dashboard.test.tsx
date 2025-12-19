@@ -149,6 +149,7 @@ describe('Dashboard', () => {
       default_asr_provider: null,
       default_model: 'medium',
       default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
       default_diarizer: 'vad',
       diarization_enabled: true,
       allow_job_overrides: true,
@@ -157,6 +158,8 @@ describe('Dashboard', () => {
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
     });
 
     renderDashboard();
@@ -179,6 +182,7 @@ describe('Dashboard', () => {
       default_asr_provider: null,
       default_model: 'medium',
       default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
       default_diarizer: 'vad',
       diarization_enabled: false,
       allow_job_overrides: false,
@@ -187,6 +191,8 @@ describe('Dashboard', () => {
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
     });
 
     renderDashboard();

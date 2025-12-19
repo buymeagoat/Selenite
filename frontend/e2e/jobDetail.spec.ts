@@ -28,7 +28,7 @@ test.describe('Job Detail Modal', () => {
     // Verify key metadata fields are present
     const metadata = modal.locator('[data-testid="job-metadata"]');
     await expect(metadata).toBeVisible();
-    await expect(metadata.getByText(/duration/i)).toBeVisible();
+    await expect(metadata.getByText(/^duration$/i)).toBeVisible();
     await expect(metadata.getByText(/model/i)).toBeVisible();
     await expect(metadata.getByText(/language/i)).toBeVisible();
     await expect(metadata.getByText(/file size/i)).toBeVisible();

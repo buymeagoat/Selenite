@@ -9,9 +9,11 @@ import { test, expect, Page } from '@playwright/test';
 
 async function openSettings(page: Page) {
   await page.goto('/');
-  const settingsButton = page.getByLabel('Settings').first();
+  const settingsButton = page.getByRole('button', { name: /^settings$/i }).first();
   if (await settingsButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await settingsButton.click();
+    await page.waitForURL(/\/settings/, { timeout: 5000 });
+    await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
     return;
   }
 
@@ -20,6 +22,8 @@ async function openSettings(page: Page) {
   const mobileSettings = page.getByRole('button', { name: /^settings$/i }).last();
   await expect(mobileSettings).toBeVisible();
   await mobileSettings.click();
+  await page.waitForURL(/\/settings/, { timeout: 5000 });
+  await expect(page.getByRole('heading', { name: /settings/i }).first()).toBeVisible();
 }
 
 test.describe('Settings Page', () => {
@@ -128,27 +132,25 @@ test.describe('Settings Page', () => {
     await page.goto('/settings');
     
     // Find default options section
-    const modelSelect = page.getByLabel(/default model/i)
-      .or(page.locator('[data-testid="default-model"]'));
     const languageSelect = page.getByLabel(/default language/i)
       .or(page.locator('[data-testid="default-language"]'));
-    
-    if (await modelSelect.isVisible()) {
-      // Change default model
-      await modelSelect.selectOption('medium');
-      
-      // Save settings
-      const saveButton = page.getByRole('button', { name: /save/i }).first();
-      await saveButton.click();
-      
-      // Should show success
+
+    if (await languageSelect.isVisible()) {
+      const currentValue = await languageSelect.inputValue();
+      const nextValue = currentValue === 'en' ? 'es' : 'en';
+
+      await languageSelect.selectOption(nextValue);
+
+      await page.getByTestId('default-save').click();
+
       await expect(
-        page.getByText(/settings.*saved|preferences.*updated|success/i)
+        page.getByText('Default transcription settings saved', { exact: true })
       ).toBeVisible({ timeout: 5000 });
-      
-      // Verify selection persists
+
       await page.reload();
-      await expect(modelSelect).toHaveValue('medium');
+      const languageSelectAfter = page.getByLabel(/default language/i)
+        .or(page.locator('[data-testid="default-language"]'));
+      await expect(languageSelectAfter).toHaveValue(nextValue);
     }
   });
 

@@ -20,6 +20,12 @@ test.describe('Create → Complete → Export → Delete flow', () => {
     await page.getByRole('button', { name: /new job/i }).click();
     const fileInput = page.getByTestId('file-input');
     await fileInput.setInputFiles(SAMPLE_FILE);
+    const providerSelect = page.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
+    const modelSelect = page.getByTestId('model-select');
+    await expect(modelSelect).toBeEnabled();
+    await modelSelect.selectOption('base');
     await page.getByRole('button', { name: /Start Transcription/i }).click();
 
     // Wait for this job to show completed
@@ -61,6 +67,12 @@ test.describe('Create → Complete → Export → Delete flow', () => {
     await mobile.getByRole('button', { name: /new job/i }).click();
     const fileInput = mobile.getByTestId('file-input');
     await fileInput.setInputFiles(SAMPLE_FILE);
+    const providerSelect = mobile.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
+    const modelSelect = mobile.getByTestId('model-select');
+    await expect(modelSelect).toBeEnabled();
+    await modelSelect.selectOption('base');
     await mobile.getByRole('button', { name: /Start Transcription/i }).click();
 
     // Wait for job to complete

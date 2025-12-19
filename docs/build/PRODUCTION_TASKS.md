@@ -97,9 +97,9 @@ Compliance with these directives is mandatory.
 - **Checkpoint Status**: `./run-tests.ps1 -SkipE2E` (2025-12-06 22:17 PT) PASS with artifacts at `docs/memorialization/test-runs/20251206-221400-backend+frontend`; `./scripts/pre-flight-check.ps1` passes post-change.
 
 ### Work Block — 2025-12-07 00:10 PT (Start)
-- **Assumptions**: App must now ship with zero ASR/diarizer providers. Admins manually install Python deps, download models into `/backend/models/<model_set>/<model_entry>/…`, and then create model sets + entries in-app (ASR + diarizer flows mirror each other). Registry entries auto-expose immediately until explicitly disabled. Manual checkpoints are required after (a) schema/migration work, (b) backend capability/runtime updates, and (c) admin UI delivery.
+- **Assumptions**: App must now ship with zero ASR/diarizer providers. Admins manually install Python deps, download models into `/backend/models/<model_set>/<model_weight>/…`, and then create model sets + weights in-app (ASR + diarizer flows mirror each other). Registry weights auto-expose immediately until explicitly disabled. Manual checkpoints are required after (a) schema/migration work, (b) backend capability/runtime updates, and (c) admin UI delivery.
 - **Ambiguity**: None – validation strictness delegated to us; we’ll enforce path + existence checks while logging warnings for optional metadata.
-- **Plan**: 1) Update this backlog + deployment docs to capture the manual install workflow and checkpoints. 2) Add/adjust DB schema + services so model sets/entries are stored with enable/disable auditing and filesystem validation, and refresh ProviderManager immediately. 3) Remove hardcoded Whisper fallbacks so `/system/availability`, admin defaults, and runtime resolution rely solely on registry data, logging warnings when entries are invalid/missing. 4) Build the admin UI dropdown/CRUD flow (browse-or-type path inputs) for both ASR and diarizer sections plus registry-driven Settings/New Job dropdowns. 5) After each milestone, run `./scripts/pre-flight-check.ps1`, `./run-tests.ps1 -SkipE2E`, archive artifacts, and request the mandated manual checkpoint.
+- **Plan**: 1) Update this backlog + deployment docs to capture the manual install workflow and checkpoints. 2) Add/adjust DB schema + services so model sets/weights are stored with enable/disable auditing and filesystem validation, and refresh ProviderManager immediately. 3) Remove hardcoded Whisper fallbacks so `/system/availability`, admin defaults, and runtime resolution rely solely on registry data, logging warnings when weights are invalid/missing. 4) Build the admin UI dropdown/CRUD flow (browse-or-type path inputs) for both ASR and diarizer sections plus registry-driven Settings/New Job dropdowns. 5) After each milestone, run `./scripts/pre-flight-check.ps1`, `./run-tests.ps1 -SkipE2E`, archive artifacts, and request the mandated manual checkpoint.
 - **Admin Requests**: None – proceed with the plan already reviewed/approved in chat.
 - **Pending Checkpoints**: Three pending (post-schema, post-backend capabilities, post-admin UI) per guardrail instructions.
 
@@ -111,21 +111,54 @@ Compliance with these directives is mandatory.
 - **Pending Checkpoints**: None - configuration-only change; test by reloading workspace.
 
 ### Work Block - 2025-12-07 10:05 PT (Start)
-- **Assumptions**: Admin-managed registry milestone begins with documentation and schema. No bundled models or provider packages ship; admins must install providers, download checkpoints into `/backend/models/<model_set>/<model_entry>/...`, and register them before jobs run. Manual checkpoint required after the schema migration.
+- **Assumptions**: Admin-managed registry milestone begins with documentation and schema. No bundled models or provider packages ship; admins must install providers, download checkpoints into `/backend/models/<model_set>/<model_weight>/...`, and register them before jobs run. Manual checkpoint required after the schema migration.
 - **Ambiguity**: None - scope is Step 1 only (docs/backlog updates + migration scaffold); backend services/UI wiring happen in later steps.
-- **Plan**: 1) Update README + `docs/application_documentation/DEPLOYMENT.md` to document the zero-bundle policy, path contract, and registry workflow (enable/disable + defaults). 2) Add a PRODUCTION_TASKS entry/checklist for the registry milestone and manual verification checkpoints. 3) Create Alembic migration for `model_sets`/`model_entries` with fields `id`, `type (ASR|DIARIZER)`, `name`, `description`, `abs_path`, `enabled`, `disable_reason`, `created_at`, `updated_at`, and FK entry→set (paths constrained to `/backend/models/...`).
+- **Plan**: 1) Update README + `docs/application_documentation/DEPLOYMENT.md` to document the zero-bundle policy, path contract, and registry workflow (enable/disable + defaults). 2) Add a PRODUCTION_TASKS entry/checklist for the registry milestone and manual verification checkpoints. 3) Create Alembic migration for `model_sets`/`model_weights` with fields `id`, `type (ASR|DIARIZER)`, `name`, `description`, `abs_path`, `enabled`, `disable_reason`, `created_at`, `updated_at`, and FK entry→set (paths constrained to `/backend/models/...`).
 - **Pending Checkpoints**: Manual review after schema/migration lands; subsequent checkpoints follow backend wiring/UI steps.
 
 ### Work Block - 2025-12-07 11:00 PT (Wrap)
-- **Progress**: Updated README + `docs/application_documentation/DEPLOYMENT.md` with the admin-managed registry flow (manual provider installs, `/backend/models/<set>/<entry>` path contract, enable/disable, defaults required before jobs). Logged the milestone + checkpoints here and scaffolded Alembic migrations for `model_sets` and `model_entries` with required columns, uniqueness, and cascade FK.
-- **Impact**: Documentation now matches the zero-bundle policy; schema path is ready for CRUD/validation wiring in upcoming steps. Registry defaults and `/system/availability` will derive solely from enabled entries once services are wired.
+- **Progress**: Updated README + `docs/application_documentation/DEPLOYMENT.md` with the admin-managed registry flow (manual provider installs, `/backend/models/<set>/<weight>` path contract, enable/disable, defaults required before jobs). Logged the milestone + checkpoints here and scaffolded Alembic migrations for `model_sets` and `model_weights` with required columns, uniqueness, and cascade FK.
+- **Impact**: Documentation now matches the zero-bundle policy; schema path is ready for CRUD/validation wiring in upcoming steps. Registry defaults and `/system/availability` will derive solely from enabled weights once services are wired.
 - **Risks/Notes**: Existing worktree is already dirty from prior efforts; avoid reverting unrelated changes. Path validation and runtime cache refresh still need to be implemented in services/routes. Manual checkpoint still required post-migration.
 - **Next Actions**: Finish backend services/routes, settings wiring, and admin UI per milestone steps; run `./scripts/pre-flight-check.ps1` + `./run-tests.ps1 -SkipE2E` after each step and request manual review.
 - **Checkpoint Status**: Pending admin review for schema/migration step.
 
+### Work Block - 2025-12-12 14:05 PT (Planned)
+- **Assumptions**: After the current manual verification of the registry milestone is complete, we immediately stand up the dual-environment workflow so a production stack can stay online while a development stack runs the latest changes. Until manual verification is signed off, this work remains staged but not executed.
+- **Ambiguity**: Dev may live on the same Windows host (different ports/paths) or a separate VM/container. Default plan assumes same host/different ports unless the user asks for a separate machine.
+- **Plan**:
+  1. **Branch & Repository Guardrails** – Formalize `dev` (integration) and `main` (production) branches, enforce PR + CI protection on both, and document the rule in `PRODUCTION_TASKS.md`, `AGENTS.md`, and `docs/application_documentation/DEPLOYMENT.md`.
+  2. **Dual-Environment Bootstrap** – Extend `scripts/restart-selenite.ps1`/`start-selenite.ps1` with an `-Environment` flag so Prod and Dev can run concurrently on different ports, DB files, and storage roots. Clone/checkout the repo twice (or use worktrees) so each environment tracks its branch.
+  3. **Data Separation** – Snapshot the prod `selenite.db`/media, create a sanitized dev copy, and document a refresh script so dev never touches prod data.
+  4. **Release Workflow** – After dev verification, merge `dev`→`main`, tag the commit, and run the production restart script (it should refuse to run unless the working tree is clean, on `main`, and the release tag/manual checkpoint are recorded). Keep rollback instructions with the previous tag/database snapshot.
+  5. **Documentation & Training** – Update README/DEPLOYMENT/PRODUCTION_TASKS with the release checklist (dev deploy, manual QA, release PR/tag, prod deploy, rollback). Add examples showing how to operate both environments and reference the new guardrails.
+  6. **Automation** – Ensure GitHub Actions runs lint/tests/hygiene on every PR to `dev`, and optionally notify operators when `dev` merges into `main`.
+- **Pending Checkpoints**: (1) Finish the in-progress manual verification for the registry milestone. (2) Bring the dev environment online and memorialize `run-tests.ps1 -SkipE2E`. (3) Dry-run a full release cycle (dev deploy → QA → merge/tag → prod deploy) and capture results under `docs/memorialization/manual-testing/`. (4) Obtain admin confirmation that the workflow is understood before enforcing the guardrails.
+
+### Work Block - 2025-12-18 16:40 CT (Start)
+- **Assumptions**: Manual checkpoint `docs/memorialization/manual-testing/20251212_manual_checkpoint.md` is archived after bring-up/settings/registry verification. Remaining unchecked items roll into this UI/UX polish pass.
+- **Ambiguity**: Helper guidance could be inline copy or tooltips; default plan keeps inline text concise and uses tooltips for disabled controls.
+- **Plan**:
+  1. **Registry toggles** – Disable the enable switches when prerequisites are missing (no weights on disk, missing dependencies, set disabled) so we never fire failing PATCH calls. Add tooltips linking to `docs/application_documentation/DEPLOYMENT.md` explaining how to stage weights.
+  2. **Default selectors** – Clarify which dropdowns set global defaults vs. remember last selections. Filter the weight dropdown to enabled+available entries and display helper text when none exist (“Enable a weight to set a default”).
+  3. **New Job Modal UX** – Keep the submit button disabled until a valid provider/weight is chosen, add inline validation beneath the dropdowns, and keep unavailable options disabled so guidance happens before submit.
+- **Pending Checkpoints**: After each numbered task, run `npm run build` plus the targeted frontend tests and request admin confirmation of the UI change before proceeding.
+
+### Work Block - 2025-12-19 10:00 CT (Start)
+- **Assumptions**: The 2025-12-18 UI/UX block tasks are complete; new follow-ups focus on industry-standard UX polish.
+- **Plan**:
+  1. **Model Registry action clarity** – Split metadata saves from availability changes so admins explicitly choose “Save metadata” vs “Update availability”. (In progress)
+  2. **Status indicators** – Replace verbose text with consistent badges/icons for Missing files/Disabled, and show enabled-weight counts in the header.
+  3. **Loading states** – Add skeletons/spinners for registry/capability loading in admin and modal dropdowns.
+  4. **Accessibility** – Tie helper/error text to inputs with `aria-describedby` and add an aria-live region for validation updates.
+  5. **Consistency sweep** – Final pass to ensure “Model set/Model weight” labels everywhere; remove leftover “entry” text.
+  6. **Docs link UX** – Replace plain text “see docs” mentions with a clickable link/button to `docs/application_documentation/DEPLOYMENT.md`.
+  7. **Prevent stale state** – After enable/disable actions, refresh local options immediately in settings/new-job modal to avoid outdated dropdowns.
+- **Pending Checkpoints**: After each numbered task, run `npm run build` plus targeted frontend tests and request admin confirmation of the UI change before proceeding.
+
 ### Work Block - 2025-12-07 14:55 PT (Wrap)
-- **Progress**: Backend registry CRUD + validation finished (paths constrained to `backend/models/<set>/<entry>`, ProviderManager refreshes on change, defaults validated against enabled entries; Whisper fallbacks removed). Admin UI now has ASR/DIARIZER tabs with set/entry CRUD, enable/disable with required reasons, path guardrails, availability rescan, and registry-driven defaults. New Job modal consumes `/system/availability` and blocks submit with “Contact admin to register a model” when no ASR entries are enabled. Tests: `./run-tests.ps1 -SkipE2E` (artifacts `docs/memorialization/test-runs/20251207-145734-backend+frontend`).
-- **Impact**: Only admin-registered models appear in `/system/availability` and job creation/settings. Operators validate solely via the UI (they cannot review code/DB); defaults must reference enabled registry entries.
+- **Progress**: Backend registry CRUD + validation finished (paths constrained to `backend/models/<set>/<weight>`, ProviderManager refreshes on change, defaults validated against enabled weights; Whisper fallbacks removed). Admin UI now has ASR/DIARIZER tabs with set/entry CRUD, enable/disable with required reasons, path guardrails, availability rescan, and registry-driven defaults. New Job modal consumes `/system/availability` and blocks submit with "Contact admin to register a model weight" when no ASR weights are enabled. Tests: `./run-tests.ps1 -SkipE2E` (artifacts `docs/memorialization/test-runs/20251207-145734-backend+frontend`).
+- **Impact**: Only admin-registered models appear in `/system/availability` and job creation/settings. Operators validate solely via the UI (they cannot review code/DB); defaults must reference enabled registry weights.
 - **Risks/Notes**: Manual checkpoints still required: (a) admin review of schema/services, (b) admin review of UI/availability behavior, (c) final integration with a staged Whisper set/entry. All model paths must stay under `backend/models/...` or saves fail.
 - **Next Actions**: Stage a sample ASR/diarizer entry on disk, confirm Admin → Rescan availability reflects it, set defaults, and capture UI confirmation. Proceed to final integration checklist once admin confirms via UI.
 - **Checkpoint Status**: Awaiting admin confirmation via UI (UI-only validation per user).
@@ -162,9 +195,9 @@ Compliance with these directives is mandatory.
 ### Scaffold for Future Implementation
 | ID | Task | Description | Owner | Target Date | Status |
 |----|------|-------------|-------|-------------|--------|
-| [MODEL-REGISTRY] | Model registry scaffolding | Define schema (in main DB) for ASR **and** diarizer sets/types: provider key, display name, provider type, enabled flag _(default TRUE)_, install path, download URL, status, size, checksum, last updated, admin override fields (disabled_at/by + reason), and a flag noting whether the entry auto-enabled. Paths must live under `/backend/models/<model_set>/<model_entry>/…` and be validated on save. Upon row creation the system must immediately publish the provider/model to `/system/availability`, expose it to Settings/New Job, and append a memorialized "auto-enabled" entry (docs/memorialization work log). No download/install yet. | Owner | 2025-12-05 | In Progress – Dec 6: pre-flight cleared; DB schema + memorialized auto-enable work started. |
-| [MODEL-MGMT-UI] | Model management UI stubs | Admin UI placeholders for listing/editing model & diarizer sets: dropdown selector per type, highlight newly auto-enabled entries, show enable toggles defaulted ON, require disable reason text + confirmation when turning one off, allow rename/edit URLs/paths (with browse-or-type inputs constrained to `/backend/models/...`), and provide refresh per model/set/all plus re-scan availability. UI must surface enabled/disabled status (and any disable notes) in both Settings and the New Job modal without extra prompts. | Owner | 2025-12-05 | In Progress – Dec 6: blocking backend registry wiring underway so the UI can consume live data. |
-| [ASR-MULTI] | Multi-ASR adapter | Introduce provider manager that reads the registry (treats missing `enabled` as TRUE), builds capability metadata for ASR + diarizers, and feeds the per-job/admin resolution flow (choice → default → fallback) while honoring admin-disable states. Remove hardcoded Whisper defaults so availability/admin defaults/runtimes come solely from registry entries and log when a provider falls back due to being disabled/unavailable. Keep diarizer handling in lockstep with ASR behavior. No additional providers wired yet. | Owner | 2025-12-05 | In Progress – Dec 6: scoped alongside registry so ASR/diarizer parity doesn’t drift. |
+| [MODEL-REGISTRY] | Model registry scaffolding | Define schema (in main DB) for ASR **and** diarizer sets/types: provider key, display name, provider type, enabled flag _(default TRUE)_, install path, download URL, status, size, checksum, last updated, admin override fields (disabled_at/by + reason), and a flag noting whether the entry auto-enabled. Paths must live under `/backend/models/<model_set>/<model_weight>/…` and be validated on save. Upon row creation the system must immediately publish the provider/model to `/system/availability`, expose it to Settings/New Job, and append a memorialized "auto-enabled" entry (docs/memorialization work log). No download/install yet. | Owner | 2025-12-05 | In Progress – Dec 6: pre-flight cleared; DB schema + memorialized auto-enable work started. |
+| [MODEL-MGMT-UI] | Model management UI stubs | Admin UI placeholders for listing/editing model & diarizer sets: dropdown selector per type, highlight newly auto-enabled weights, show enable toggles defaulted ON, require disable reason text + confirmation when turning one off, allow rename/edit URLs/paths (with browse-or-type inputs constrained to `/backend/models/...`), and provide refresh per model/set/all plus re-scan availability. UI must surface enabled/disabled status (and any disable notes) in both Settings and the New Job modal without extra prompts. | Owner | 2025-12-05 | In Progress – Dec 6: blocking backend registry wiring underway so the UI can consume live data. |
+| [ASR-MULTI] | Multi-ASR adapter | Introduce provider manager that reads the registry (treats missing `enabled` as TRUE), builds capability metadata for ASR + diarizers, and feeds the per-job/admin resolution flow (choice → default → fallback) while honoring admin-disable states. Remove hardcoded Whisper defaults so availability/admin defaults/runtimes come solely from registry weights and log when a provider falls back due to being disabled/unavailable. Keep diarizer handling in lockstep with ASR behavior. No additional providers wired yet. | Owner | 2025-12-05 | In Progress – Dec 6: scoped alongside registry so ASR/diarizer parity doesn’t drift. |
 
 > **Auto-Expose Policy**: Per AGENTS/AI charter guardrails, any ASR or diarizer provider entered in the registry is considered enabled and user-visible immediately (Settings, New Job, `/system/availability`) until an administrator explicitly disables it. All implementation tasks above must include the memorialized auto-enable log hook and admin-disable auditing described here.
 
@@ -196,7 +229,7 @@ Compliance with these directives is mandatory.
 ## 🎯 Critical Path Items (3-4 weeks)
 
 ### 1. Real Whisper Integration (5-7 days)
-- [x] Load Whisper models from `/models` directory
+- [x] Load Whisper models from `/backend/models` directory
 - [x] Implement actual audio/video transcription pipeline
 - [x] Generate accurate timestamps for segments
 - [x] Add speaker diarization support (placeholder for pyannote)
@@ -207,7 +240,7 @@ Compliance with these directives is mandatory.
 - [x] Memory management for large files
 
 **Current Status**: ✅ Complete (WhisperService created with model caching, async processing)  
-**Blockers**: None (models available in `/models/`)  
+**Blockers**: None (models available in `/backend/models/`)  
 **Priority**: CRITICAL - Core value proposition
 
 ---
@@ -422,6 +455,10 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Multi-user support with authentication
 - [ ] Cloud storage integration (S3, etc.)
 - [ ] Transcript editing with re-alignment
+
+### 14. Operational Hygiene
+- [ ] Scheduled hygiene + backup job (daily/weekly) that runs `scripts/check_alignment.py`, `scripts/check_repo_hygiene.py`, and captures verified database/storage backups.
+- [ ] Artifact maintenance CLI (`scripts/manage-artifacts.ps1`) to archive/prune historical logs, memorialization test runs, and other transient outputs.
 - [ ] Custom vocabulary/glossary support
 - [ ] Translation to other languages
 - [ ] Summarization with LLMs

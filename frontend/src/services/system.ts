@@ -81,6 +81,7 @@ export interface CapabilityResponse {
   }>;
   diarizers: Array<{
     key: string;
+    provider: string;
     display_name: string;
     requires_gpu: boolean;
     available: boolean;

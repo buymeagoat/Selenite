@@ -3,7 +3,7 @@
 ## [SETTINGS-STORE] Shared Settings Provider
 
 1. **Bootstrap & Login**  
-   - Run `./start-selenite.ps1` (or your wrapper) to launch backend + frontend.  
+   - Run `./scripts/start-selenite.ps1` (or your wrapper) to launch backend + frontend.  
    - Open the app in a new browser window/tab and log in as `admin`.
 
 2. **Verify Settings Page**  
@@ -33,7 +33,7 @@ Record the date/result in `docs/build/PRODUCTION_TASKS.md` under `[SETTINGS-STOR
    - When prompted, enter the current admin password. Copy the printed bearer token (it lives in local storage under `auth_token` too if you prefer).
 2. **Call availability API**  
    - PowerShell: `Invoke-RestMethod -Uri "http://127.0.0.1:8100/system/availability" -Headers @{ Authorization = "Bearer <token>" }`.  
-   - Confirm the JSON lists diarizers with accurate `available` flags for the host (GPU-required entries should be `available:false` on CPU-only machines).
+   - Confirm the JSON lists diarizers with accurate `available` flags for the host (GPU-required weights should be `available:false` on CPU-only machines).
 3. **Call system info API**  
    - `Invoke-RestMethod -Uri "http://127.0.0.1:8100/system/info" -Headers @{ Authorization = "Bearer <token>" }`.  
    - Verify CPU/RAM/disk/network data matches the Settings → System card.

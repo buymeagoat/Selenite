@@ -2,7 +2,8 @@ import os
 import time
 from typing import Dict, Tuple
 
-from fastapi import HTTPException, Request, Response
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 DEFAULT_LIMIT = {"max_tokens": 100, "refill_rate": 100 / 60}
@@ -66,8 +67,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not rate_limiter.is_allowed(
             key, max_tokens=int(config["max_tokens"]), refill_rate=float(config["refill_rate"])
         ):
-            raise HTTPException(
-                status_code=429, detail="Rate limit exceeded. Please try again later."
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Please try again later."},
             )
 
         return await call_next(request)

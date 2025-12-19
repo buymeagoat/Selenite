@@ -3,7 +3,7 @@
 Goal: enable pyannote diarization under `backend/models/huggingface/pyannote` and run it in Selenite.
 
 ## Prereqs
-- Use the backend virtualenv for all commands: `cd backend`.
+- Run all commands from the repository root (the snippets use `backend/...` relative paths).
 - ffmpeg installed and on PATH.
 - Hugging Face token available (env `HF_TOKEN` or CLI login).
 
@@ -45,7 +45,7 @@ Keep existing subfolders (e.g., `segmentation-3.0`, `wespeaker-voxceleb-resnet34
 - In Admin → Model Registry, ensure the diarizer entry points to `backend/models/huggingface/pyannote` and is enabled.
 
 ## 4) Restart and test
-- Restart: `.\restart-selenite.ps1`.
+- Restart: `.\scripts\restart-selenite.ps1`.
 - Run a job with diarization enabled and select `pyannote`. The modal should show `pyannote` (no “failed”) and a detected speaker count >1 when present.
 
 ## 5) Troubleshooting

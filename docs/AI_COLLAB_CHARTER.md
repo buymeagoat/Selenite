@@ -24,7 +24,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - No silent downloads: never auto-download models. Only advertise backends/models if installed. Downloads (including "fetch on use") require explicit admin choice and strong warnings.
 - Fallbacks: if a chosen ASR/diarizer/backend is unavailable, log and fall back to a viable option; do not fail the job solely for that reason.
 - Admin gating: user-facing "advanced" options (ASR/diarization/speaker count/extra flags) must respect admin settings; defaults stay simple for regular users.
-- Runbooks: prefer scripted runners over ad hoc commands. For tests, use `run-tests.ps1` with appropriate flags. For setup, use `bootstrap.ps1` from repo root. Avoid improvisation unless necessary.
+- Runbooks: prefer scripted runners over ad hoc commands. For tests, use `scripts/run-tests.ps1` with appropriate flags. For setup, use `scripts/bootstrap.ps1` from repo root. Avoid improvisation unless necessary.
 - Repository hygiene: never invoke `git clean -fd*` directly. Use `scripts/protected-clean.ps1 -DryRun` to review deletions, and only allow the script to execute the real cleanup after it confirms no protected paths (`docs/memorialization`, `models`, `logs`, `storage`, `scratch`) are targeted.
 - Pre-flight: before modifying or committing code, run `./scripts/pre-flight-check.ps1` and resolve failures. It enforces endpoint authentication, detects hardcoded credentials/IPs, and warns about unguarded logging.
 - Test proof: after changes, run `./run-tests.ps1 -SkipE2E` (or stricter) and allow it to stamp `.last_tests_run`; cite the outcome in your summary.
@@ -35,5 +35,5 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 1) Restate the command. 2) Check for ambiguity; stop if unclear. 3) List assumptions/uncertainties. 4) Apply role/posture and mandates. 5) Provide solution plus brief lay explanation and safer alternatives. 6) Suggest the next step or manual checkpoint if warranted.
 
 ## References (Project-Specific)
-- Preferred setup/run: `bootstrap.ps1` (repo root) for environment bring-up.
+- Preferred setup/run: `scripts/bootstrap.ps1` (repo root) for environment bring-up.
 - Preferred test runner: `run-tests.ps1` with flags (`-SkipBackend`, `-SkipFrontend`, `-SkipE2E`, `-ForceBackendInstall`, `-ForceFrontendInstall`).

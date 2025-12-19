@@ -8,6 +8,7 @@ const mockSettings: UserSettings = {
   default_asr_provider: 'whisper',
   default_model: 'medium',
   default_language: 'auto',
+  default_diarizer_provider: 'pyannote',
   default_diarizer: 'vad',
   diarization_enabled: true,
   allow_job_overrides: true,
@@ -16,6 +17,8 @@ const mockSettings: UserSettings = {
   time_zone: 'UTC',
   server_time_zone: 'UTC',
   transcode_to_wav: true,
+  last_selected_asr_set: 'whisper',
+  last_selected_diarizer_set: 'pyannote',
 };
 
 const TestConsumer: React.FC = () => {

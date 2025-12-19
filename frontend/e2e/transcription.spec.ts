@@ -30,8 +30,12 @@ test.describe('Transcription Workflow', () => {
     // Verify file is attached
     await expect(page.locator('[data-testid="file-input-section"]').getByText(/sample\.wav/i).first()).toBeVisible();
     
-    // Select model
-    const modelSelect = page.getByLabel(/model/i).or(page.locator('[data-testid="model-select"]'));
+    // Select model set + weight
+    const providerSelect = page.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
+    const modelSelect = page.getByTestId('model-select');
+    await expect(modelSelect).toBeEnabled();
     await modelSelect.selectOption('base');
     
     // Verify options (using data-testid fallbacks)
@@ -62,6 +66,12 @@ test.describe('Transcription Workflow', () => {
     const fileInput = page.locator('input[type="file"]');
     const sampleFile = path.resolve(process.cwd(), 'e2e', 'fixtures', 'media', 'sample.wav');
     await fileInput.setInputFiles(sampleFile);
+    const providerSelect = page.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
+    const modelSelect = page.getByTestId('model-select');
+    await expect(modelSelect).toBeEnabled();
+    await modelSelect.selectOption('base');
     await page.getByRole('button', { name: /start transcription/i }).click();
     
     // Wait for any job card (seeded data) – newly created job may not appear immediately
@@ -103,6 +113,12 @@ test.describe('Transcription Workflow', () => {
     const fileInput = page.locator('input[type="file"]');
     const sampleFile = path.resolve(process.cwd(), 'e2e', 'fixtures', 'media', 'sample.wav');
     await fileInput.setInputFiles(sampleFile);
+    const providerSelect = page.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
+    const modelSelect = page.getByTestId('model-select');
+    await expect(modelSelect).toBeEnabled();
+    await modelSelect.selectOption('base');
     await page.getByRole('button', { name: /start transcription/i }).click();
     
     // Find the job card

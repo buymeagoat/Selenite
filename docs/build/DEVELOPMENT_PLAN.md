@@ -98,7 +98,7 @@ Accessible from sidebar/nav:
 - **No File Size Limit**: Should handle any duration (short voice memos to multi-hour lectures)
 
 #### Transcription Options
-- **Model Selection**: Access existing models in `/models` directory (tiny, base, small, medium, large)
+- **Model Selection**: Access existing models in `/backend/models` directory (tiny, base, small, medium, large)
 - **Language**: Auto-detect by default
 - **Speaker Detection**: Enable/disable diarization (identify different speakers)
 - **Timestamps**: Include word-level or segment-level timestamps in output
@@ -592,7 +592,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=1440  # 24 hours
 # Storage
 MEDIA_STORAGE_PATH=./storage/media
 TRANSCRIPT_STORAGE_PATH=./storage/transcripts
-MODEL_STORAGE_PATH=./storage/models
+MODEL_STORAGE_PATH=./backend/models
 
 # Transcription
 MAX_CONCURRENT_JOBS=3
@@ -1879,7 +1879,7 @@ The project is considered **DONE** when:
 All prerequisites have been verified and pre-build artifacts created:
 
 1. **Model files**: ✅ COMPLETE
-   - Whisper models copied to `D:\Dev\projects\Selenite\models`
+   - Whisper models copied to `D:\Dev\projects\Selenite\backend\models`
    - Models available: tiny, base, small, medium, large-v3
    
 2. **Database choice**: ✅ CONFIRMED

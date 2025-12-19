@@ -26,11 +26,13 @@ cp .env.production.example .env
 - `CORS_ORIGINS=https://yourdomain.com`
 - Storage paths to absolute paths (e.g., `/var/lib/selenite/media`)
 
+> Storage is canonicalized to a single root (`./storage` in repo clones or an absolute path you set via `MEDIA_STORAGE_PATH`/`TRANSCRIPT_STORAGE_PATH`). Legacy `backend/storage` is deprecated—keep media/transcripts together under one `storage` directory to avoid split data.
+
 ### 3. Install Providers & Stage Models (manual, admin-only)
 - Activate the backend virtualenv and install only the providers you plan to expose (examples): `pip install faster-whisper`, `pip install pyannote.audio` (+ GPU runtimes if needed). Nothing is installed automatically.
-- Download each checkpoint manually into `backend/models/<model_set>/<model_entry>/...` (e.g., `backend/models/faster-whisper/medium-int8/`). Paths outside this tree are rejected.
-- After the app is running, use the Admin UI/REST API to create **model sets** (providers) and **model entries** (variants pointing at the staged paths), enable/disable them, and select the defaults for ASR and diarization. If the registry is empty or entries are disabled, users cannot create jobs and `/system/availability` will return empty arrays.
-- Operator validation is UI-only: after staging models, open Admin → Model Registry, click **Rescan availability**, and confirm the entries appear; then select defaults under Admin → Advanced ASR & Diarization. New Job should disable submit with “Contact admin to register a model” if no ASR entries are enabled.
+- Download each checkpoint manually into `backend/models/<model_set>/<model_weight>/...` (e.g., `backend/models/faster-whisper/medium-int8/`). Paths outside this tree are rejected.
+- After the app is running, use the Admin UI/REST API to create **model sets** (providers) and **model weights** (variants pointing at the staged paths), enable/disable them, and select the defaults for ASR and diarization. If the registry is empty or weights are disabled, users cannot create jobs and `/system/availability` will return empty arrays.
+- Operator validation is UI-only: after staging models, open Admin → Model Registry, click **Rescan availability**, and confirm the weights appear; then select defaults under Admin → Advanced ASR & Diarization. New Job should disable submit with “Contact admin to register a model” if no ASR weights are enabled.
 
 ### 4. Validate Configuration
 
@@ -132,7 +134,7 @@ pip install -r requirements.txt
 pip install faster-whisper
 pip install pyannote.audio
 
-# Download checkpoints manually into backend/models/<model_set>/<model_entry>/...
+# Download checkpoints manually into backend/models/<model_set>/<model_weight>/...
 # (e.g., backend/models/faster-whisper/medium-int8/) before registering them in the admin UI.
 ```
 
@@ -167,7 +169,7 @@ DATABASE_URL=sqlite+aiosqlite:///./selenite.db
 # Storage paths (absolute paths recommended for production)
 MEDIA_STORAGE_PATH=/var/selenite/media
 TRANSCRIPT_STORAGE_PATH=/var/selenite/transcripts
-MODEL_STORAGE_PATH=/var/selenite/backend/models  # registry entries must live under backend/models/<set>/<entry>/...
+MODEL_STORAGE_PATH=/var/selenite/backend/models  # registry weights must live under backend/models/<set>/<weight>/...
 
 # Performance tuning
 MAX_CONCURRENT_JOBS=3  # Adjust based on CPU cores
@@ -241,7 +243,7 @@ Use the bootstrap script to mimic the deployment configuration on a workstation:
 
 ```powershell
 cd D:\Dev\projects\Selenite
-.\bootstrap.ps1
+.\scripts\bootstrap.ps1
 ```
 
 If you need a manual run (Linux/macOS):
@@ -268,7 +270,7 @@ npm run start:prod -- --host 127.0.0.1 --port 5173
 python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
 ```
 
-> Providers and model files are never auto-installed. Install the desired packages into the backend venv, stage checkpoints under `backend/models/<set>/<entry>/...`, then register + enable them in the Admin UI before creating jobs.
+> Providers and model files are never auto-installed. Install the desired packages into the backend venv, stage checkpoints under `backend/models/<set>/<weight>/...`, then register + enable them in the Admin UI before creating jobs.
 
 ### Production Mode
 
@@ -412,7 +414,7 @@ docker run -d \
   --name selenite-backend \
   -p 8000:8000 \
   -v $(pwd)/storage:/app/storage \
-  -v $(pwd)/models:/app/models \
+  -v $(pwd)/backend/models:/app/models \
   --env-file backend/.env \
   selenite-backend
 
@@ -506,8 +508,8 @@ ffmpeg -version
 # Confirm provider packages are installed in the backend venv
 pip show faster-whisper
 
-# Check staged model paths align with registry entries
-ls -lh backend/models/<model_set>/<model_entry>/
+# Check staged model paths align with registry weights
+ls -lh backend/models/<model_set>/<model_weight>/
 
 # Confirm the registry advertises the entry
 curl http://localhost:8100/system/availability
@@ -563,7 +565,7 @@ docker stats
 **Volume Permission Errors**:
 ```bash
 # Fix ownership
-sudo chown -R 1000:1000 ./storage ./models
+sudo chown -R 1000:1000 ./storage ./backend/models
 
 # Or run container as root (not recommended)
 docker run --user root ...

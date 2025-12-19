@@ -53,7 +53,7 @@ def _require_remote_control(feature: str) -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
                 f"Remote server control ({feature}) is disabled. "
-                "Run stop-selenite.ps1/start-selenite.ps1 on the host or set "
+                "Run scripts/stop-selenite.ps1 and scripts/start-selenite.ps1 on the host or set "
                 "ENABLE_REMOTE_SERVER_CONTROL=true to opt in."
             ),
         )
@@ -130,7 +130,7 @@ async def full_restart_server(current_user: User = Depends(get_current_user)):
     watchdog script (`scripts/watch-restart.ps1`) monitors. The watchdog will:
       1. Remove the flag
       2. Execute stop-selenite.ps1
-      3. Execute start-selenite.ps1
+      3. Execute scripts/start-selenite.ps1
 
     This avoids executing shell commands directly from inside the API process
     (safer; reduces RCE surface) while still allowing an authenticated admin to

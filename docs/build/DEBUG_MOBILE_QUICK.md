@@ -11,7 +11,7 @@ Use this when someone on a phone/tablet says “login failed” or “nothing lo
 
 2. **Keep server logs streaming**
    ```powershell
-   .\view-logs.ps1 -Follow -Filter "LOGIN|AUTH|CLIENT"
+   .\scripts\view-logs.ps1 -Follow -Filter "LOGIN|AUTH|CLIENT"
    ```
    You will immediately see POST /auth/login attempts plus any `[CLIENT ERROR]` lines emitted by the browser.
 
@@ -24,7 +24,7 @@ Use this when someone on a phone/tablet says “login failed” or “nothing lo
    ```powershell
    python .\scripts\reset_admin_password.py --password changeme
    ```
-   Then kill/restart via `.\start-selenite.ps1` so both backend and frontend reload the new password.
+   Then kill/restart via `.\scripts\start-selenite.ps1` so both backend and frontend reload the new password.
 
 5. **(Optional) Probe authenticated diagnostics**
    ```powershell

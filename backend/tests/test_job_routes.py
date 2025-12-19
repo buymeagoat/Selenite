@@ -18,7 +18,7 @@ from app.models.user import User
 from app.models.job import Job
 from app.models.tag import Tag
 from app.utils.security import create_access_token, hash_password
-from app.schemas.model_registry import ModelSetCreate, ModelEntryCreate
+from app.schemas.model_registry import ModelSetCreate, ModelWeightCreate
 from app.services.model_registry import ModelRegistryService
 
 
@@ -52,10 +52,10 @@ async def test_db():
             ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
             actor="system",
         )
-        await ModelRegistryService.create_model_entry(
+        await ModelRegistryService.create_model_weight(
             session,
             model_set,
-            ModelEntryCreate(
+            ModelWeightCreate(
                 name="test-entry",
                 description="seed entry",
                 abs_path=str(entry_path.resolve()),
@@ -103,7 +103,7 @@ async def _create_job_record(
             mime_type="audio/mpeg",
             status=status,
             progress_percent=0,
-            model_used="medium",
+            model_used="test-entry",
             has_timestamps=True,
             has_speaker_labels=True,
             created_at=datetime.utcnow(),
@@ -136,7 +136,7 @@ class TestCreateJob:
 
         # Form data
         data = {
-            "model": "medium",
+            "model": "test-entry",
             "language": "auto",
             "enable_timestamps": "true",
             "enable_speaker_detection": "true",
@@ -288,7 +288,7 @@ class TestGetJob:
         # Create a job first
         file_content = b"fake audio content"
         files = {"file": ("test.mp3", io.BytesIO(file_content), "audio/mpeg")}
-        data = {"model": "medium", "language": "en"}
+        data = {"model": "test-entry", "language": "en"}
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

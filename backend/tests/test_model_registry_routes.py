@@ -56,7 +56,7 @@ def user_headers(test_db):
 
 @pytest.fixture
 def model_path_factory(tmp_path):
-    """Create throwaway files inside backend/models for entry registration."""
+    """Create throwaway files inside backend/models for weight registration."""
 
     created: list[Path] = []
     models_root = BACKEND_ROOT / "models"
@@ -118,7 +118,7 @@ async def test_create_model_set_success(test_db, admin_headers, set_path_factory
     assert body["abs_path"].startswith(str((BACKEND_ROOT / "models").resolve()))
 
 
-async def test_create_model_entry_requires_admin(
+async def test_create_model_weight_requires_admin(
     test_db, admin_headers, user_headers, model_path_factory, set_path_factory
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -130,13 +130,13 @@ async def test_create_model_entry_requires_admin(
         created = await client.post("/models/providers", json=set_payload, headers=admin_headers)
         set_id = created.json()["id"]
 
-        entry_payload = {
+        weight_payload = {
             "name": "alpha",
             "description": "alpha model",
             "abs_path": model_path_factory("custom/alpha/model.bin"),
         }
         response = await client.post(
-            f"/models/providers/{set_id}/entries", json=entry_payload, headers=user_headers
+            f"/models/providers/{set_id}/weights", json=weight_payload, headers=user_headers
         )
 
     assert response.status_code == 403
@@ -157,7 +157,7 @@ async def test_duplicate_set_names_rejected(test_db, admin_headers, set_path_fac
     assert dup.status_code == 409
 
 
-async def test_entry_disable_requires_reason(
+async def test_weight_disable_requires_reason(
     test_db, admin_headers, model_path_factory, set_path_factory
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -169,25 +169,25 @@ async def test_entry_disable_requires_reason(
         created = await client.post("/models/providers", json=set_payload, headers=admin_headers)
         set_id = created.json()["id"]
 
-        entry_payload = {
+        weight_payload = {
             "name": "sb-medium",
             "description": "SpeechBrain Medium",
             "abs_path": model_path_factory("speechbrain/sb-medium/model.bin"),
         }
-        entry_resp = await client.post(
-            f"/models/providers/{set_id}/entries", json=entry_payload, headers=admin_headers
+        weight_resp = await client.post(
+            f"/models/providers/{set_id}/weights", json=weight_payload, headers=admin_headers
         )
-        entry_id = entry_resp.json()["id"]
+        weight_id = weight_resp.json()["id"]
 
         bad_patch = await client.patch(
-            f"/models/providers/entries/{entry_id}",
+            f"/models/providers/weights/{weight_id}",
             json={"enabled": False},
             headers=admin_headers,
         )
         assert bad_patch.status_code == 400
 
         good_patch = await client.patch(
-            f"/models/providers/entries/{entry_id}",
+            f"/models/providers/weights/{weight_id}",
             json={"enabled": False, "disable_reason": "GPU offline"},
             headers=admin_headers,
         )
@@ -195,9 +195,10 @@ async def test_entry_disable_requires_reason(
         body = good_patch.json()
         assert body["enabled"] is False
         assert body["disable_reason"] == "GPU offline"
+        assert body["has_weights"] is True
 
 
-async def test_list_returns_sets_with_entries(
+async def test_list_returns_sets_with_weights(
     test_db, admin_headers, model_path_factory, set_path_factory
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -210,7 +211,7 @@ async def test_list_returns_sets_with_entries(
             resp = await client.post("/models/providers", json=payload, headers=admin_headers)
             created_set_ids.append(resp.json()["id"])
 
-        entry_payloads = [
+        weight_payloads = [
             {
                 "name": "vosk-en",
                 "description": "Vosk English",
@@ -223,9 +224,9 @@ async def test_list_returns_sets_with_entries(
             },
         ]
 
-        for set_id, entry_payload in zip(created_set_ids, entry_payloads):
+        for set_id, weight_payload in zip(created_set_ids, weight_payloads):
             resp = await client.post(
-                f"/models/providers/{set_id}/entries", json=entry_payload, headers=admin_headers
+                f"/models/providers/{set_id}/weights", json=weight_payload, headers=admin_headers
             )
             assert resp.status_code == 201
 
@@ -235,12 +236,13 @@ async def test_list_returns_sets_with_entries(
     data = listing.json()
     assert len(data) == 2
     for item in data:
-        assert "entries" in item
-        assert len(item["entries"]) == 1
-        assert item["entries"][0]["abs_path"].startswith(str((BACKEND_ROOT / "models").resolve()))
+        assert "weights" in item
+        assert len(item["weights"]) == 1
+        assert item["weights"][0]["abs_path"].startswith(str((BACKEND_ROOT / "models").resolve()))
+        assert item["weights"][0]["has_weights"] is True
 
 
-async def test_entry_file_path_validation(
+async def test_weight_file_path_validation(
     test_db, admin_headers, model_path_factory, set_path_factory
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -249,37 +251,37 @@ async def test_entry_file_path_validation(
         set_id = created.json()["id"]
 
         bad_payload = {
-            "name": "kaldi-entry",
-            "description": "Kaldi Entry",
+            "name": "kaldi-weight",
+            "description": "Kaldi Weight",
             "abs_path": "../outside/model.bin",
         }
         bad_resp = await client.post(
-            f"/models/providers/{set_id}/entries", json=bad_payload, headers=admin_headers
+            f"/models/providers/{set_id}/weights", json=bad_payload, headers=admin_headers
         )
         assert bad_resp.status_code == 400
 
         outside_set_payload = {
-            "name": "kaldi-entry-outside",
-            "description": "Kaldi Entry Outside",
+            "name": "kaldi-weight-outside",
+            "description": "Kaldi Weight Outside",
             "abs_path": model_path_factory("other/kaldi/model.bin"),
         }
         outside_set_resp = await client.post(
-            f"/models/providers/{set_id}/entries", json=outside_set_payload, headers=admin_headers
+            f"/models/providers/{set_id}/weights", json=outside_set_payload, headers=admin_headers
         )
         assert outside_set_resp.status_code == 400
 
         good_payload = {
-            "name": "kaldi-entry-valid",
-            "description": "Kaldi Entry",
-            "abs_path": model_path_factory("kaldi/entry/model.bin"),
+            "name": "kaldi-weight-valid",
+            "description": "Kaldi Weight",
+            "abs_path": model_path_factory("kaldi/weight/model.bin"),
         }
         good_resp = await client.post(
-            f"/models/providers/{set_id}/entries", json=good_payload, headers=admin_headers
+            f"/models/providers/{set_id}/weights", json=good_payload, headers=admin_headers
         )
         assert good_resp.status_code == 201
 
 
-async def test_delete_entry_and_set_cascade(
+async def test_delete_weight_and_set_cascade(
     test_db, admin_headers, model_path_factory, set_path_factory
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -287,20 +289,20 @@ async def test_delete_entry_and_set_cascade(
         created = await client.post("/models/providers", json=set_payload, headers=admin_headers)
         set_id = created.json()["id"]
 
-        entry_payload = {
-            "name": "kaldi-entry",
-            "description": "Kaldi Entry",
-            "abs_path": model_path_factory("kaldi/entry/model.bin"),
+        weight_payload = {
+            "name": "kaldi-weight",
+            "description": "Kaldi Weight",
+            "abs_path": model_path_factory("kaldi/weight/model.bin"),
         }
-        entry_resp = await client.post(
-            f"/models/providers/{set_id}/entries", json=entry_payload, headers=admin_headers
+        weight_resp = await client.post(
+            f"/models/providers/{set_id}/weights", json=weight_payload, headers=admin_headers
         )
-        entry_id = entry_resp.json()["id"]
+        weight_id = weight_resp.json()["id"]
 
-        delete_entry = await client.delete(
-            f"/models/providers/entries/{entry_id}", headers=admin_headers
+        delete_weight = await client.delete(
+            f"/models/providers/weights/{weight_id}", headers=admin_headers
         )
-        assert delete_entry.status_code == 204
+        assert delete_weight.status_code == 204
 
         delete_set = await client.delete(f"/models/providers/{set_id}", headers=admin_headers)
         assert delete_set.status_code == 204

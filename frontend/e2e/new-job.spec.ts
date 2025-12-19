@@ -25,10 +25,14 @@ test.describe('New Job Modal', () => {
     const input = await dropzone.locator('input[type="file"]').elementHandle();
     await input?.setInputFiles(samplePath);
 
-    // Model select change
+    // Model set + weight select change
+    const providerSelect = page.getByTestId('provider-select');
+    await expect(providerSelect).toBeEnabled();
+    await providerSelect.selectOption('e2e-asr');
     const modelSelect = page.getByTestId('model-select');
-    await modelSelect.selectOption('tiny');
-    await expect(modelSelect).toHaveValue('tiny');
+    await expect(modelSelect).toBeEnabled();
+    await modelSelect.selectOption('base');
+    await expect(modelSelect).toHaveValue('base');
 
     // Toggle timestamps off then back on
     const timestamps = page.getByTestId('timestamps-checkbox');

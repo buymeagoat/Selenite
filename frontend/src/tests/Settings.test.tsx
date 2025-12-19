@@ -28,6 +28,7 @@ vi.mock('../services/settings', () => ({
     default_asr_provider: null,
     default_model: 'medium',
     default_language: 'auto',
+    default_diarizer_provider: 'pyannote',
     default_diarizer: 'vad',
     diarization_enabled: false,
     allow_job_overrides: false,
@@ -36,6 +37,8 @@ vi.mock('../services/settings', () => ({
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
+    last_selected_asr_set: null,
+    last_selected_diarizer_set: null,
   }),
   updateSettings: vi.fn().mockResolvedValue({})
 }));

@@ -4,7 +4,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -20,6 +20,7 @@ from app.routes import exports as exports_module
 from app.routes import system as system_module
 from app.routes import diagnostics as diagnostics_module
 from app.routes import model_registry as model_registry_module
+from app.routes import file_browser as file_browser_module
 from app.services.job_queue import queue, resume_queued_jobs
 from app.services.system_probe import SystemProbeService
 
@@ -38,6 +39,7 @@ exports_router = exports_module.router
 system_router = system_module.router
 diagnostics_router = diagnostics_module.router
 model_registry_router = model_registry_module.router
+file_browser_router = file_browser_module.router
 
 
 @asynccontextmanager
@@ -113,13 +115,17 @@ app = FastAPI(
 @app.middleware("http")
 async def ensure_cors_headers(request, call_next):
     origin = request.headers.get("origin")
-    if request.method.upper() == "OPTIONS":
+    method = request.method.upper()
+    if method == "OPTIONS":
         from fastapi.responses import Response
 
         resp = Response(status_code=200)
     else:
         try:
             resp = await call_next(request)
+        except HTTPException:
+            # Let FastAPI render HTTPException statuses cleanly
+            raise
         except Exception:  # noqa: B902
             from fastapi.responses import PlainTextResponse
 
@@ -154,7 +160,20 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Add rate limiting middleware
 if not settings.is_testing:
     app.add_middleware(
-        RateLimitMiddleware, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"]
+        RateLimitMiddleware,
+        exclude_paths=[
+            "/health",
+            "/docs",
+            "/openapi.json",
+            "/redoc",
+            "/settings",
+            "/system/info",
+            "/system/availability",
+            "/system/detect",
+            "/system/health",
+            "/auth/login",
+            "/auth/password",
+        ],
     )
 
 # Include routers
@@ -169,6 +188,7 @@ app.include_router(exports_router)
 app.include_router(system_router)
 app.include_router(diagnostics_router)
 app.include_router(model_registry_router)
+app.include_router(file_browser_router)
 
 
 @app.get("/health")

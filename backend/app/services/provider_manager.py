@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class ProviderRecord:
-    """Represents a model entry needed for capability lookups."""
+    """Represents a model weight needed for capability lookups."""
 
     set_id: int
-    entry_id: int
+    weight_id: int
     set_name: str
     name: str
     provider_type: str  # "asr" | "diarizer"
@@ -87,7 +87,7 @@ class ProviderManager:
         for entry in entries:
             model_set = entry.model_set
             if not model_set:
-                logger.warning("Skipping model entry %s without parent set", entry.name)
+                logger.warning("Skipping model weight %s without parent set", entry.name)
                 continue
 
             combined_enabled = bool(model_set.enabled and entry.enabled)
@@ -95,7 +95,7 @@ class ProviderManager:
 
             record = ProviderRecord(
                 set_id=model_set.id,
-                entry_id=entry.id,
+                weight_id=entry.id,
                 set_name=model_set.name,
                 name=entry.name,
                 provider_type=model_set.type,

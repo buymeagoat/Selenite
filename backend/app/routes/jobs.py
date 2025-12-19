@@ -33,7 +33,7 @@ from app.models.tag import Tag
 from app.utils.file_handling import save_uploaded_file, generate_secure_filename
 from app.utils.file_validation import validate_media_file
 from app.services.job_queue import queue
-from app.services.capabilities import resolve_job_preferences
+from app.services.capabilities import ModelResolutionError, resolve_job_preferences
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 @router.post("", response_model=JobCreatedResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(
     file: UploadFile = File(...),
+    provider: Optional[str] = Form(default=None, alias="provider"),
     model: Optional[str] = Form(default=None),
     language: Optional[str] = Form(default=None),
     enable_timestamps: bool = Form(default=True),
@@ -96,12 +97,16 @@ async def create_job(
     )
     user_settings = settings_result.scalar_one_or_none()
 
-    preference = resolve_job_preferences(
-        requested_model=model,
-        requested_diarizer=diarizer,
-        requested_diarization=enable_speaker_detection,
-        user_settings=user_settings,
-    )
+    try:
+        preference = resolve_job_preferences(
+            requested_model=model,
+            requested_provider=provider,
+            requested_diarizer=diarizer,
+            requested_diarization=enable_speaker_detection,
+            user_settings=user_settings,
+        )
+    except ModelResolutionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     resolved_model = preference["model"]
     diarizer_used = preference["diarizer"]
     diarization_active = preference["diarization_enabled"]

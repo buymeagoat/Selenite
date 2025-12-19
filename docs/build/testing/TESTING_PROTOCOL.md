@@ -10,7 +10,7 @@ When a defect is found, always ask: “Why didn’t tests catch this?” and add
 From a PowerShell prompt in the repo root, run:
 
 ```powershell
-.\run-tests.ps1
+.\scripts\run-tests.ps1
 ```
 
 This script mirrors the sections below:
@@ -24,12 +24,12 @@ Optional switches:
 
 | Switch | Description |
 |--------|-------------|
-| `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` | Skip that portion of the suite (e.g., `.\run-tests.ps1 -SkipE2E`). |
+| `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` | Skip that portion of the suite (e.g., `.\scripts\run-tests.ps1 -SkipE2E`). |
 | `-ForceBackendInstall`, `-ForceFrontendInstall` | Reinstall dependencies even if `.venv` / `node_modules` already exist. |
 
 Use this script for workflows so you don't need to interpret the entire protocol. The remaining sections document the manual commands for environments where custom ordering is required. If you run tests manually (e.g., `npm run e2e:full` by itself), copy the resulting logs/coverage/Playwright report into `docs/memorialization/test-runs/<timestamp>-manual` to keep the historical record complete.
 
-`run-tests.ps1` also ensures the production ports are free before the Playwright run by killing any process bound to `8100` (API) or `5173` (frontend). That guarantees the concurrent bootstrap script doesn't immediately crash with "port already in use" errors.
+`scripts/run-tests.ps1` also ensures the production ports are free before the Playwright run by killing any process bound to `8100` (API) or `5173` (frontend). That guarantees the concurrent bootstrap script doesn't immediately crash with "port already in use" errors.
 
 All temporary environment overrides are reverted at the end of the run, so your shell will still launch the backend in production mode afterward.
 
@@ -37,27 +37,27 @@ For a file-by-file inventory of tests, see `docs/build/testing/TEST_INVENTORY.md
 
 ### Temporary test database & storage
 
-`run-tests.ps1` always:
+`scripts/run-tests.ps1` always:
 
 1. Sets `ENVIRONMENT=testing`.
-2. Points `DATABASE_URL` at a dedicated SQLite file (`selenite.test.db`) in the repo root.
-3. Redirects uploads/transcripts to `storage/test-media` and `storage/test-transcripts`.
-4. Deletes the temporary DB and those folders after the suites finish.
+2. Points `DATABASE_URL` at a dedicated SQLite file located under `scratch/tests/selenite.test.db`.
+3. Redirects uploads/transcripts to `scratch/tests/media` and `scratch/tests/transcripts`.
+4. Deletes the temporary DB/workspace after the suites finish.
 
 When executing suites manually, reproduce that isolation before running any tests, e.g.:
 
 ```powershell
 $env:ENVIRONMENT = "testing"
-$env:DATABASE_URL = "sqlite+aiosqlite:///$(Join-Path (Get-Location) 'selenite.test.db')"
-$env:MEDIA_STORAGE_PATH = "$(Join-Path (Get-Location) 'storage/test-media')"
-$env:TRANSCRIPT_STORAGE_PATH = "$(Join-Path (Get-Location) 'storage/test-transcripts')"
+$env:DATABASE_URL = "sqlite+aiosqlite:///$(Join-Path (Get-Location) 'scratch/tests/selenite.test.db')"
+$env:MEDIA_STORAGE_PATH = "$(Join-Path (Get-Location) 'scratch/tests/media')"
+$env:TRANSCRIPT_STORAGE_PATH = "$(Join-Path (Get-Location) 'scratch/tests/transcripts')"
 ```
 
-Before the suites start it deletes any stale `selenite.test.db` / `storage/test-*` contents, and after the run it removes the fresh artifacts so production data remains pristine. Never run tests against `selenite.db`.
+Before the suites start it deletes any stale scratch workspace contents, and after the run it removes the fresh artifacts so production data remains pristine. Never run tests against `selenite.db`.
 
 ### Composite summary output
 
-`run-tests.ps1` captures the entire console transcript and ends by printing a summary table:
+`scripts/run-tests.ps1` captures the entire console transcript and ends by printing a summary table:
 
 ```
 === Composite Test Summary ===
@@ -133,6 +133,7 @@ npm run coverage:summary
 
 #### Notes
 - **Output:** The run prints a text summary and writes raw V8 payloads into `frontend/coverage/.tmp/`. `npm run coverage:summary` converts those files into `frontend/coverage/coverage-summary.json` and prints a concise table (statements/branches/functions/lines) for documentation.
+- **Log destination:** If you capture Vitest failures to disk (e.g., `npm run test:coverage 2>&1 | Tee-Object`), store the resulting files under `logs/frontend/`. The legacy repo-root `vitest-logs/` directory has been removed; hygiene checks will fail if it reappears.
 - **Warnings:** The current RTL suite is warning-free. If a new test mutates React state outside of `act(...)`, wrap it in `await act(...)` to keep the log clean.
 - **Coverage:** Expect roughly 90 % statements, 92 % branches, and 69 % functions across ~160 tests. Investigate any significant drop below the watermark (≥ 60 % overall statements; ≥ 85 % shared components/hooks) before merging.
 - **CI parity:** The GitHub Actions workflow now runs `npm run test:coverage` followed by `npm run coverage:summary` and uploads `frontend/coverage/coverage-summary.json` as a build artifact, so PR reviewers can verify the metrics without rerunning the suite locally.

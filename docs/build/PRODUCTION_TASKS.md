@@ -368,14 +368,14 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ### 8. Additional API Endpoints (1-2 days)
 - [ ] `DELETE /jobs` - Batch delete with query filters
-- [ ] `POST /server/shutdown` - Graceful shutdown
-- [ ] `POST /server/restart` - Server restart
-- [ ] `GET /system/info` - System resource usage
-- [ ] `GET /models` - Available Whisper models info
+- [ ] `POST /system/shutdown` - Graceful shutdown
+- [x] `POST /system/restart` - Server restart (remote control gated)
+- [x] `POST /system/full-restart` - Full orchestrated restart (remote control gated)
+- [x] `GET /system/info` - System resource usage
+- [x] `GET /models/providers` - Model registry providers list
 
-**Current Status**: ❌ Not Started  
+**Current Status**: ? Partially complete (system endpoints in place; batch delete + shutdown pending)  
 **Priority**: LOW - Nice to have
-
 ---
 
 ## 📚 Documentation & Testing
@@ -402,7 +402,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Error recovery testing (network, disk, memory)  (Moved to Future Enhancements)
 - [ ] Cross-platform testing (if applicable)  (Moved to Future Enhancements)
 
-**Current Status**: ⚠️ E2E at 90.6% (77/85 passing)  
+**Current Status**: ? E2E at 100% (85/85 passing)  
 **Priority**: HIGH - Quality assurance
 
 ---
@@ -459,6 +459,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ### 14. Operational Hygiene
 - [ ] Scheduled hygiene + backup job (daily/weekly) that runs `scripts/check_alignment.py`, `scripts/check_repo_hygiene.py`, and captures verified database/storage backups.
 - [ ] Artifact maintenance CLI (`scripts/manage-artifacts.ps1`) to archive/prune historical logs, memorialization test runs, and other transient outputs.
+- [ ] Flesh out the portable build framework doc (`docs/pre-build/PORTABLE_BUILD_FRAMEWORK.md`) once the app stabilizes.
 - [ ] Custom vocabulary/glossary support
 - [ ] Translation to other languages
 - [ ] Summarization with LLMs
@@ -469,7 +470,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-### 14. Infrastructure Improvements
+### 15. Infrastructure Improvements
 - [ ] Database migration to PostgreSQL (for multi-user)
 - [ ] Celery/Redis for distributed job queue
 - [ ] Docker containerization
@@ -482,7 +483,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-### 15. Moved to Future Enhancements (from above)
+### 16. Moved to Future Enhancements (from above)
 
 #### Dashboard & Settings
 - Play/pause job (Start/pause control UI)
@@ -522,7 +523,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 **In Progress**: 3  
 **Not Started**: ~1  
 
-**E2E Test Suite**: 77/85 passing (90.6%) — see `./testing/E2E_TEST_REPORT.md`
+**E2E Test Suite**: 85/85 passing (100%) — see `./testing/E2E_TEST_REPORT.md`
 
 **Estimated Time to Production**: 1-2 days of focused development
 
@@ -574,7 +575,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - **Local Processing**: All transcription happens locally using Whisper models. No cloud dependencies.
 - **SQLite Database**: Sufficient for single-user workload; no need for PostgreSQL.
 - **Security Scope**: Focus on preventing common vulnerabilities (injection, XSS, path traversal), but not enterprise-grade multi-tenant security.
-- **Test Coverage**: Backend at 100% for implemented features; E2E at 90.6% and improving.
+- **Test Coverage**: Backend at 100% for implemented features; E2E at 100% and stable.
 
 ---
 

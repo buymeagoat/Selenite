@@ -319,7 +319,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Production build scripts (frontend + backend)  (Moved to Future Enhancements)
 - [x] Database initialization and migration scripts
 - [x] Configurable storage paths for uploads/models
-- [ ] Reconcile storage root to `./storage` (legacy `backend/storage` is deprecated; keep data under the project root)
+- [x] Reconcile storage root to `./storage` (legacy `backend/storage` deprecated; enforced via settings normalization + alignment check)
 - [x] Logging configuration (file output, log rotation)
 - [ ] Error reporting and monitoring setup  (Moved to Future Enhancements)
 - [ ] Production dependency lockfiles  (Moved to Future Enhancements)
@@ -509,7 +509,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 #### UX & Observability
 - [ ] Show completed-job metadata (ASR provider + entry, diarizer, speakers detected, transcription duration) on the job card and completed modal; handle diarizer/speaker failure states gracefully.
-- [ ] Fix the progress bar so it reflects real work completion or replace it with a clearer “work in progress” indicator.
+- [x] Fix the progress bar so it reflects real work completion or replace it with a clearer “work in progress” indicator.
 - Real-time progress via WebSocket/SSE
 - Media playback with transcript sync
 - Additional API endpoints (batch delete, system info, models listing)

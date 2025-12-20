@@ -151,6 +151,8 @@ export const JobCard: React.FC<JobCardProps> = ({
             startedAt={job.started_at || undefined}
             createdAt={job.created_at || undefined}
             stalled={job.progress_stage === 'stalled' || Boolean(job.stalled_at)}
+            indeterminate
+            hidePercent
           />
         </div>
         )}

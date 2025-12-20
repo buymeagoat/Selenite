@@ -8,6 +8,8 @@ interface ProgressBarProps {
   createdAt?: string | null;
   stalled?: boolean;
   variant?: 'default' | 'success' | 'error';
+  indeterminate?: boolean;
+  hidePercent?: boolean;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ 
@@ -17,10 +19,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   startedAt,
   createdAt,
   stalled = false,
-  variant = 'default' 
+  variant = 'default',
+  indeterminate = false,
+  hidePercent = false
 }) => {
   const clampedPercent = Math.max(0, Math.min(100, percent));
   const [now, setNow] = useState(() => Date.now());
+  const showPercent = !hidePercent && !indeterminate;
+  const displayStage = stage || (indeterminate ? 'Processing' : undefined);
 
   useEffect(() => {
     if (!startedAt) return;
@@ -62,39 +68,40 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     return Math.max(0, Math.floor((now - startedTs) / 1000));
   }, [now, startedAt, createdAt]);
 
-  const ariaLabel = stage
-    ? `Progress ${clampedPercent} percent, stage ${stage}`
-    : `Progress ${clampedPercent} percent`;
+  const ariaLabel = displayStage
+    ? `Progress ${indeterminate ? 'in progress' : `${clampedPercent} percent`}, stage ${displayStage}`
+    : `Progress ${indeterminate ? 'in progress' : `${clampedPercent} percent`}`;
 
   return (
     <div className="w-full">
-      {(stage || estimatedTimeLeft !== undefined || elapsedSeconds !== null) && (
+      {(displayStage || (!indeterminate && estimatedTimeLeft !== undefined) || elapsedSeconds !== null) && (
         <div className="flex justify-between items-center mb-1 text-xs text-pine-mid">
           <span className="flex items-center gap-2">
-            {stalled ? 'Stalled - no recent progress' : stage}
+            {stalled ? 'Stalled - no recent progress' : displayStage}
           </span>
           <span className="flex items-center gap-2">
             {elapsedSeconds !== null && <span>Elapsed {formatTime(elapsedSeconds)}</span>}
-            {typeof estimatedTimeLeft === 'number' && (
+            {!indeterminate && typeof estimatedTimeLeft === 'number' && (
               <span>Est. remaining ~{formatTime(Math.max(0, estimatedTimeLeft))}</span>
             )}
-            <span>{clampedPercent}%</span>
+            {showPercent && <span>{clampedPercent}%</span>}
           </span>
         </div>
       )}
       <div 
         className="w-full h-2 bg-sage-light rounded-full overflow-hidden"
         role="progressbar"
-        aria-valuenow={clampedPercent}
-        aria-valuemin={0}
-        aria-valuemax={100}
+        aria-valuenow={indeterminate ? undefined : clampedPercent}
+        aria-valuemin={indeterminate ? undefined : 0}
+        aria-valuemax={indeterminate ? undefined : 100}
+        aria-valuetext={indeterminate ? 'In progress' : undefined}
         aria-label={ariaLabel}
         data-testid="progress-bar"
       >
         <div
           data-fill
-          className={`h-full ${fillColors[variant]} transition-all duration-300 ease-out`}
-          style={{ width: `${clampedPercent}%` }}
+          className={`h-full ${fillColors[variant]} ${indeterminate ? 'animate-pulse' : 'transition-all duration-300 ease-out'}`}
+          style={{ width: indeterminate ? '40%' : `${clampedPercent}%` }}
         />
       </div>
     </div>

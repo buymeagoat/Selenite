@@ -16,6 +16,11 @@ interface Job {
   stalled_at?: string | null;
   speaker_count?: number | null;
   has_speaker_labels?: boolean;
+  model_used?: string | null;
+  asr_provider_used?: string | null;
+  diarizer_used?: string | null;
+  diarizer_provider_used?: string | null;
+  completed_at?: string | null;
   tags: Array<{ id: number; name: string; color: string }>;
 }
 
@@ -97,6 +102,28 @@ export const JobCard: React.FC<JobCardProps> = ({
   };
 
   const showDuration = job.status === 'completed' && durationSeconds > 0;
+  const showCompletedMetadata = job.status === 'completed';
+
+  const asrDisplay = (() => {
+    if (!job.model_used && !job.asr_provider_used) return null;
+    const weight = job.model_used || 'Unknown';
+    return job.asr_provider_used ? `${job.asr_provider_used} / ${weight}` : weight;
+  })();
+
+  const diarizerDisplay = (() => {
+    if (!job.diarizer_used) return 'None';
+    return job.diarizer_provider_used
+      ? `${job.diarizer_provider_used} / ${job.diarizer_used}`
+      : job.diarizer_used;
+  })();
+
+  const processingDuration = (() => {
+    if (!job.started_at || !job.completed_at) return null;
+    const started = parseAsUTC(job.started_at).getTime();
+    const completed = parseAsUTC(job.completed_at).getTime();
+    if (!started || !completed || completed < started) return null;
+    return Math.floor((completed - started) / 1000);
+  })();
 
   return (
     <div
@@ -133,6 +160,12 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span>Duration: {formatDuration(durationSeconds)}</span>
           </>
         )}
+        {showCompletedMetadata && processingDuration !== null && (
+          <>
+            <span aria-hidden="true" className="text-gray-300">|</span>
+            <span>Processed: {formatDuration(processingDuration)}</span>
+          </>
+        )}
         {speakerText && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
@@ -140,6 +173,14 @@ export const JobCard: React.FC<JobCardProps> = ({
           </>
         )}
       </div>
+
+      {showCompletedMetadata && (asrDisplay || diarizerDisplay) && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-pine-mid mb-3">
+          {asrDisplay && <span>ASR: {asrDisplay}</span>}
+          <span aria-hidden="true" className="text-gray-300">|</span>
+          <span>Diarizer: {diarizerDisplay}</span>
+        </div>
+      )}
 
       {/* Progress Bar for Processing */}
       {['processing', 'cancelling'].includes(job.status) && job.progress_percent != null && (

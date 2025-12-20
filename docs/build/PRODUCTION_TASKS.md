@@ -508,7 +508,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - Cross-platform testing
 
 #### UX & Observability
-- [ ] Show completed-job metadata (ASR provider + entry, diarizer, speakers detected, transcription duration) on the job card and completed modal; handle diarizer/speaker failure states gracefully.
+- [x] Show completed-job metadata (ASR provider + entry, diarizer, speakers detected, transcription duration) on the job card and completed modal; handle diarizer/speaker failure states gracefully.
 - [x] Fix the progress bar so it reflects real work completion or replace it with a clearer “work in progress” indicator.
 - Real-time progress via WebSocket/SSE
 - Media playback with transcript sync

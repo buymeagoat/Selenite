@@ -18,7 +18,9 @@ export interface Job {
   estimated_time_left: number | null;
   estimated_total_seconds: number | null;
   model_used: string;
+  asr_provider_used?: string | null;
   diarizer_used: string | null;
+  diarizer_provider_used?: string | null;
   language_detected: string;
   speaker_count: number | null;
   has_timestamps: boolean;

@@ -109,6 +109,7 @@ async def create_job(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     resolved_model = preference["model"]
     diarizer_used = preference["diarizer"]
+    diarizer_provider_used = preference.get("diarizer_provider")
     diarization_active = preference["diarization_enabled"]
     for note in preference["notes"]:
         logger.warning("Job %s preference adjustment: %s", job_uuid, note)
@@ -131,9 +132,11 @@ async def create_job(
         status="queued",
         progress_percent=0,
         model_used=resolved_model,
+        asr_provider_used=preference.get("provider"),
         has_timestamps=enable_timestamps,
         has_speaker_labels=diarization_active,
         diarizer_used=diarizer_used,
+        diarizer_provider_used=diarizer_provider_used,
         speaker_count=speaker_count,
         created_at=datetime.utcnow(),
     )
@@ -350,8 +353,12 @@ async def restart_job(
         status="queued",
         progress_percent=0,
         model_used=old_job.model_used,
+        asr_provider_used=old_job.asr_provider_used,
         has_timestamps=old_job.has_timestamps,
         has_speaker_labels=old_job.has_speaker_labels,
+        diarizer_used=old_job.diarizer_used,
+        diarizer_provider_used=old_job.diarizer_provider_used,
+        speaker_count=old_job.speaker_count,
         created_at=datetime.utcnow(),
     )
     db.add(new_job)

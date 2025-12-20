@@ -566,6 +566,7 @@ class WhisperService:
             if not job.has_speaker_labels:
                 job.speaker_count = None
             diarizer_record = self._resolve_diarizer_record(job.diarizer_used)
+            job.diarizer_provider_used = diarizer_record.set_name if diarizer_record else None
             diarizer_ready = (
                 self._diarizer_available(diarizer_record) if job.has_speaker_labels else False
             )
@@ -667,8 +668,9 @@ class WhisperService:
                     resolved_record.name,
                 )
                 job.model_used = resolved_record.name
-                await db.commit()
-                await db.refresh(job)
+            job.asr_provider_used = resolved_record.set_name
+            await db.commit()
+            await db.refresh(job)
 
             model_name = resolved_record.name
             language = job.language_detected if job.language_detected != "auto" else None

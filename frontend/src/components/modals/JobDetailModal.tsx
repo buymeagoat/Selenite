@@ -128,9 +128,12 @@ function parseAsUTC(value: string): Date {
   }
 
   const diarizerDisplay = (() => {
-    if (job.diarizer_used) return job.diarizer_used;
-    if (defaultDiarizerHint) return `${defaultDiarizerHint} (failed)`;
-    return 'None';
+    if (!job.diarizer_used) {
+      if (defaultDiarizerHint) return `${defaultDiarizerHint} (failed)`;
+      return 'None';
+    }
+    const weight = job.diarizer_used;
+    return job.diarizer_provider_used ? `${job.diarizer_provider_used} / ${weight}` : weight;
   })();
 
   const speakerDetected = job.speaker_count ?? (job.has_speaker_labels ? 1 : 1);
@@ -226,7 +229,7 @@ function parseAsUTC(value: string): Date {
               <div>
                 <div className="text-sm text-pine-mid">ASR model / weight</div>
                 <div className="text-base font-medium text-pine-deep">
-                  {(asrProviderHint || 'Unknown') + ' / ' + (job.model_used || 'Unknown')}
+                  {(job.asr_provider_used || asrProviderHint || 'Unknown') + ' / ' + (job.model_used || 'Unknown')}
                 </div>
               </div>
               <div>

@@ -308,6 +308,7 @@ def resolve_job_preferences(
     diarization_enabled = requested_diarization if requested_diarization is not None else True
 
     diarizer_choice: Optional[str] = None
+    diarizer_provider: Optional[str] = None
     if diarization_enabled:
         capabilities = get_capabilities()
         diarizer_entries = capabilities["diarizers"]
@@ -316,11 +317,14 @@ def resolve_job_preferences(
         if diarizer_choice is None:
             diarization_enabled = False
             notes.append("No diarizer backends available; disabling speaker labels for this job")
+        else:
+            diarizer_provider = options.get(diarizer_choice, {}).get("provider")
 
     return {
         "model": model_choice,
         "provider": provider_choice,
         "diarizer": diarizer_choice,
+        "diarizer_provider": diarizer_provider,
         "diarization_enabled": diarization_enabled,
         "notes": notes,
     }

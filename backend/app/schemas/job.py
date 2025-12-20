@@ -54,6 +54,9 @@ class JobResponse(BaseModel):
     estimated_time_left: Optional[int] = None
     estimated_total_seconds: Optional[int] = None
     model_used: str
+    asr_provider_used: Optional[str] = None
+    diarizer_used: Optional[str] = None
+    diarizer_provider_used: Optional[str] = None
     language_detected: Optional[str] = None
     speaker_count: Optional[int] = None
     has_timestamps: bool
@@ -85,6 +88,9 @@ class JobListItem(BaseModel):
     estimated_time_left: Optional[int] = None
     estimated_total_seconds: Optional[int] = None
     model_used: str
+    asr_provider_used: Optional[str] = None
+    diarizer_used: Optional[str] = None
+    diarizer_provider_used: Optional[str] = None
     language_detected: Optional[str] = None
     speaker_count: Optional[int] = None
     has_timestamps: bool

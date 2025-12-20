@@ -15,7 +15,9 @@ const mockJob: Job = {
   estimated_time_left: 0,
   estimated_total_seconds: 2000,
   model_used: 'medium',
-  diarizer_used: null,
+  asr_provider_used: 'whisper',
+  diarizer_used: 'diarization-3.1',
+  diarizer_provider_used: 'pyannote',
   language_detected: 'English',
   speaker_count: null,
   has_timestamps: true,
@@ -125,7 +127,7 @@ describe('JobDetailModal', () => {
     );
     
     expect(screen.getByText(/00:30:34/)).toBeInTheDocument(); // Duration
-    expect(screen.getByText('Unknown / medium')).toBeInTheDocument(); // Model (provider / weight)
+    expect(screen.getByText('whisper / medium')).toBeInTheDocument(); // Model (provider / weight)
     expect(screen.getByText(/english/i)).toBeInTheDocument(); // Language
     expect(screen.getByText(/Requested:/i)).toBeInTheDocument(); // Speakers info
     expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size

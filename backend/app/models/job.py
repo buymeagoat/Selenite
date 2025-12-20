@@ -35,11 +35,13 @@ class Job(Base):
     progress_stage = Column(String(50), nullable=True)
     estimated_time_left = Column(Integer, nullable=True)  # seconds
     model_used = Column(String(20), nullable=True)
+    asr_provider_used = Column(String(50), nullable=True)
     language_detected = Column(String(10), nullable=True)
     speaker_count = Column(Integer, nullable=True)
     has_timestamps = Column(Boolean, default=True, nullable=False)
     has_speaker_labels = Column(Boolean, default=True, nullable=False)
     diarizer_used = Column(String(20), nullable=True)
+    diarizer_provider_used = Column(String(50), nullable=True)
     transcript_path = Column(String(512), nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

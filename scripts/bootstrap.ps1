@@ -368,6 +368,10 @@ Invoke-Step "Database backup" {
 Invoke-Step "Database migrations (and seed if requested)" {
     Set-Location $BackendDir
     if (Test-Path .\alembic.ini) {
+        $ensureCore = Join-Path $Root 'scripts\ensure_core_tables.py'
+        if (Test-Path $ensureCore) {
+            .\.venv\Scripts\python.exe $ensureCore
+        }
         .\.venv\Scripts\python.exe -m alembic upgrade head
     }
     if ($Seed) {

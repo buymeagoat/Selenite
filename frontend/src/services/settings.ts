@@ -18,7 +18,8 @@ export interface UserSettings {
   max_concurrent_jobs: number;
   time_zone: string | null;
   server_time_zone: string;
-   transcode_to_wav: boolean;
+  transcode_to_wav: boolean;
+  enable_empty_weights: boolean;
   last_selected_asr_set: string | null;
   last_selected_diarizer_set: string | null;
 }
@@ -36,6 +37,7 @@ export interface UpdateSettingsParams {
   time_zone?: string | null;
   server_time_zone?: string | null;
   transcode_to_wav?: boolean;
+  enable_empty_weights?: boolean;
   last_selected_asr_set?: string | null;
   last_selected_diarizer_set?: string | null;
 }

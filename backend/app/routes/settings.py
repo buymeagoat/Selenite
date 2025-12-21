@@ -21,6 +21,7 @@ from app.schemas.settings import (
     SettingsUpdateDiarization,
 )
 from app.services.job_queue import queue
+from app.services.provider_manager import ProviderManager
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -56,7 +57,12 @@ async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
         if not default_tz or "/" not in default_tz:
             default_tz = "UTC"
 
-        prefs = SystemPreferences(id=1, server_time_zone=default_tz, transcode_to_wav=True)
+        prefs = SystemPreferences(
+            id=1,
+            server_time_zone=default_tz,
+            transcode_to_wav=True,
+            enable_empty_weights=False,
+        )
         db.add(prefs)
         await db.commit()
         await db.refresh(prefs)
@@ -95,6 +101,7 @@ async def get_settings(
         time_zone=user_settings.time_zone,
         server_time_zone=prefs.server_time_zone,
         transcode_to_wav=prefs.transcode_to_wav,
+        enable_empty_weights=prefs.enable_empty_weights,
         last_selected_asr_set=user_settings.last_selected_asr_set,
         last_selected_diarizer_set=user_settings.last_selected_diarizer_set,
     )
@@ -261,11 +268,21 @@ async def _apply_settings(
             )
         system_prefs.transcode_to_wav = bool(payload.transcode_to_wav)
         system_prefs.touch()
+    if payload.enable_empty_weights is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update weight enablement settings.",
+            )
+        system_prefs.enable_empty_weights = bool(payload.enable_empty_weights)
+        system_prefs.touch()
 
     user_settings.touch()
     await db.commit()
     await db.refresh(user_settings)
     await db.refresh(system_prefs)
+    if payload.enable_empty_weights is not None:
+        await ProviderManager.refresh(db)
     if not settings.is_testing:
         try:
             await queue.set_concurrency(user_settings.max_concurrent_jobs)
@@ -284,6 +301,7 @@ async def _apply_settings(
         time_zone=user_settings.time_zone,
         server_time_zone=system_prefs.server_time_zone,
         transcode_to_wav=system_prefs.transcode_to_wav,
+        enable_empty_weights=system_prefs.enable_empty_weights,
         last_selected_asr_set=user_settings.last_selected_asr_set,
         last_selected_diarizer_set=user_settings.last_selected_diarizer_set,
     )

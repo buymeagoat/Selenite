@@ -62,6 +62,7 @@ class ModelWeightResponse(BaseModel):
     enabled: bool
     disable_reason: Optional[str]
     has_weights: bool = False
+    force_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 

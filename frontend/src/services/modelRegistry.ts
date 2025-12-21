@@ -25,6 +25,7 @@ export interface ModelWeight {
   enabled: boolean;
   disable_reason?: string | null;
   has_weights?: boolean;
+  force_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

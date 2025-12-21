@@ -17,6 +17,7 @@ const mockSettings: UserSettings = {
   time_zone: 'UTC',
   server_time_zone: 'UTC',
   transcode_to_wav: true,
+  enable_empty_weights: false,
   last_selected_asr_set: 'whisper',
   last_selected_diarizer_set: 'pyannote',
 };

@@ -16,6 +16,7 @@ class SettingsResponse(BaseModel):
     time_zone: str | None = None
     server_time_zone: str
     transcode_to_wav: bool
+    enable_empty_weights: bool
     last_selected_asr_set: str | None = None
     last_selected_diarizer_set: str | None = None
 
@@ -33,6 +34,7 @@ class SettingsUpdateRequest(BaseModel):
     time_zone: str | None = Field(default=None, max_length=100)
     server_time_zone: str | None = Field(default=None, max_length=100)
     transcode_to_wav: bool | None = Field(default=None)
+    enable_empty_weights: bool | None = Field(default=None)
     last_selected_asr_set: str | None = Field(default=None, min_length=1, max_length=255)
     last_selected_diarizer_set: str | None = Field(default=None, min_length=1, max_length=255)
 

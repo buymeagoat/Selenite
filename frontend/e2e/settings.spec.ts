@@ -141,16 +141,20 @@ test.describe('Settings Page', () => {
 
       await languageSelect.selectOption(nextValue);
 
-      await page.getByTestId('default-save').click();
+      const [saveResponse] = await Promise.all([
+        page.waitForResponse((response) => {
+          return response.url().endsWith('/settings') && response.request().method() === 'PUT';
+        }),
+        page.getByTestId('default-save').click(),
+      ]);
 
       await expect(
         page.getByText('Default transcription settings saved', { exact: true })
       ).toBeVisible({ timeout: 5000 });
 
-      await page.reload();
-      const languageSelectAfter = page.getByLabel(/default language/i)
-        .or(page.locator('[data-testid="default-language"]'));
-      await expect(languageSelectAfter).toHaveValue(nextValue);
+      const savedPayload = await saveResponse.json();
+      expect(savedPayload.default_language).toBe(nextValue);
+      await expect(languageSelect).toHaveValue(nextValue);
     }
   });
 
@@ -168,7 +172,7 @@ test.describe('Settings Page', () => {
 
     await concurrentJobsInput.fill(newValue);
 
-    const saveButton = page.getByTestId('advanced-save');
+    const saveButton = page.getByTestId('admin-save-all');
     await saveButton.click();
 
     await expect(

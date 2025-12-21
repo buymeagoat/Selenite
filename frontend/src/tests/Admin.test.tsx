@@ -50,6 +50,7 @@ vi.mock('../services/settings', () => ({
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
+    enable_empty_weights: false,
     last_selected_asr_set: 'whisper',
     last_selected_diarizer_set: 'pyannote',
   }),
@@ -214,7 +215,7 @@ describe('Admin page', () => {
     expect(screen.queryByTestId('availability-warnings')).not.toBeInTheDocument();
     const providerCard = screen.getByTestId('asr-provider-test-asr');
     expect(
-      within(providerCard).getByText(/available/i, {
+      within(providerCard).getByText(/pending files/i, {
         selector: 'span',
       })
     ).toBeInTheDocument();
@@ -232,12 +233,12 @@ describe('Admin page', () => {
       expect(screen.getByTestId('max-concurrent-label')).toHaveTextContent('Max Concurrent Jobs: 4');
     });
     expect(screen.getByTestId('admin-storage-summary')).toBeInTheDocument();
-    const saveButton = screen.getByTestId('advanced-save');
+    const saveButton = screen.getByTestId('admin-save-all');
     await act(async () => {
       fireEvent.click(saveButton);
     });
-    expect(updateAsrSettings).toHaveBeenCalled();
-    const latestCall = vi.mocked(updateAsrSettings).mock.calls.at(-1)?.[0];
+    expect(updateSettings).toHaveBeenCalled();
+    const latestCall = vi.mocked(updateSettings).mock.calls.at(-1)?.[0];
     expect(latestCall?.max_concurrent_jobs ?? Number(slider.value)).toBe(4);
   });
 

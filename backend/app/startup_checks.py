@@ -61,7 +61,12 @@ async def ensure_core_tables() -> None:
         pref = await session.get(SystemPreferences, 1)
         if not pref:
             logger.warning("Seeding default system_preferences row (id=1, UTC).")
-            pref = SystemPreferences(id=1, server_time_zone="UTC", transcode_to_wav=True)
+            pref = SystemPreferences(
+                id=1,
+                server_time_zone="UTC",
+                transcode_to_wav=True,
+                enable_empty_weights=False,
+            )
             session.add(pref)
 
         # If registry tables are empty (likely dropped), re-seed curated providers/entries

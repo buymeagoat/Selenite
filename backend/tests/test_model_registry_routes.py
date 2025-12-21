@@ -198,6 +198,61 @@ async def test_weight_disable_requires_reason(
         assert body["has_weights"] is True
 
 
+async def test_enable_empty_weights_setting_allows_missing_files(
+    test_db, admin_headers, set_path_factory
+):
+    weight_dir = BACKEND_ROOT / "models" / "force-test" / "empty-weight"
+    weight_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            set_payload = {
+                "type": "asr",
+                "name": "force-test",
+                "abs_path": set_path_factory("force-test"),
+            }
+            created = await client.post(
+                "/models/providers", json=set_payload, headers=admin_headers
+            )
+            set_id = created.json()["id"]
+
+            weight_payload = {
+                "name": "empty-weight",
+                "description": "Empty dir",
+                "abs_path": str(weight_dir.resolve()),
+            }
+            weight_resp = await client.post(
+                f"/models/providers/{set_id}/weights", json=weight_payload, headers=admin_headers
+            )
+            weight_id = weight_resp.json()["id"]
+
+            blocked = await client.patch(
+                f"/models/providers/weights/{weight_id}",
+                json={"enabled": True},
+                headers=admin_headers,
+            )
+            assert blocked.status_code == 400
+
+            enable_setting = await client.put(
+                "/settings",
+                json={"enable_empty_weights": True},
+                headers=admin_headers,
+            )
+            assert enable_setting.status_code == 200
+
+            allowed = await client.patch(
+                f"/models/providers/weights/{weight_id}",
+                json={"enabled": True},
+                headers=admin_headers,
+            )
+            assert allowed.status_code == 200
+            assert allowed.json()["enabled"] is True
+    finally:
+        try:
+            weight_dir.rmdir()
+        except OSError:
+            pass
+
+
 async def test_list_returns_sets_with_weights(
     test_db, admin_headers, model_path_factory, set_path_factory
 ):

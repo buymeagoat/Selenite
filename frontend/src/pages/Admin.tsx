@@ -118,6 +118,7 @@ export const Admin: React.FC = () => {
   const [allowJobOverrides, setAllowJobOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [transcodeToWav, setTranscodeToWav] = useState(true);
+  const [enableEmptyWeights, setEnableEmptyWeights] = useState(false);
   const [userTimeZone, setUserTimeZone] = useState<string>(browserTimeZone);
   const [serverTimeZone, setServerTimeZone] = useState<string>('UTC');
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -152,15 +153,42 @@ export const Admin: React.FC = () => {
   });
   const [isSavingSet, setIsSavingSet] = useState(false);
   const [isSavingWeight, setIsSavingWeight] = useState(false);
+  const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
   const [availabilityNotes, setAvailabilityNotes] = useState<string[]>([]);
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false);
-  const [fileBrowserScope, setFileBrowserScope] = useState<'models'>('models');
+  const [fileBrowserScope, setFileBrowserScope] = useState<'models' | 'root'>('root');
   const [fileBrowserTarget, setFileBrowserTarget] = useState<'set' | 'weight' | null>(null);
   const [fileBrowserCwd, setFileBrowserCwd] = useState<string>('/');
   const [fileBrowserEntries, setFileBrowserEntries] = useState<FileEntry[]>([]);
   const [fileBrowserLoading, setFileBrowserLoading] = useState(false);
   const [fileBrowserError, setFileBrowserError] = useState<string | null>(null);
   const [fileBrowserSelected, setFileBrowserSelected] = useState<string>('');
+
+  const toRelativeAppPath = (pathValue: string) => {
+    const normalized = normalizePath(pathValue);
+    if (!normalized) return normalized;
+    const projectRoot = systemInfo?.storage?.project?.path
+      ? normalizePath(systemInfo.storage.project.path)
+      : '';
+    if (projectRoot) {
+      const rootLower = projectRoot.toLowerCase();
+      const normLower = normalized.toLowerCase();
+      if (normLower.startsWith(rootLower)) {
+        const rel = normalized.slice(projectRoot.length);
+        if (!rel) return '/';
+        return rel.startsWith('/') ? rel : `/${rel}`;
+      }
+    }
+    const backendIdx = normalized.toLowerCase().indexOf('/backend/');
+    if (backendIdx !== -1) {
+      return normalized.slice(backendIdx);
+    }
+    const storageIdx = normalized.toLowerCase().indexOf('/storage/');
+    if (storageIdx !== -1) {
+      return normalized.slice(storageIdx);
+    }
+    return normalized.startsWith('/') ? normalized : `/${normalized}`;
+  };
 
   const broadcastSettingsUpdated = () => {
     window.dispatchEvent(new CustomEvent('selenite:settings-updated'));
@@ -172,7 +200,9 @@ export const Admin: React.FC = () => {
   );
   const activeSet = filteredSets.find((set) => set.id === selectedSetId) ?? filteredSets[0];
   const activeWeights = activeSet?.weights ?? [];
-  const activeSetHasWeightFiles = activeWeights.some((weight) => weight.has_weights);
+  const activeSetHasWeightFiles = activeWeights.some(
+    (weight) => (weight.has_weights ?? false) || enableEmptyWeights
+  );
   const enableSetBlocked = !setForm.enabled && !activeSetHasWeightFiles;
 
   const registryAsrSets = useMemo(
@@ -182,29 +212,26 @@ export const Admin: React.FC = () => {
   const asrProviderOptions = useMemo(() => {
     return registryAsrSets.map((set) => {
       const weights = set.weights.map((weight) => {
-        const hasFiles = weight.has_weights ?? false;
+        const hasFiles = (weight.has_weights ?? false) || enableEmptyWeights;
         return {
           name: weight.name,
-          available: Boolean(set.enabled && weight.enabled && hasFiles),
+          enabled: weight.enabled,
+          hasFiles,
         };
       });
       return {
         name: set.name,
-        available: weights.some((weight) => weight.available),
+        enabled: set.enabled,
         weights,
       };
     });
-  }, [registryAsrSets]);
-  const availableAsrProviderOptions = useMemo(
-    () => asrProviderOptions.filter((provider) => provider.available),
-    [asrProviderOptions]
-  );
+  }, [registryAsrSets, enableEmptyWeights]);
   const asrWeightsForSelectedProvider = useMemo(() => {
     if (!defaultAsrProvider) {
       return [];
     }
     const match = asrProviderOptions.find((provider) => provider.name === defaultAsrProvider);
-    return match?.weights.filter((weight) => weight.available) ?? [];
+    return match?.weights ?? [];
   }, [asrProviderOptions, defaultAsrProvider]);
   const availableDiarizers = useMemo(
     () => capabilities?.diarizers.filter((opt) => opt.available) ?? [],
@@ -312,7 +339,7 @@ export const Admin: React.FC = () => {
     if (!capabilities) return;
 
     // Only fill in defaults when nothing is selected; do not override user choice if provider is missing/unavailable.
-    if (!availableAsrProviderOptions.length) {
+    if (!registryAsrSets.length) {
       if (defaultAsrProvider) {
         setDefaultAsrProvider('');
       }
@@ -322,13 +349,13 @@ export const Admin: React.FC = () => {
       return;
     }
     if (!defaultAsrProvider) {
-      setDefaultAsrProvider(availableAsrProviderOptions[0].name);
+      setDefaultAsrProvider(registryAsrSets[0].name);
       return;
     }
-    if (!availableAsrProviderOptions.some((provider) => provider.name === defaultAsrProvider)) {
-      setDefaultAsrProvider(availableAsrProviderOptions[0].name);
+    if (!registryAsrSets.some((provider) => provider.name === defaultAsrProvider)) {
+      setDefaultAsrProvider(registryAsrSets[0].name);
     }
-  }, [availableAsrProviderOptions, capabilities, defaultAsrProvider, defaultModel]);
+  }, [registryAsrSets, capabilities, defaultAsrProvider, defaultModel]);
 
   useEffect(() => {
     if (!defaultAsrProvider) {
@@ -364,7 +391,7 @@ export const Admin: React.FC = () => {
     id: set.id,
     name: set.name,
     description: set.description ?? '',
-    abs_path: set.abs_path,
+    abs_path: toRelativeAppPath(set.abs_path),
     enabled: set.enabled,
     disable_reason: set.disable_reason ?? '',
   });
@@ -397,7 +424,7 @@ export const Admin: React.FC = () => {
     setIsFileBrowserOpen(true);
     setFileBrowserLoading(true);
     setFileBrowserError(null);
-    const startPath = initialPath && initialPath.trim() ? initialPath : '/';
+    const startPath = initialPath && initialPath.trim() ? initialPath : MODELS_ROOT;
     try {
       const resp = await browseFiles(fileBrowserScope, startPath);
       setFileBrowserCwd(resp.cwd);
@@ -454,9 +481,6 @@ export const Admin: React.FC = () => {
 
   const debugSelection = (action: string, tab: RegistryTab, payload: Record<string, unknown>) => {
     const detail = { tab, ...payload };
-    // Always log to console for troubleshooting, even in production.
-    // eslint-disable-next-line no-console
-    console.info(`[registry-select] ${action}`, detail);
     devInfo(`[registry-select] ${action}`, detail);
   };
 
@@ -621,14 +645,15 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleSaveSetAvailability = async () => {
+  const handleSaveSetAvailability = async (nextEnabled?: boolean) => {
     if (!isAdmin) return;
     if (!setForm.id) {
       showError('Save the model set metadata before updating availability.');
       return;
     }
-    const originalEnabled = activeSet?.id === setForm.id ? activeSet.enabled : true;
-    const togglingSetOff = Boolean(originalEnabled && !setForm.enabled);
+    const targetEnabled = typeof nextEnabled === 'boolean' ? nextEnabled : setForm.enabled;
+    const originalEnabled = activeSet?.id === setForm.id ? activeSet.enabled : setForm.enabled;
+    const togglingSetOff = Boolean(originalEnabled && !targetEnabled);
     const needsDisableReason = togglingSetOff && !setForm.disable_reason.trim();
     if (needsDisableReason) {
       showError('Provide a disable reason when turning off a set.');
@@ -637,9 +662,14 @@ export const Admin: React.FC = () => {
     setIsSavingSet(true);
     try {
       await updateModelSet(setForm.id, {
-        enabled: setForm.enabled,
+        enabled: targetEnabled,
         disable_reason: setForm.disable_reason || null,
       });
+      setSetForm((prev) => ({
+        ...prev,
+        enabled: targetEnabled,
+        disable_reason: targetEnabled ? '' : prev.disable_reason,
+      }));
       showSuccess('Model set availability updated');
       await refreshRegistry(true);
       await handleAvailabilityRefresh();
@@ -675,7 +705,7 @@ export const Admin: React.FC = () => {
       id: entry.id,
       name: entry.name,
       description: entry.description ?? '',
-      abs_path: entry.abs_path,
+      abs_path: toRelativeAppPath(entry.abs_path),
       checksum: entry.checksum ?? '',
       enabled: entry.enabled,
       disable_reason: entry.disable_reason ?? '',
@@ -732,6 +762,11 @@ export const Admin: React.FC = () => {
     const originalWeight = activeSet?.weights?.find((weight) => weight.id === weightForm.id);
     const weightWasEnabled = originalWeight?.enabled ?? true;
     const togglingWeightOff = Boolean(weightWasEnabled && !weightForm.enabled);
+    const missingFiles = weightForm.enabled && !selectedWeightHasFiles;
+    if (missingFiles && !enableEmptyWeights) {
+      showError('Weight files are missing. Enable Empty Weights to allow this.');
+      return;
+    }
     const requiresReason = togglingWeightOff && !weightForm.disable_reason.trim();
     if (requiresReason) {
       showError('Provide a disable reason when turning off a weight.');
@@ -854,7 +889,8 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleSaveTimeZones = async () => {
+  const handleSaveAdministrationSettings = async () => {
+    setIsSavingAdminSettings(true);
     try {
       const provider = defaultAsrProvider || null;
       const model = provider ? defaultModel || null : null;
@@ -870,9 +906,27 @@ export const Admin: React.FC = () => {
         allow_job_overrides: allowJobOverrides,
         enable_timestamps: enableTimestamps,
         max_concurrent_jobs: maxConcurrentJobs,
+        transcode_to_wav: transcodeToWav,
+        enable_empty_weights: enableEmptyWeights,
+      });
+
+      showSuccess('Administration settings saved');
+      broadcastSettingsUpdated();
+    } catch (error) {
+      devError('Failed to save administration settings:', error);
+      const msg =
+        error instanceof ApiError ? error.message : 'Failed to save administration settings. Please try again.';
+      showError(msg);
+    } finally {
+      setIsSavingAdminSettings(false);
+    }
+  };
+
+  const handleSaveTimeZones = async () => {
+    try {
+      await updateSettings({
         time_zone: userTimeZone || null,
         server_time_zone: serverTimeZone || 'UTC',
-        transcode_to_wav: transcodeToWav,
       });
       showSuccess('Time zones saved');
       broadcastSettingsUpdated();
@@ -989,7 +1043,7 @@ export const Admin: React.FC = () => {
     return (
       <div className="p-3 border border-sage-mid rounded-lg" data-testid={`storage-${label.toLowerCase()}`}>
         <div className="text-sm font-medium text-pine-deep">{label}</div>
-        <div className="text-xs text-pine-mid font-mono truncate">{usage.path}</div>
+        <div className="text-xs text-pine-mid font-mono truncate">{toRelativeAppPath(usage.path)}</div>
         <div className="text-sm text-pine-deep mt-1">
           {formatGb(usage.used_gb)} used / {formatGb(usage.total_gb)}
         </div>
@@ -1013,7 +1067,12 @@ export const Admin: React.FC = () => {
   };
 
   const renderAvailabilityNotes = () => {
-    if (!availabilityNotes.length) {
+    const visibleNotes = availabilityNotes.filter(
+      (note) =>
+        !note.includes('Weights not present') &&
+        !note.includes('Missing dependency: nemo_toolkit')
+    );
+    if (!visibleNotes.length) {
       return (
         <div className="flex items-center gap-2 text-sm text-forest-green">
           <CheckCircle2 className="w-4 h-4" />
@@ -1023,7 +1082,7 @@ export const Admin: React.FC = () => {
     }
     return (
       <div className="space-y-1 text-sm text-terracotta" data-testid="availability-warnings">
-        {availabilityNotes.map((note, idx) => (
+        {visibleNotes.map((note, idx) => (
           <div className="flex items-start gap-2" key={`${note}-${idx}`}>
             <AlertTriangle className="w-4 h-4 mt-0.5" />
             <span>{note}</span>
@@ -1046,7 +1105,7 @@ export const Admin: React.FC = () => {
   const diarizerProviders = useMemo(() => {
     return registryDiarizerSets.map((set) => {
       const weights = set.weights.map((weight) => {
-        const weightHasFiles = weight.has_weights ?? false;
+        const weightHasFiles = (weight.has_weights ?? false) || enableEmptyWeights;
         const capability = diarizerOptionMap.get(weight.name);
         const available =
           Boolean(set.enabled && weight.enabled && weightHasFiles) &&
@@ -1064,7 +1123,7 @@ export const Admin: React.FC = () => {
         weights,
       };
     });
-  }, [registryDiarizerSets, diarizerOptionMap]);
+  }, [registryDiarizerSets, diarizerOptionMap, enableEmptyWeights]);
   const weightsForSelectedProvider = useMemo(() => {
     if (!defaultDiarizerProvider) {
       return [];
@@ -1072,6 +1131,8 @@ export const Admin: React.FC = () => {
     const match = diarizerProviders.find((provider) => provider.name === defaultDiarizerProvider);
     return match?.weights ?? [];
   }, [defaultDiarizerProvider, diarizerProviders]);
+  const selectedWeightMeta = activeSet?.weights.find((weight) => weight.id === weightForm.id);
+  const selectedWeightHasFiles = Boolean(selectedWeightMeta?.has_weights);
   const selectedDiarizer = diarizerOptionMap.get(defaultDiarizer) ?? null;
 
   useEffect(() => {
@@ -1151,7 +1212,7 @@ export const Admin: React.FC = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-sage-mid">
               <div className="flex flex-col">
                 <h3 className="text-lg font-semibold text-pine-deep">Browse files</h3>
-                <p className="text-xs text-pine-mid font-mono">/backend/models{fileBrowserCwd}</p>
+                <p className="text-xs text-pine-mid font-mono">{toRelativeAppPath(fileBrowserCwd)}</p>
               </div>
               <button
                 className="text-pine-mid hover:text-pine-deep"
@@ -1169,7 +1230,7 @@ export const Admin: React.FC = () => {
               >
                 Up
               </button>
-              <span className="text-pine-mid">{fileBrowserCwd}</span>
+              <span className="text-pine-mid">{toRelativeAppPath(fileBrowserCwd)}</span>
             </div>
             <div className="flex-1 overflow-auto">
               {fileBrowserError && <div className="p-3 text-sm text-terracotta">{fileBrowserError}</div>}
@@ -1274,52 +1335,12 @@ export const Admin: React.FC = () => {
             ))}
           </div>
 
-          {!!filteredSets.length && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" data-testid="registry-set-summary">
-              {filteredSets.map((set) => {
-                const enabledWeights = set.weights.filter((w) => w.enabled);
-                const availableWeights = enabledWeights.filter((w) => w.has_weights !== false);
-                const showNames = enabledWeights.length ? enabledWeights.map((w) => w.name).join(', ') : 'None';
-                const statusLabel =
-                  set.enabled && availableWeights.length
-                    ? 'Available'
-                    : set.enabled
-                    ? 'Pending files'
-                    : 'Unavailable';
-                return (
-                  <div
-                    key={set.id}
-                    className="border border-sage-mid rounded-lg p-3 flex flex-col gap-1"
-                    data-testid={`${registryTab}-provider-${set.name}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-pine-deep">{set.name}</p>
-                        <p className="text-xs text-pine-mid truncate">{set.abs_path}</p>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${
-                          set.enabled && availableWeights.length
-                            ? 'bg-forest-green/10 text-forest-green'
-                            : 'bg-terracotta/10 text-terracotta'
-                        }`}
-                      >
-                        {statusLabel}
-                      </span>
-                    </div>
-                    <p className="text-xs text-pine-mid">
-                      Weights: <span className="font-medium text-pine-deep">{showNames}</span>
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="border border-sage-mid rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-md font-semibold text-pine-deep">Model set</h3>
+                <h3 className="text-md font-semibold text-pine-deep">
+                  {registryTab === 'asr' ? 'ASR Model Set' : 'Diarizer Model Set'}
+                </h3>
                 <button
                   className="text-xs text-pine-mid flex items-center gap-1"
                   onClick={() => {
@@ -1389,43 +1410,25 @@ export const Admin: React.FC = () => {
                 <button
                   type="button"
                   className="px-3 py-2 border border-sage-mid rounded-lg text-sm hover:bg-sage-light"
-                  onClick={() => openFileBrowser('set', setForm.abs_path)}
+                  onClick={() => openFileBrowser('set', setForm.abs_path || MODELS_ROOT)}
                   data-testid="browse-set-path"
                 >
                   Browse
                 </button>
               </div>
 
-              <label
-                className="flex items-center gap-2 text-sm text-pine-deep"
-                title={
-                  enableSetBlocked
-                    ? 'Add at least one model weight (files present under /backend/models/...) before enabling this set.'
-                    : undefined
-                }
-              >
-                <input
-                  type="checkbox"
-                  checked={setForm.enabled}
-                  onChange={(e) => setSetForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-                  className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green disabled:opacity-50"
-                  disabled={enableSetBlocked}
-                />
-                Enable this set
-              </label>
-              {enableSetBlocked && (
-                <p className="text-xs text-pine-mid">
-                  Add at least one weight with files, then re-enable the set (see docs/application_documentation/DEPLOYMENT.md).
-                </p>
+              <span className="text-xs text-pine-mid">
+                Status: <span className="font-medium">{setForm.enabled ? 'Enabled' : 'Disabled'}</span>
+              </span>
+              {!setForm.enabled && setForm.disable_reason.trim() && (
+                <p className="text-xs text-terracotta">Disable reason: {setForm.disable_reason}</p>
               )}
-              {!setForm.enabled && (
-                <input
-                  value={setForm.disable_reason}
-                  onChange={(e) => setSetForm((prev) => ({ ...prev, disable_reason: e.target.value }))}
-                  placeholder="Disable reason (required)"
-                  className="w-full px-3 py-2 border border-terracotta rounded-lg text-sm"
-                />
-              )}
+              <input
+                value={setForm.disable_reason}
+                onChange={(e) => setSetForm((prev) => ({ ...prev, disable_reason: e.target.value }))}
+                placeholder="Disable reason (required when disabling)"
+                className="w-full px-3 py-2 border border-terracotta rounded-lg text-sm"
+              />
 
               <div className="flex flex-wrap gap-2 justify-between">
                 <button
@@ -1434,16 +1437,22 @@ export const Admin: React.FC = () => {
                   disabled={isSavingSet}
                   data-testid="save-set-metadata"
                 >
-                  <Save className="w-4 h-4" /> Save metadata
+                  <Save className="w-4 h-4" /> Save
                 </button>
                 <button
-                  onClick={handleSaveSetAvailability}
+                  onClick={() => handleSaveSetAvailability(!setForm.enabled)}
                   className="flex-1 px-3 py-2 border border-forest-green text-forest-green rounded-lg flex items-center gap-2 justify-center hover:bg-forest-green/10 transition disabled:opacity-50"
-                  disabled={isSavingSet || !setForm.id}
+                  disabled={isSavingSet || !setForm.id || (enableSetBlocked && !setForm.enabled)}
                   data-testid="save-set-availability"
-                  title={!setForm.id ? 'Save metadata before updating availability.' : undefined}
+                  title={
+                    !setForm.id
+                      ? 'Save before updating availability.'
+                      : enableSetBlocked && !setForm.enabled
+                      ? 'Add at least one model weight (files present under /backend/models/...) before enabling this set.'
+                      : undefined
+                  }
                 >
-                  <Save className="w-4 h-4" /> Update availability
+                  <Save className="w-4 h-4" /> {setForm.enabled ? 'Disable set' : 'Enable set'}
                 </button>
                 {setForm.id && (
                   <button
@@ -1460,7 +1469,9 @@ export const Admin: React.FC = () => {
 
             <div className="lg:col-span-2 border border-sage-mid rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-md font-semibold text-pine-deep">Model set weights</h3>
+                <h3 className="text-md font-semibold text-pine-deep">
+                  {registryTab === 'asr' ? 'ASR Model Set Weights' : 'Diarizer Model Set Weights'}
+                </h3>
                 <button
                   className="text-xs text-pine-mid flex items-center gap-1"
                   onClick={resetWeightForm}
@@ -1476,15 +1487,15 @@ export const Admin: React.FC = () => {
               ) : (
                 <div className="space-y-3" data-testid="weight-list">
                   {activeWeights.map((entry) => {
-                    const weightHasFiles = entry.has_weights ?? false;
-                    const toggleBlocked = !entry.enabled && !weightHasFiles;
+                    const weightHasFiles = (entry.has_weights ?? false) || enableEmptyWeights;
+                    const toggleBlocked = !entry.enabled && !weightHasFiles && !enableEmptyWeights;
                     return (
                       <div
                         key={entry.id}
-                        className="border border-sage-mid rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        className="border border-sage-mid rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                         data-testid={`weight-${entry.id}`}
                       >
-                        <div>
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-pine-deep">{entry.name}</span>
                             <span
@@ -1495,13 +1506,20 @@ export const Admin: React.FC = () => {
                               {entry.enabled ? 'Enabled' : 'Disabled'}
                             </span>
                           </div>
-                          <p className="text-xs text-pine-mid font-mono mt-1 truncate">{entry.abs_path}</p>
+                          <p className="text-xs text-pine-mid font-mono truncate">
+                            {toRelativeAppPath(entry.abs_path)}
+                          </p>
                           {entry.disable_reason && !entry.enabled && (
-                            <p className="text-xs text-terracotta mt-1">Reason: {entry.disable_reason}</p>
+                            <p className="text-xs text-terracotta">Reason: {entry.disable_reason}</p>
                           )}
-                          {!weightHasFiles && (
-                            <p className="text-xs text-pine-mid mt-1">
-                              Weight files not detected; add files under this path then re-enable (see docs/application_documentation/DEPLOYMENT.md).
+                          {!weightHasFiles && !enableEmptyWeights && (
+                            <p className="text-xs text-pine-mid">
+                              Weight files not detected; add files under this path, then re-enable.
+                            </p>
+                          )}
+                          {enableEmptyWeights && !weightHasFiles && (
+                            <p className="text-xs text-amber-700">
+                              Empty weights allowed. Files missing; jobs may fail until weights are added.
                             </p>
                           )}
                         </div>
@@ -1519,7 +1537,7 @@ export const Admin: React.FC = () => {
                             disabled={toggleBlocked}
                             title={
                               toggleBlocked
-                                ? 'Upload model weight files before enabling.'
+                                ? 'Upload model weight files before enabling, or allow empty weights.'
                                 : undefined
                             }
                           >
@@ -1573,7 +1591,7 @@ export const Admin: React.FC = () => {
                 <button
                   type="button"
                   className="px-3 py-2 border border-sage-mid rounded-lg text-sm hover:bg-sage-light"
-                  onClick={() => openFileBrowser('weight', weightForm.abs_path || activeSet?.abs_path)}
+                  onClick={() => openFileBrowser('weight', weightForm.abs_path || activeSet?.abs_path || MODELS_ROOT)}
                   data-testid="browse-weight-path"
                 >
                   Browse
@@ -1589,7 +1607,12 @@ export const Admin: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={weightForm.enabled}
-                        onChange={(e) => setWeightForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                        onChange={(e) =>
+                          setWeightForm((prev) => ({
+                            ...prev,
+                            enabled: e.target.checked,
+                          }))
+                        }
                         className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
                       />
                       Enable this weight
@@ -1611,16 +1634,7 @@ export const Admin: React.FC = () => {
                     disabled={isSavingWeight}
                     data-testid="save-weight-metadata"
                   >
-                    Save weight metadata
-                  </button>
-                  <button
-                    onClick={handleSaveWeightAvailability}
-                    className="px-4 py-2 border border-forest-green text-forest-green rounded-lg hover:bg-forest-green/10 transition disabled:opacity-50"
-                    disabled={isSavingWeight || !weightForm.id}
-                    data-testid="save-weight-availability"
-                    title={!weightForm.id ? 'Save metadata before updating availability.' : undefined}
-                  >
-                    Update availability
+                    Save
                   </button>
                   <button
                     onClick={resetWeightForm}
@@ -1632,6 +1646,66 @@ export const Admin: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {!!filteredSets.length && (
+            <div className="mt-4" data-testid="registry-set-summary">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-pine-deep">
+                  {registryTab === 'asr' ? 'ASR Model Status' : 'Diarizer Model Status'}
+                </h3>
+                <span className="text-xs text-pine-mid">
+                  {filteredSets.length} {filteredSets.length === 1 ? 'model' : 'models'}
+                </span>
+              </div>
+              <div className="border border-sage-mid rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-sage-light text-pine-mid">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">Model set</th>
+                      <th className="text-left px-3 py-2 font-medium">Path</th>
+                      <th className="text-left px-3 py-2 font-medium">Status</th>
+                      <th className="text-left px-3 py-2 font-medium">Enabled weights</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSets.map((set) => {
+                      const enabledWeights = set.weights.filter((w) => w.enabled);
+                      const availableWeights = enabledWeights.filter(
+                        (w) => (w.has_weights ?? false) || enableEmptyWeights
+                      );
+                      const showNames = enabledWeights.length ? enabledWeights.map((w) => w.name).join(', ') : 'None';
+                      const statusLabel =
+                        set.enabled && availableWeights.length
+                          ? 'Available'
+                          : set.enabled
+                          ? 'Pending files'
+                          : 'Unavailable';
+                      const statusClass =
+                        set.enabled && availableWeights.length
+                          ? 'bg-forest-green/10 text-forest-green'
+                          : 'bg-terracotta/10 text-terracotta';
+                      return (
+                        <tr
+                          key={set.id}
+                          className="border-t border-sage-mid hover:bg-sage-light/40"
+                          data-testid={`${registryTab}-provider-${set.name}`}
+                        >
+                          <td className="px-3 py-2 font-semibold text-pine-deep">{set.name}</td>
+                          <td className="px-3 py-2 text-xs text-pine-mid font-mono truncate">
+                            {toRelativeAppPath(set.abs_path)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded ${statusClass}`}>{statusLabel}</span>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-pine-deep">{showNames}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1745,14 +1819,9 @@ export const Admin: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end mt-4">
-              <button
-                onClick={handleSaveDiarizationDefaults}
-                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
-              >
-                Save Diarization Defaults
-              </button>
-            </div>
-          </div>
+                  <div />
+                </div>
+              </div>
 
           <div className="border border-sage-mid rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1779,14 +1848,14 @@ export const Admin: React.FC = () => {
                 id="default-asr-provider"
                 value={defaultAsrProvider}
                 onChange={(e) => setDefaultAsrProvider(e.target.value)}
-                disabled={isLoadingCapabilities || !availableAsrProviderOptions.length}
+                disabled={isLoadingCapabilities || !registryAsrSets.length}
                 className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
                 data-testid="default-asr-provider"
               >
-                {!availableAsrProviderOptions.length && <option value="">No ASR model sets ready</option>}
-                {availableAsrProviderOptions.map((provider) => (
+                {!registryAsrSets.length && <option value="">No ASR model sets registered</option>}
+                {asrProviderOptions.map((provider) => (
                   <option key={provider.name} value={provider.name}>
-                    {provider.name}
+                    {provider.enabled ? provider.name : `${provider.name} (disabled)`}
                   </option>
                 ))}
               </select>
@@ -1807,30 +1876,38 @@ export const Admin: React.FC = () => {
                 data-testid="default-asr-model"
               >
                 {!asrWeightsForSelectedProvider.length && (
-                  <option value="">No ASR weights available for this set</option>
+                  <option value="">No ASR weights registered for this set</option>
                 )}
                 {asrWeightsForSelectedProvider.map((weight) => (
                   <option key={weight.name} value={weight.name}>
-                    {weight.name}
+                    {weight.enabled ? weight.name : `${weight.name} (disabled)`}
                   </option>
                 ))}
               </select>
               {defaultAsrProvider && !asrWeightsForSelectedProvider.length && (
                 <p className="text-xs text-terracotta mt-1">
-                  Enable a weight with files under /backend/models/{defaultAsrProvider}/… before setting it as default
-                  (see docs/application_documentation/DEPLOYMENT.md).
+                  No weights registered for this set. Add a weight under /backend/models/{defaultAsrProvider}/.
                 </p>
               )}
             </div>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={handleSaveAsrDefaults}
-                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
-                data-testid="advanced-save"
-              >
-                Save ASR Defaults
-              </button>
-            </div>
+            <div className="flex justify-end mt-4" />
+          </div>
+
+          <div className="border border-amber-200 bg-amber-50 rounded-lg p-4" data-testid="admin-empty-weights">
+            <h3 className="text-md font-semibold text-amber-900 mb-2">Enable Empty Weights</h3>
+            <p className="text-xs text-amber-800">
+              When enabled, administrators can turn on weights even if files are missing. Jobs may fail until files are
+              added.
+            </p>
+            <label className="mt-3 flex items-center gap-2 text-sm text-amber-900">
+              <input
+                type="checkbox"
+                checked={enableEmptyWeights}
+                onChange={(e) => setEnableEmptyWeights(e.target.checked)}
+                className="w-4 h-4 text-amber-700 border-amber-300 rounded focus:ring-amber-400"
+              />
+              Enable empty weights
+            </label>
           </div>
 
           <div className="border border-sage-mid rounded-lg p-4" data-testid="admin-throughput-card">
@@ -1896,7 +1973,7 @@ export const Admin: React.FC = () => {
               <div className="flex items-center justify-between text-xs text-pine-mid mt-2">
                 <span>Location</span>
                 <span className="font-mono text-[11px]">
-                  {storageProject?.path ?? 'Run Detect to load path'}
+                  {storageProject?.path ? toRelativeAppPath(storageProject.path) : 'Run Detect to load path'}
                 </span>
               </div>
             </div>
@@ -1922,15 +1999,19 @@ export const Admin: React.FC = () => {
                 </p>
               </div>
             </label>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={handleSaveTimeZones}
-                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
-              >
-                Save System Settings
-              </button>
-            </div>
+            <div className="flex justify-end mt-4" />
           </div>
+
+        </div>
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={handleSaveAdministrationSettings}
+            className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+            disabled={isSavingAdminSettings}
+            data-testid="admin-save-all"
+          >
+            {isSavingAdminSettings ? 'Saving...' : 'Save'}
+          </button>
         </div>
       </section>
 

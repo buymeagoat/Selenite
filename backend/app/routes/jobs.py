@@ -3,19 +3,21 @@
 from app.schemas.tag import JobTagsResponse, TagBasic
 
 import logging
+import asyncio
+import json
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
 from app.models.tag import job_tags
 from app.models.user_settings import UserSettings
@@ -224,6 +226,43 @@ async def list_jobs(
     items = [JobListItem.model_validate(job) for job in jobs]
 
     return JobListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+@router.get("/stream")
+async def stream_jobs(current_user: User = Depends(get_current_user)):
+    async def event_generator():
+        last_payload = None
+        while True:
+            try:
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(
+                        select(Job)
+                        .where(Job.user_id == current_user.id)
+                        .options(selectinload(Job.tags))
+                        .order_by(Job.created_at.desc())
+                    )
+                    jobs = result.scalars().all()
+
+                items = [JobListItem.model_validate(job).model_dump(mode="json") for job in jobs]
+                payload = json.dumps({"items": items})
+                if payload != last_payload:
+                    yield f"event: jobs\ndata: {payload}\n\n"
+                    last_payload = payload
+                else:
+                    yield "event: heartbeat\ndata: {}\n\n"
+                await asyncio.sleep(2)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.exception("Job stream error: %s", exc)
+                yield f"event: error\ndata: {json.dumps({'detail': 'stream_error'})}\n\n"
+                await asyncio.sleep(2)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/{job_id}", response_model=JobResponse)

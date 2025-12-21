@@ -23,7 +23,7 @@ Purpose: Verify recent changes (script relocation, curated provider seeding, rat
 
 ## Model Registry & Availability
 - [x] Admin → Model Registry: "Rescan availability" completes; availability warnings (missing deps/weights) render. (2025-12-18 15:40 CT — toast + backend `/system/availability` call succeeded, warnings listed.)
-- [ ] Curated providers/weights are visible (disabled until weights exist); no errors in console/backend log.
+- [x] Curated providers/weights are visible (disabled until weights exist); no errors in console/backend log. (2025-12-21)
 
 ## Script Relocation Sanity
 - [ ] Running `./scripts/restart-selenite.ps1` works (no missing file errors).

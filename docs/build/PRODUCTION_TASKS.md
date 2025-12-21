@@ -139,22 +139,22 @@ Compliance with these directives is mandatory.
 - **Assumptions**: Manual checkpoint `docs/memorialization/manual-testing/20251212_manual_checkpoint.md` is archived after bring-up/settings/registry verification. Remaining unchecked items roll into this UI/UX polish pass.
 - **Ambiguity**: Helper guidance could be inline copy or tooltips; default plan keeps inline text concise and uses tooltips for disabled controls.
 - **Plan**:
-  1. **Registry toggles** – Disable the enable switches when prerequisites are missing (no weights on disk, missing dependencies, set disabled) so we never fire failing PATCH calls. Add tooltips linking to `docs/application_documentation/DEPLOYMENT.md` explaining how to stage weights.
-  2. **Default selectors** – Clarify which dropdowns set global defaults vs. remember last selections. Filter the weight dropdown to enabled+available entries and display helper text when none exist (“Enable a weight to set a default”).
-  3. **New Job Modal UX** – Keep the submit button disabled until a valid provider/weight is chosen, add inline validation beneath the dropdowns, and keep unavailable options disabled so guidance happens before submit.
-- **Pending Checkpoints**: After each numbered task, run `npm run build` plus the targeted frontend tests and request admin confirmation of the UI change before proceeding.
+  1. **Registry toggles** - Disable the enable switches when prerequisites are missing (no weights on disk, missing dependencies, set disabled) so we never fire failing PATCH calls. Add tooltips linking to `docs/application_documentation/DEPLOYMENT.md` explaining how to stage weights. ✅ Complete.
+  2. **Default selectors** - Clarify which dropdowns set global defaults vs. remember last selections. Filter the weight dropdown to enabled+available entries and display helper text when none exist ("Enable a weight to set a default"). ✅ Complete.
+  3. **New Job Modal UX** - Keep the submit button disabled until a valid provider/weight is chosen, add inline validation beneath the dropdowns, and keep unavailable options disabled so guidance happens before submit. ✅ Complete.
+- **Pending Checkpoints**: Completed (admin UI verification acknowledged).
 
 ### Work Block - 2025-12-19 10:00 CT (Start)
 - **Assumptions**: The 2025-12-18 UI/UX block tasks are complete; new follow-ups focus on industry-standard UX polish.
 - **Plan**:
-  1. **Model Registry action clarity** – Split metadata saves from availability changes so admins explicitly choose “Save metadata” vs “Update availability”. (In progress)
-  2. **Status indicators** – Replace verbose text with consistent badges/icons for Missing files/Disabled, and show enabled-weight counts in the header.
-  3. **Loading states** – Add skeletons/spinners for registry/capability loading in admin and modal dropdowns.
-  4. **Accessibility** – Tie helper/error text to inputs with `aria-describedby` and add an aria-live region for validation updates.
-  5. **Consistency sweep** – Final pass to ensure “Model set/Model weight” labels everywhere; remove leftover “entry” text.
-  6. **Docs link UX** – Replace plain text “see docs” mentions with a clickable link/button to `docs/application_documentation/DEPLOYMENT.md`.
-  7. **Prevent stale state** – After enable/disable actions, refresh local options immediately in settings/new-job modal to avoid outdated dropdowns.
-- **Pending Checkpoints**: After each numbered task, run `npm run build` plus targeted frontend tests and request admin confirmation of the UI change before proceeding.
+  1. **Model Registry action clarity** - Split metadata saves from availability changes so admins explicitly choose "Save metadata" vs "Update availability". ✅ Complete
+  2. **Status indicators** - Replace verbose text with consistent badges/icons for Missing files/Disabled, and show enabled-weight counts in the header. ✅ Complete
+  3. **Loading states** - Add skeletons/spinners for registry/capability loading in admin and modal dropdowns. ✅ Complete
+  4. **Accessibility** - Tie helper/error text to inputs with `aria-describedby` and add an aria-live region for validation updates. ✅ Complete
+  5. **Consistency sweep** - Final pass to ensure "Model set/Model weight" labels everywhere; remove leftover "entry" text. ✅ Complete
+  6. **Docs link UX** - Replace plain text "see docs" mentions with a clickable link/button to `docs/application_documentation/DEPLOYMENT.md`. ✅ Complete
+  7. **Prevent stale state** - After enable/disable actions, refresh local options immediately in settings/new-job modal to avoid outdated dropdowns. ✅ Complete
+- **Pending Checkpoints**: Manual UI verification passed for tasks 1–7 on 2025-12-21 (admin confirmed #1–#6 checks).
 
 ### Work Block - 2025-12-07 14:55 PT (Wrap)
 - **Progress**: Backend registry CRUD + validation finished (paths constrained to `backend/models/<set>/<weight>`, ProviderManager refreshes on change, defaults validated against enabled weights; Whisper fallbacks removed). Admin UI now has ASR/DIARIZER tabs with set/entry CRUD, enable/disable with required reasons, path guardrails, availability rescan, and registry-driven defaults. New Job modal consumes `/system/availability` and blocks submit with "Contact admin to register a model weight" when no ASR weights are enabled. Tests: `./run-tests.ps1 -SkipE2E` (artifacts `docs/memorialization/test-runs/20251207-145734-backend+frontend`).

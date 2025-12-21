@@ -268,7 +268,12 @@ class WhisperService:
         result = await db.execute(select(SystemPreferences).where(SystemPreferences.id == 1))
         prefs = result.scalar_one_or_none()
         if not prefs:
-            prefs = SystemPreferences(id=1, server_time_zone="UTC", transcode_to_wav=True)
+            prefs = SystemPreferences(
+                id=1,
+                server_time_zone="UTC",
+                transcode_to_wav=True,
+                enable_empty_weights=False,
+            )
             db.add(prefs)
             await db.commit()
             await db.refresh(prefs)

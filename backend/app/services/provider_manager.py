@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.model_provider import ModelEntry, ModelSet
+from app.models.system_preferences import SystemPreferences
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,14 @@ class ProviderManager:
     _lock: RLock = RLock()
     _snapshot: ProviderSnapshot = {"asr": [], "diarizers": []}
     _initialized: bool = False
+    _allow_empty_weights: bool = False
 
     @classmethod
     async def refresh(cls, session: AsyncSession) -> None:
         """Reload provider records from the database into the cache."""
 
+        pref = await session.get(SystemPreferences, 1)
+        allow_empty_weights = bool(pref.enable_empty_weights) if pref else False
         result = await session.execute(
             select(ModelEntry)
             .options(selectinload(ModelEntry.model_set))
@@ -56,6 +60,7 @@ class ProviderManager:
         with cls._lock:
             cls._snapshot = records
             cls._initialized = True
+            cls._allow_empty_weights = allow_empty_weights
         logger.info(
             "Provider catalog refreshed (asr=%s, diarizers=%s)",
             len(records["asr"]),
@@ -78,6 +83,11 @@ class ProviderManager:
 
         with cls._lock:
             return cls._initialized
+
+    @classmethod
+    def allow_empty_weights(cls) -> bool:
+        with cls._lock:
+            return cls._allow_empty_weights
 
     @classmethod
     def _serialize(cls, entries: Sequence[ModelEntry]) -> ProviderSnapshot:

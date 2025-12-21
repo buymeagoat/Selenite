@@ -79,14 +79,16 @@ def _assess_record(record: ProviderRecord) -> Dict[str, Any]:
         if record.disable_reason:
             notes.append(record.disable_reason)
 
-    if not path.exists():
-        available = False
-    elif path.is_dir():
-        if not any(path.iterdir()):
+    allow_empty_weights = ProviderManager.allow_empty_weights()
+    if not allow_empty_weights:
+        if not path.exists():
             available = False
-    else:
-        if not path.is_file():
-            available = False
+        elif path.is_dir():
+            if not any(path.iterdir()):
+                available = False
+        else:
+            if not path.is_file():
+                available = False
 
     missing = _missing_deps(record.set_name)
     if missing:

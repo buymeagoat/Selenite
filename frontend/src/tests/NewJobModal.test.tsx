@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewJobModal } from '../components/modals/NewJobModal';
 import {
   SettingsContext,
@@ -97,6 +97,7 @@ const baseContext: SettingsContextValue = {
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
+    enable_empty_weights: false,
     last_selected_asr_set: 'test-asr',
     last_selected_diarizer_set: 'diar-weight',
   },
@@ -168,7 +169,9 @@ const renderModal = (
   it('shows default model and language selections', async () => {
     renderModal();
     const modelSelect = (await screen.findByLabelText(/model weight/i)) as HTMLSelectElement;
-    expect(modelSelect.value).toBe('asr-weight');
+    await waitFor(() => {
+      expect(modelSelect.value).toBe('asr-weight');
+    });
     expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('auto');
   });
 

@@ -38,6 +38,7 @@ export const Dashboard: React.FC = () => {
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioRate, setAudioRate] = useState(1);
+  const [streamActive, setStreamActive] = useState(false);
   const { showError, showSuccess } = useToast();
   const {
     settings: adminSettings,
@@ -83,6 +84,42 @@ export const Dashboard: React.FC = () => {
     loadJobs();
   }, [showError]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('EventSource' in window)) {
+      return;
+    }
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      return;
+    }
+
+    const url = `${API_BASE_URL}/jobs/stream?token=${encodeURIComponent(token)}`;
+    const source = new EventSource(url);
+
+    source.onopen = () => {
+      setStreamActive(true);
+    };
+
+    source.addEventListener('jobs', (event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent).data);
+        if (payload?.items) {
+          setJobs(payload.items);
+        }
+      } catch (error) {
+        devError('Failed to parse job stream payload:', error);
+      }
+    });
+
+    source.addEventListener('error', () => {
+      setStreamActive(false);
+    });
+
+    return () => {
+      source.close();
+    };
+  }, []);
+
   // Poll for job updates (processing jobs only)
   const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'cancelling');
   
@@ -99,7 +136,7 @@ export const Dashboard: React.FC = () => {
   };
 
   usePolling(fetchJobUpdates, {
-    enabled: hasProcessingJobs && !isLoading,
+    enabled: hasProcessingJobs && !isLoading && !streamActive,
     interval: 2000
   });
 

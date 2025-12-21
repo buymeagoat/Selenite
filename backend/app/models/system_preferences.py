@@ -15,6 +15,7 @@ class SystemPreferences(Base):
     id = Column(Integer, primary_key=True)
     server_time_zone = Column(String(100), nullable=False, default="UTC")
     transcode_to_wav = Column(Boolean, nullable=False, default=True)
+    enable_empty_weights = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

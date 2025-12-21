@@ -34,21 +34,25 @@ async def browse_files(
 
     # Always anchor to project root; prevent traversal above it
     base_dir = PROJECT_ROOT.resolve()
-    # Normalize incoming path
+    # Normalize incoming path (treat leading "/" as project-root relative)
     if path:
-        candidate = Path(path)
-        if candidate.is_absolute():
-            try:
-                candidate = candidate.resolve()
-                candidate.relative_to(base_dir)
-                target = candidate
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Path must reside within the application root.",
-                )
-        else:
+        if path.startswith("/"):
+            candidate = Path(path.lstrip("/"))
             target = (base_dir / candidate).resolve()
+        else:
+            candidate = Path(path)
+            if candidate.is_absolute():
+                try:
+                    candidate = candidate.resolve()
+                    candidate.relative_to(base_dir)
+                    target = candidate
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Path must reside within the application root.",
+                    )
+            else:
+                target = (base_dir / candidate).resolve()
     else:
         # Default starting point: project root for "root" scope, backend/models for "models" scope
         target = (BACKEND_ROOT / "models").resolve() if scope == "models" else base_dir

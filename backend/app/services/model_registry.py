@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import BACKEND_ROOT, PROJECT_ROOT
+from app.models.system_preferences import SystemPreferences
 from app.models.model_provider import ModelEntry, ModelSet
 from app.schemas.model_registry import (
     ModelWeightCreate,
@@ -28,6 +29,7 @@ class ModelRegistryService:
     _LEGACY_MODELS_ROOT = (PROJECT_ROOT / "models").resolve()
     _SEEDED_SET_REASON = "Seeded provider; add weights to enable."
     _SEEDED_WEIGHT_REASON = "Weights not present; drop files then enable."
+    _FORCE_ENABLED_REASON = "Force enabled without weight files."
 
     # ------------------------------------------------------------------
     # Query helpers
@@ -42,19 +44,34 @@ class ModelRegistryService:
         result = await session.execute(stmt)
         sets = list(result.scalars().unique().all())
         changed = False
+        allow_empty_weights = await cls._get_enable_empty_weights(session)
 
         for model_set in sets:
             set_has_weights = False
             for entry in model_set.entries:
                 has_weights = cls._has_weights(entry.abs_path)
+                force_enabled = bool(
+                    entry.enabled
+                    and not has_weights
+                    and entry.disable_reason == cls._FORCE_ENABLED_REASON
+                )
                 # expose for response serialization
                 setattr(entry, "has_weights", has_weights)
+                setattr(entry, "force_enabled", force_enabled)
                 if has_weights:
                     set_has_weights = True
-                    if entry.disable_reason == cls._SEEDED_WEIGHT_REASON:
+                    if entry.disable_reason in {
+                        cls._SEEDED_WEIGHT_REASON,
+                        cls._FORCE_ENABLED_REASON,
+                    }:
                         entry.disable_reason = None
                         changed = True
-                elif entry.enabled:
+                elif force_enabled:
+                    set_has_weights = True
+                elif entry.enabled and not force_enabled:
+                    if allow_empty_weights:
+                        set_has_weights = True
+                        continue
                     entry.enabled = False
                     if not entry.disable_reason:
                         entry.disable_reason = cls._SEEDED_WEIGHT_REASON
@@ -247,6 +264,7 @@ class ModelRegistryService:
         await session.commit()
         await session.refresh(entry)
         setattr(entry, "has_weights", has_weights)
+        setattr(entry, "force_enabled", False)
         await ProviderManager.refresh(session)
 
         write_registry_event("weight-created", entry.name, entry.name, actor)
@@ -264,6 +282,7 @@ class ModelRegistryService:
         changed = False
         log_action: Optional[str] = None
         log_note: Optional[str] = None
+        allow_empty_weights = await cls._get_enable_empty_weights(session)
 
         if "name" in updates:
             new_name = cls._normalize_key(updates["name"])
@@ -291,11 +310,15 @@ class ModelRegistryService:
             new_state = updates.pop("enabled")
             if new_state and not entry.enabled:
                 if not cls._has_weights(entry.abs_path):
-                    raise ValueError("missing_weights")
+                    if not allow_empty_weights:
+                        raise ValueError("missing_weights")
+                    entry.disable_reason = None
+                else:
+                    entry.disable_reason = None
                 entry.enabled = True
-                entry.disable_reason = None
                 changed = True
-                log_action = "weight-enabled"
+                if not log_action:
+                    log_action = "weight-enabled"
             elif new_state is False and entry.enabled:
                 reason = disable_reason or entry.disable_reason
                 if not reason:
@@ -314,13 +337,31 @@ class ModelRegistryService:
 
         await session.commit()
         await session.refresh(entry)
-        setattr(entry, "has_weights", cls._has_weights(entry.abs_path))
+        has_weights = cls._has_weights(entry.abs_path)
+        setattr(entry, "has_weights", has_weights)
+        setattr(
+            entry,
+            "force_enabled",
+            bool(
+                entry.enabled
+                and not has_weights
+                and entry.disable_reason == cls._FORCE_ENABLED_REASON
+            ),
+        )
         await ProviderManager.refresh(session)
 
         if log_action:
             write_registry_event(log_action, entry.name, entry.name, actor, log_note)
 
         return entry
+
+    @staticmethod
+    async def _get_enable_empty_weights(session: AsyncSession) -> bool:
+        result = await session.execute(
+            select(SystemPreferences.enable_empty_weights).where(SystemPreferences.id == 1)
+        )
+        value = result.scalar_one_or_none()
+        return bool(value)
 
     @classmethod
     async def delete_model_set(cls, session: AsyncSession, model_set: ModelSet, actor: str) -> None:

@@ -47,6 +47,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   defaultDiarizerProvider,
 }) => {
   const { settings: adminSettings } = useAdminSettings();
+  const allowEmptyWeights = adminSettings?.enable_empty_weights ?? false;
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const resolvedDefaults = useMemo(
@@ -135,7 +136,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     return registryDiarizerSets.map((set) => {
       const weights = set.weights.map((weight) => {
         const capability = diarizerCapabilityMap.get(weight.name);
-        const hasWeights = weight.has_weights ?? false;
+        const hasWeights = (weight.has_weights ?? false) || allowEmptyWeights;
         const available =
           Boolean(set.enabled && weight.enabled && hasWeights) &&
           (capability ? capability.available : true);
@@ -152,7 +153,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         weights,
       };
     });
-  }, [registryDiarizerSets, diarizerCapabilityMap]);
+  }, [registryDiarizerSets, diarizerCapabilityMap, allowEmptyWeights]);
   const diarizerWeightsForProvider = useMemo<DiarizerWeightOption[]>(() => {
     if (!diarizerProvider) return [];
     return diarizerProviderGroups.find((group) => group.name === diarizerProvider)?.weights ?? [];
@@ -168,8 +169,12 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const providerOptions = useMemo(
     () =>
       asrProviders.map((set) => {
-        const enabledWeights = set.weights.filter((weight) => weight.enabled && weight.has_weights);
-        const hasWeights = set.weights.some((weight) => weight.has_weights);
+        const enabledWeights = set.weights.filter(
+          (weight) => weight.enabled && ((weight.has_weights ?? false) || allowEmptyWeights)
+        );
+        const hasWeights = set.weights.some(
+          (weight) => (weight.has_weights ?? false) || allowEmptyWeights
+        );
         const isUsable = set.enabled && enabledWeights.length > 0;
         let label = set.name;
         if (!set.enabled) {
@@ -189,13 +194,13 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
           isUsable,
         };
       }),
-    [asrProviders]
+    [asrProviders, allowEmptyWeights]
   );
   const activeProvider = providerOptions.find((p) => p.value === selectedProvider);
   const weightOptions = useMemo(() => {
     if (!activeProvider) return [];
     return activeProvider.weights.map((weight) => {
-      const hasWeights = Boolean(weight.has_weights);
+      const hasWeights = Boolean(weight.has_weights) || allowEmptyWeights;
       const effectiveEnabled = Boolean(activeProvider.isUsable && weight.enabled && hasWeights);
       let label = weight.name;
       if (!weight.enabled) {
@@ -211,7 +216,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         isUsable: effectiveEnabled,
       };
     });
-  }, [activeProvider]);
+  }, [activeProvider, allowEmptyWeights]);
   const selectedWeightOption = weightOptions.find((opt) => opt.value === model);
   const providerReady = Boolean(activeProvider?.isUsable);
   const weightReady = Boolean(selectedWeightOption?.isUsable);
@@ -262,14 +267,19 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       providerOptions.find((p) => p.value === nextProvider)?.weights ?? [];
     const preferredWeight = resolvedDefaults.model
       ? weightsForProvider.find(
-          (weight) => weight.name === resolvedDefaults.model && weight.enabled && weight.has_weights
+          (weight) =>
+            weight.name === resolvedDefaults.model &&
+            weight.enabled &&
+            ((weight.has_weights ?? false) || allowEmptyWeights)
         )
       : undefined;
     const firstEnabledWeight = weightsForProvider.find(
-      (weight) => weight.enabled && weight.has_weights
+      (weight) => weight.enabled && ((weight.has_weights ?? false) || allowEmptyWeights)
     );
     const fallbackWeight =
-      weightsForProvider.find((weight) => weight.has_weights) || weightsForProvider[0];
+      weightsForProvider.find(
+        (weight) => (weight.has_weights ?? false) || allowEmptyWeights
+      ) || weightsForProvider[0];
     const resolvedModelName = preferredWeight?.name || firstEnabledWeight?.name || fallbackWeight?.name || '';
     setModel(resolvedModelName || '');
     setLanguage(resolvedDefaults.language);
@@ -348,8 +358,12 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setSelectedProvider(value);
     const weightsForProvider =
       providerOptions.find((p) => p.value === value)?.weights ?? [];
-    const firstEnabled = weightsForProvider.find((weight) => weight.enabled && weight.has_weights);
-    const firstWithFiles = weightsForProvider.find((weight) => weight.has_weights);
+    const firstEnabled = weightsForProvider.find(
+      (weight) => weight.enabled && ((weight.has_weights ?? false) || allowEmptyWeights)
+    );
+    const firstWithFiles = weightsForProvider.find(
+      (weight) => (weight.has_weights ?? false) || allowEmptyWeights
+    );
     const firstAny = weightsForProvider[0];
     setModel(firstEnabled?.name || firstWithFiles?.name || firstAny?.name || '');
   };

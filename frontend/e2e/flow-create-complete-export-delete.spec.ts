@@ -14,7 +14,7 @@ test.describe('Create → Complete → Export → Delete flow', () => {
   });
 
   test('desktop flow', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Start a new job
     await page.getByRole('button', { name: /new job/i }).click();
@@ -61,7 +61,7 @@ test.describe('Create → Complete → Export → Delete flow', () => {
   test('mobile flow', async ({ page, browser }) => {
     const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await uiLogin(mobile);
-    await mobile.goto('/', { waitUntil: 'networkidle' });
+    await mobile.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Start a new job
     await mobile.getByRole('button', { name: /new job/i }).click();

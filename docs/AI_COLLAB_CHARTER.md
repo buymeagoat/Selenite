@@ -29,6 +29,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Pre-flight: before modifying or committing code, run `./scripts/pre-flight-check.ps1` and resolve failures. It enforces endpoint authentication, detects hardcoded credentials/IPs, and warns about unguarded logging.
 - Test proof: after changes, run `./run-tests.ps1 -SkipE2E` (or stricter) and allow it to stamp `.last_tests_run`; cite the outcome in your summary.
 - Debug artifacts: keep temporary diagnostics under the gitignored `/scratch` directory (see README guidelines). Never ship raw HTML/PS1 diagnostics or hardcoded IPs/credentials in `frontend/dist` or source-remove them (and any tooling that copies them) before committing unless a specific PRODUCTION_TASKS entry scopes them.
+- Change cascade: every application change must update tests and DB checks. CRUD changes require a migration plus startup guard coverage; if a required table/row is missing at startup, auto-heal it or fail with a clear error.
 - Session startup: read/acknowledge this charter (and `AGENTS.md` if present) at the start of each collaboration.
 
 ## Execution Order (per interaction)

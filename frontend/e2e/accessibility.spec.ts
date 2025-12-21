@@ -8,7 +8,7 @@ test.describe('Accessibility smokes', () => {
   });
 
   test('Dashboard has no critical axe violations', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     const violations = await runAxe(page, 'Dashboard');
     const filtered = violations.filter((v) => v.id !== 'heading-order');
     expect(filtered.length).toBe(0);
@@ -16,14 +16,14 @@ test.describe('Accessibility smokes', () => {
 
   test('Transcript view has no critical axe violations', async ({ page }) => {
     // Navigate to transcripts list and open first one if it exists, otherwise skip gracefully
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     const transcriptLinks = page.getByRole('link', { name: /transcript/i });
     const count = await transcriptLinks.count();
     if (count === 0) {
       test.skip(true, 'No transcripts available to test accessibility.');
     }
     await transcriptLinks.nth(0).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     const violations = await runAxe(page, 'TranscriptView');
     expect(violations.length).toBe(0);
   });

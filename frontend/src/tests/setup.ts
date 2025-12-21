@@ -22,4 +22,6 @@ beforeAll(() => {
 // Automatically cleanup after each test
 afterEach(() => {
   cleanup();
+  localStorage.clear();
+  sessionStorage.clear();
 });

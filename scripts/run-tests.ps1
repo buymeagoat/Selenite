@@ -278,6 +278,13 @@ function Run-AlignmentCheck {
         Write-Host "Alignment checker script not found; skipping." -ForegroundColor Yellow
         return
     }
+    $alignmentDbPath = Join-Path $TestWorkspace "selenite.alignment.db"
+    $alignmentDbUrl = Convert-ToSqliteUrl $alignmentDbPath
+    $previousDbUrl = $env:DATABASE_URL
+    if (Test-Path $alignmentDbPath) {
+        Remove-Item $alignmentDbPath -Force
+    }
+    $env:DATABASE_URL = $alignmentDbUrl
     Push-Location $RepoRoot
     try {
         & $script:BackendPython $checkerPath
@@ -285,6 +292,7 @@ function Run-AlignmentCheck {
     }
     finally {
         Pop-Location
+        $env:DATABASE_URL = $previousDbUrl
     }
     if ($exit -ne 0) {
         throw "Alignment checker reported drift (exit code $exit)"
@@ -434,6 +442,10 @@ finally {
     Write-Host "Cleaning scratch test workspace..." -ForegroundColor DarkGray
     if (Test-Path $TestDbPath) {
         Remove-Item $TestDbPath -Force
+    }
+    $alignmentDb = Join-Path $TestWorkspace "selenite.alignment.db"
+    if (Test-Path $alignmentDb) {
+        Remove-Item $alignmentDb -Force
     }
     foreach ($path in @($TestMediaPath, $TestTranscriptPath)) {
         if (Test-Path $path) {

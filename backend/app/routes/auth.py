@@ -1,6 +1,6 @@
 """Authentication routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,7 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str | None = Query(None, description="JWT bearer token (optional)"),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
@@ -66,14 +67,15 @@ async def get_current_user(
     Raises:
         HTTPException: 401 if token is invalid or user not found
     """
-    if credentials is None:
+    bearer = credentials.credentials if credentials else token
+    if not bearer:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Authorization header missing",
         )
 
     # Decode token
-    payload = decode_access_token(credentials.credentials)
+    payload = decode_access_token(bearer)
 
     if payload is None:
         raise HTTPException(

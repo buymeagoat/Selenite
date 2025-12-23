@@ -368,8 +368,8 @@ def test_load_transcript_with_metadata(tmp_path):
                 "language": "fr",
                 "duration": 22.5,
                 "segments": [
-                    {"start": 0, "end": 2.5, "text": "bonjour"},
-                    {"start": 2.5, "end": 5.0, "text": "monde"},
+                    {"start": 0, "end": 2.5, "text": "bonjour", "speaker": "Speaker 1"},
+                    {"start": 2.5, "end": 5.0, "text": "monde", "speaker": "Speaker 2"},
                 ],
             }
         ),
@@ -392,6 +392,7 @@ def test_load_transcript_with_metadata(tmp_path):
     assert duration == 22.5
     assert len(segments) == 2
     assert segments[0]["text"] == "bonjour"
+    assert segments[0]["speaker"] == "Speaker 1"
 
 
 @pytest.mark.asyncio

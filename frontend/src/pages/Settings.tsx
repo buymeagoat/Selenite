@@ -18,7 +18,8 @@ export const Settings: React.FC = () => {
   const [defaultDiarizer, setDefaultDiarizer] = useState('vad');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
   const [diarizationEnabled, setDiarizationEnabled] = useState(false);
-  const [allowJobOverrides, setAllowJobOverrides] = useState(false);
+  const [allowAsrOverrides, setAllowAsrOverrides] = useState(false);
+  const [allowDiarizerOverrides, setAllowDiarizerOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [timeZone, setTimeZone] = useState<string>(getBrowserTimeZone());
   const [tagsExpanded, setTagsExpanded] = useState(true);
@@ -51,7 +52,8 @@ export const Settings: React.FC = () => {
         setDefaultLanguage(settingsData.default_language);
         setDefaultDiarizer(settingsData.default_diarizer);
         setDiarizationEnabled(settingsData.diarization_enabled);
-        setAllowJobOverrides(settingsData.allow_job_overrides);
+        setAllowAsrOverrides(settingsData.allow_asr_overrides);
+        setAllowDiarizerOverrides(settingsData.allow_diarizer_overrides);
         setEnableTimestamps(settingsData.enable_timestamps);
         setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
         setTimeZone(settingsData.time_zone || getBrowserTimeZone());
@@ -120,7 +122,8 @@ export const Settings: React.FC = () => {
     default_language: defaultLanguage,
     default_diarizer: defaultDiarizer,
     diarization_enabled: diarizationEnabled,
-    allow_job_overrides: allowJobOverrides,
+    allow_asr_overrides: allowAsrOverrides,
+    allow_diarizer_overrides: allowDiarizerOverrides,
     enable_timestamps: enableTimestamps,
     max_concurrent_jobs: maxConcurrentJobs,
     time_zone: timeZone || null,

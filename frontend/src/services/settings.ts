@@ -13,7 +13,8 @@ export interface UserSettings {
   default_diarizer_provider: string | null;
   default_diarizer: string;
   diarization_enabled: boolean;
-  allow_job_overrides: boolean;
+  allow_asr_overrides: boolean;
+  allow_diarizer_overrides: boolean;
   enable_timestamps: boolean;
   max_concurrent_jobs: number;
   time_zone: string | null;
@@ -31,7 +32,8 @@ export interface UpdateSettingsParams {
   default_diarizer_provider?: string | null;
   default_diarizer?: string | null;
   diarization_enabled?: boolean;
-  allow_job_overrides?: boolean;
+  allow_asr_overrides?: boolean;
+  allow_diarizer_overrides?: boolean;
   enable_timestamps?: boolean;
   max_concurrent_jobs?: number;
   time_zone?: string | null;
@@ -46,7 +48,7 @@ export interface UpdateAsrSettingsParams {
   default_asr_provider?: string | null;
   default_model?: string | null;
   default_language?: string;
-  allow_job_overrides?: boolean;
+  allow_asr_overrides?: boolean;
   enable_timestamps?: boolean;
   max_concurrent_jobs?: number;
   time_zone?: string | null;
@@ -57,7 +59,7 @@ export interface UpdateDiarizationSettingsParams {
   default_diarizer_provider?: string | null;
   default_diarizer?: string | null;
   diarization_enabled?: boolean;
-  allow_job_overrides?: boolean;
+  allow_diarizer_overrides?: boolean;
   time_zone?: string | null;
   last_selected_diarizer_set?: string | null;
 }

@@ -71,6 +71,7 @@ def _load_transcript_data(job: Job) -> Tuple[str, List[Dict[str, Any]], str, flo
                 "start": float(seg.get("start", 0.0) or 0.0),
                 "end": float(seg.get("end", 0.0) or 0.0),
                 "text": (seg.get("text") or "").strip(),
+                "speaker": seg.get("speaker"),
             }
         )
 

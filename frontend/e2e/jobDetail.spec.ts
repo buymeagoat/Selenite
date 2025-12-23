@@ -29,6 +29,7 @@ test.describe('Job Detail Modal', () => {
     const metadata = modal.locator('[data-testid="job-metadata"]');
     await expect(metadata).toBeVisible();
     await expect(metadata.getByText(/^duration$/i)).toBeVisible();
+    await expect(metadata.getByText(/job id/i)).toBeVisible();
     await expect(metadata.getByText(/model/i)).toBeVisible();
     await expect(metadata.getByText(/language/i)).toBeVisible();
     await expect(metadata.getByText(/file size/i)).toBeVisible();

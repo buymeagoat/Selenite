@@ -10,7 +10,8 @@ class SettingsResponse(BaseModel):
     default_diarizer_provider: str | None = None
     default_diarizer: str
     diarization_enabled: bool
-    allow_job_overrides: bool
+    allow_asr_overrides: bool
+    allow_diarizer_overrides: bool
     enable_timestamps: bool
     max_concurrent_jobs: int
     time_zone: str | None = None
@@ -28,7 +29,8 @@ class SettingsUpdateRequest(BaseModel):
     default_diarizer_provider: str | None = Field(default=None, min_length=1, max_length=255)
     default_diarizer: str | None = Field(default=None, min_length=1, max_length=200)
     diarization_enabled: bool | None = Field(default=None)
-    allow_job_overrides: bool | None = Field(default=None)
+    allow_asr_overrides: bool | None = Field(default=None)
+    allow_diarizer_overrides: bool | None = Field(default=None)
     enable_timestamps: bool | None = Field(default=None)
     max_concurrent_jobs: int | None = Field(default=None, ge=1, le=10)
     time_zone: str | None = Field(default=None, max_length=100)
@@ -43,7 +45,7 @@ class SettingsUpdateAsr(BaseModel):
     default_asr_provider: str | None = Field(default=None, min_length=1, max_length=255)
     default_model: str | None = Field(default=None, min_length=1, max_length=200)
     default_language: str | None = Field(default=None, max_length=10)
-    allow_job_overrides: bool | None = Field(default=None)
+    allow_asr_overrides: bool | None = Field(default=None)
     enable_timestamps: bool | None = Field(default=None)
     max_concurrent_jobs: int | None = Field(default=None, ge=1, le=10)
     time_zone: str | None = Field(default=None, max_length=100)
@@ -54,6 +56,6 @@ class SettingsUpdateDiarization(BaseModel):
     default_diarizer_provider: str | None = Field(default=None, min_length=1, max_length=255)
     default_diarizer: str | None = Field(default=None, min_length=1, max_length=200)
     diarization_enabled: bool | None = Field(default=None)
-    allow_job_overrides: bool | None = Field(default=None)
+    allow_diarizer_overrides: bool | None = Field(default=None)
     time_zone: str | None = Field(default=None, max_length=100)
     last_selected_diarizer_set: str | None = Field(default=None, min_length=1, max_length=255)

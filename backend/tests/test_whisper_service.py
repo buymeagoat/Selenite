@@ -164,6 +164,114 @@ async def test_process_job_success(monkeypatch, tmp_path, test_db):
 
 
 @pytest.mark.anyio
+async def test_process_job_persists_diarization_speaker_count(monkeypatch, tmp_path, test_db):
+    audio_path = tmp_path / "audio.wav"
+    audio_path.write_bytes(b"fake")
+    job_id = await create_job("queued", file_path=audio_path)
+    monkeypatch.setattr(
+        settings.__class__,
+        "is_testing",
+        property(lambda self: False),
+    )
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+
+    async def fake_transcribe(*args, **kwargs):
+        return {
+            "text": "transcript text",
+            "segments": [{"id": 1, "start": 0.0, "end": 1.0, "text": "Hello"}],
+            "duration": 12.0,
+            "language": "en",
+        }
+
+    async def fake_diarization(*args, **kwargs):
+        return {
+            "speaker_count": 3,
+            "segments": [
+                {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"},
+                {"start": 1.0, "end": 2.0, "speaker": "SPEAKER_01"},
+                {"start": 2.0, "end": 3.0, "speaker": "SPEAKER_02"},
+            ],
+        }
+
+    async def noop(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(service, "_wait_for_processing_slot", noop)
+    monkeypatch.setattr(service, "load_model", noop)
+    monkeypatch.setattr(service, "transcribe_audio", fake_transcribe)
+    monkeypatch.setattr(service, "_run_diarization", fake_diarization)
+    monkeypatch.setattr(service, "_diarizer_available", lambda *_: True)
+    monkeypatch.setattr(
+        service,
+        "_resolve_diarizer_record",
+        lambda *_: SimpleNamespace(
+            set_name="pyannote",
+            name="diarization-3.1",
+            abs_path=str(tmp_path / "diarization" / "diarization-3.1"),
+            enabled=True,
+        ),
+    )
+    monkeypatch.setattr(
+        whisper_module,
+        "enforce_runtime_diarizer",
+        lambda **_: {
+            "diarizer": "diarization-3.1",
+            "diarization_enabled": True,
+            "notes": [],
+        },
+    )
+    monkeypatch.setattr(
+        service, "_load_model_from_record", AsyncMock(return_value={"name": "tiny"})
+    )
+    monkeypatch.setattr(
+        whisper_module.ProviderManager,
+        "get_snapshot",
+        classmethod(
+            lambda cls: {
+                "asr": [
+                    SimpleNamespace(
+                        set_id=1,
+                        weight_id=1,
+                        set_name="whisper",
+                        name="tiny",
+                        provider_type="asr",
+                        abs_path=str(tmp_path / "whisper" / "tiny" / "tiny.pt"),
+                        enabled=True,
+                        disable_reason=None,
+                        checksum=None,
+                    )
+                ],
+                "diarizers": [
+                    SimpleNamespace(
+                        set_id=2,
+                        weight_id=2,
+                        set_name="pyannote",
+                        name="diarization-3.1",
+                        provider_type="diarizer",
+                        abs_path=str(tmp_path / "diarization" / "diarization-3.1"),
+                        enabled=True,
+                        disable_reason=None,
+                        checksum=None,
+                    )
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(whisper_module, "get_asr_candidate_order", lambda *_, **__: ["tiny"])
+
+    async with AsyncSessionLocal() as session:
+        job = await session.get(Job, job_id)
+        job.has_speaker_labels = True
+        job.diarizer_used = "diarization-3.1"
+        await session.commit()
+        await service.process_job(job_id, session)
+
+    job = await get_job(job_id)
+    assert job.status == "completed"
+    assert job.speaker_count == 3
+
+
+@pytest.mark.anyio
 async def test_process_job_failure_sets_error(monkeypatch, tmp_path, test_db):
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"fake")
@@ -329,6 +437,32 @@ def test_normalize_segments_handles_objects():
     assert len(normalized) == 2
     assert normalized[0]["speaker"] == "Speaker 1"
     assert normalized[1]["text"] == "Second"
+
+
+def test_assign_speaker_labels_uses_overlap():
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    segments = [
+        {"id": 1, "start": 0.0, "end": 1.4, "text": "Hello"},
+        {"id": 2, "start": 1.4, "end": 3.0, "text": "World"},
+    ]
+    diarization_segments = [
+        {"start": 0.0, "end": 1.6, "speaker": "Speaker A"},
+        {"start": 1.6, "end": 3.5, "speaker": "Speaker B"},
+    ]
+    labeled = service._assign_speaker_labels(segments, diarization_segments)
+    assert labeled[0]["speaker"] == "Speaker A"
+    assert labeled[1]["speaker"] == "Speaker B"
+
+
+def test_apply_single_speaker_label_sets_default():
+    service = WhisperService(model_storage_path=settings.media_storage_path)
+    segments = [
+        {"id": 1, "start": 0.0, "end": 1.0, "text": "Hello"},
+        {"id": 2, "start": 1.0, "end": 2.0, "text": "World", "speaker": "Speaker 2"},
+    ]
+    labeled = service._apply_single_speaker_label(segments)
+    assert labeled[0]["speaker"] == "Speaker 1"
+    assert labeled[1]["speaker"] == "Speaker 2"
 
 
 @pytest.mark.anyio

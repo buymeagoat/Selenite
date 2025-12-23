@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { FileDropzone } from '../upload/FileDropzone';
 import { useAdminSettings } from '../../context/SettingsContext';
 import { fetchCapabilities, type CapabilityResponse } from '../../services/system';
@@ -30,6 +30,7 @@ interface NewJobModalProps {
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
     speakerCount?: number | null;
+    extraFlags?: string;
   }) => Promise<void>;
   defaultModel?: string;
   defaultLanguage?: string;
@@ -46,8 +47,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   defaultDiarizer,
   defaultDiarizerProvider,
 }) => {
-  const { settings: adminSettings } = useAdminSettings();
+  const { settings: adminSettings, status: adminStatus } = useAdminSettings();
   const allowEmptyWeights = adminSettings?.enable_empty_weights ?? false;
+  const allowAsrOverrides = adminSettings?.allow_asr_overrides ?? false;
+  const allowDiarizerOverrides = adminSettings?.allow_diarizer_overrides ?? false;
+  const adminAllowsDiarization = adminSettings?.diarization_enabled ?? true;
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const resolvedDefaults = useMemo(
@@ -61,6 +65,17 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     }),
     [adminSettings, defaultModel, defaultLanguage, defaultDiarizer, defaultDiarizerProvider]
   );
+  const resolvedDefaultsKey = useMemo(
+    () =>
+      [
+        resolvedDefaults.provider,
+        resolvedDefaults.model,
+        resolvedDefaults.language,
+        resolvedDefaults.diarizerProvider,
+        resolvedDefaults.diarizer,
+      ].join('|'),
+    [resolvedDefaults]
+  );
 
   const [model, setModel] = useState(resolvedDefaults.model);
   const [language, setLanguage] = useState(resolvedDefaults.language);
@@ -69,6 +84,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [speakerCount, setSpeakerCount] = useState<number | 'auto'>('auto');
   const [diarizer, setDiarizer] = useState(resolvedDefaults.diarizer);
   const [diarizerProvider, setDiarizerProvider] = useState(resolvedDefaults.diarizerProvider);
+  const [extraFlags, setExtraFlags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
@@ -80,6 +96,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [registryLoading, setRegistryLoading] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [initializedDefaultsKey, setInitializedDefaultsKey] = useState<string | null>(null);
+  const [hasUserChanges, setHasUserChanges] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,8 +181,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     () => diarizerProviderGroups.flatMap((group) => group.weights.filter((weight) => weight.available)),
     [diarizerProviderGroups]
   );
-  const supportsDiarization = availableDiarizerWeights.length > 0;
-  const detectSpeakersDisabled = capabilitiesLoading || !supportsDiarization;
+  const supportsDiarization = adminAllowsDiarization && availableDiarizerWeights.length > 0;
+  const detectSpeakersDisabled =
+    capabilitiesLoading || !supportsDiarization || !allowDiarizerOverrides;
 
   const asrProviders = useMemo(() => registrySets.filter((set) => set.type === 'asr'), [registrySets]);
   const providerOptions = useMemo(
@@ -239,6 +259,12 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setIsInitialized(false);
+      setInitializedDefaultsKey(null);
+      setHasUserChanges(false);
+      setIsAdvancedOpen(false);
+      return;
+    }
+    if (adminStatus === 'loading' && !adminSettings) {
       return;
     }
     if (!providerOptions.length) {
@@ -246,7 +272,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setModel('');
       return;
     }
-    if (isInitialized) {
+    if (isInitialized && (hasUserChanges || initializedDefaultsKey === resolvedDefaultsKey)) {
       return;
     }
 
@@ -306,7 +332,21 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setEnableSpeakerDetection(supportsDiarization);
     setSpeakerCount('auto');
     setIsInitialized(true);
-  }, [isOpen, resolvedDefaults, diarizerProviderGroups, supportsDiarization, providerOptions, isInitialized]);
+    setInitializedDefaultsKey(resolvedDefaultsKey);
+    setHasUserChanges(false);
+  }, [
+    isOpen,
+    adminStatus,
+    adminSettings,
+    resolvedDefaults,
+    resolvedDefaultsKey,
+    diarizerProviderGroups,
+    supportsDiarization,
+    providerOptions,
+    isInitialized,
+    initializedDefaultsKey,
+    hasUserChanges,
+  ]);
 
   useEffect(() => {
     if (!enableSpeakerDetection) {
@@ -355,6 +395,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   };
 
   const handleProviderChange = (value: string) => {
+    setHasUserChanges(true);
     setSelectedProvider(value);
     const weightsForProvider =
       providerOptions.find((p) => p.value === value)?.weights ?? [];
@@ -430,23 +471,24 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setError('');
 
     const diarizationActive = enableSpeakerDetection && supportsDiarization;
+    const extraFlagsValue = extraFlags.trim();
 
-    // Only send model/language/diarizer if they differ from saved defaults
-    // This allows backend to use user's saved preferences unless explicitly overridden
-    const modelOverride = model !== resolvedDefaults.model ? model : undefined;
-    const languageOverride = language !== resolvedDefaults.language ? language : undefined;
-    const diarizerOverride = diarizer !== resolvedDefaults.diarizer ? diarizer : undefined;
+    // Always send the selected values so the backend reflects the UI selection.
+    const modelSelection = model || undefined;
+    const languageSelection = language || undefined;
+    const diarizerSelection = diarizer || undefined;
 
     try {
       await onSubmit({
         file: selectedFile,
         provider: selectedProvider,
-        model: modelOverride,
-        language: languageOverride,
+        model: modelSelection,
+        language: languageSelection,
         enableTimestamps,
         enableSpeakerDetection: diarizationActive,
-        diarizer: diarizationActive ? diarizerOverride : undefined,
+        diarizer: diarizationActive ? diarizerSelection : undefined,
         speakerCount: diarizationActive && speakerCount !== 'auto' ? speakerCount : null,
+        extraFlags: allowAsrOverrides && extraFlagsValue ? extraFlagsValue : undefined,
       });
 
       setSelectedFile(null);
@@ -455,6 +497,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setEnableTimestamps(resolvedDefaults.timestamps);
       setEnableSpeakerDetection(supportsDiarization);
       setSpeakerCount('auto');
+      setExtraFlags('');
+      setHasUserChanges(false);
+      setIsAdvancedOpen(false);
       onClose();
     } catch (err) {
       setError(
@@ -472,6 +517,9 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setFileError('');
       setEnableSpeakerDetection(supportsDiarization);
       setSpeakerCount('auto');
+      setExtraFlags('');
+      setHasUserChanges(false);
+      setIsAdvancedOpen(false);
       onClose();
     }
   };
@@ -521,216 +569,316 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
             />
           </div>
 
-          <div className="mb-6 space-y-3">
-            <label
-              htmlFor="provider"
-              className="block text-sm font-medium text-pine-deep mb-2"
-            >
-              ASR Model
-            </label>
-            <select
-              id="provider"
-              value={selectedProvider}
-              onChange={(e) => handleProviderChange(e.target.value)}
-              disabled={isSubmitting || registryLoading || !providerOptions.length}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-              data-testid="provider-select"
-            >
-              {!providerOptions.length && <option value="">No providers registered</option>}
-              {providerOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <label
-              htmlFor="model"
-              className="block text-sm font-medium text-pine-deep mb-2"
-            >
-              ASR Model Weight
-            </label>
-            <select
-              id="model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={
-                isSubmitting ||
-                !selectedProvider ||
-                registryLoading ||
-                !providerReady ||
-                !weightOptions.length
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-              data-testid="model-select"
-            >
-            {!weightOptions.length && <option value="">No model weights registered</option>}
-            {weightOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {!providerReady && selectedProvider && (
-              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Selected ASR model set is unavailable.
-                Enable the set and add weights.
-              </p>
-            )}
-            {!weightOptions.length && providerReady && (
-              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Contact admin to register a model weight.
-              </p>
-            )}
-            {registryError && (
-              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> {registryError}
-              </p>
-            )}
-            {providerReady && selectedWeightOption && !weightReady && (
-              <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Selected weight cannot be used. Choose an enabled weight with
-                files.
-              </p>
-            )}
-          </div>
-
-          <div className="mb-6">
-            <label
-              htmlFor="language"
-              className="block text-sm font-medium text-pine-deep mb-2"
-            >
-              Language
-            </label>
-            <select
-              id="language"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              disabled={isSubmitting}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-              data-testid="language-select"
-            >
-              <option value="auto">Auto-detect</option>
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="it">Italian</option>
-              <option value="pt">Portuguese</option>
-              <option value="nl">Dutch</option>
-              <option value="ru">Russian</option>
-              <option value="zh">Chinese</option>
-              <option value="ja">Japanese</option>
-              <option value="ko">Korean</option>
-            </select>
-          </div>
-
-          <div className="mb-6 space-y-3">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={enableTimestamps}
-                    onChange={(e) => setEnableTimestamps(e.target.checked)}
-                    disabled={isSubmitting}
-                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
-                    data-testid="timestamps-checkbox"
-                  />
-                  <span className="ml-2 text-sm text-pine-deep">
-                    Include timestamps
-                  </span>
-                </label>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={enableSpeakerDetection && supportsDiarization}
-                    onChange={(e) => setEnableSpeakerDetection(e.target.checked)}
-                    disabled={detectSpeakersDisabled}
-                    className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green disabled:opacity-50"
-                    data-testid="speakers-checkbox"
-                  />
-                  <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
-                </label>
-                {detectSpeakersHelpText && (
-                  <p className="text-xs text-pine-mid pl-6">{detectSpeakersHelpText}</p>
-                )}
-                {enableSpeakerDetection && supportsDiarization && (
-                  <>
-                    <div className="flex flex-col gap-2 text-sm text-pine-deep">
-                      <label className="text-sm text-pine-mid">Diarizer set</label>
-                      <select
-                        value={diarizerProvider}
-                        onChange={(e) => setDiarizerProvider(e.target.value)}
-                        disabled={detectSpeakersDisabled || !diarizerProviderGroups.length}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                        data-testid="diarizer-provider-select"
-                      >
-                        {!diarizerProviderGroups.length && <option value="">No diarizers registered</option>}
-                        {diarizerProviderGroups.map((group) => (
-                          <option key={group.name} value={group.name}>
-                            {group.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-2 text-sm text-pine-deep">
-                      <label className="text-sm text-pine-mid">Diarizer weight</label>
-                      <select
-                        value={diarizer}
-                        onChange={(e) => setDiarizer(e.target.value)}
-                        disabled={detectSpeakersDisabled || !diarizerWeightsForProvider.length}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                        data-testid="diarizer-select"
-                      >
-                        {!diarizerWeightsForProvider.length && (
-                          <option value="">No weights in this set</option>
-                        )}
-                        {diarizerWeightsForProvider.map((option) => (
-                          <option key={option.key} value={option.key} disabled={!option.available}>
-                            {option.display_name}
-                            {!option.available && option.notes.length
-                              ? ` (${option.notes.join(', ')})`
-                              : !option.available
-                                ? ' (unavailable)'
-                                : ''}
-                          </option>
-                        ))}
-                      </select>
-            {!availableDiarizerWeights.find((option) => option.key === diarizer) && diarizer && (
-              <p className="text-xs text-terracotta">
-                Selected diarization model is unavailable; choose another option.
-              </p>
-            )}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
-                      <label className="text-sm text-pine-mid">Speakers:</label>
-                      <select
-                        value={speakerCount}
-                        onChange={(e) =>
-                          setSpeakerCount(
-                            e.target.value === 'auto' ? 'auto' : Number(e.target.value)
-                          )
-                        }
-                        disabled={detectSpeakersDisabled}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
-                        data-testid="speaker-count-select"
-                      >
-                        <option value="auto">Auto-detect</option>
-                        {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                          <option key={n} value={n}>
-                            {n} speakers
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
+          <div
+            className="mb-6 rounded-lg border border-sage-mid bg-sage-light/40 p-4"
+            data-testid="job-default-summary"
+          >
+            <div className="text-xs uppercase text-pine-mid tracking-wide">Defaults</div>
+            <div className="mt-2 text-sm text-pine-deep">
+              ASR: <span className="font-medium">{(selectedProvider || resolvedDefaults.provider || 'Unknown') + ' / ' + (model || resolvedDefaults.model || 'Unknown')}</span>
             </div>
+            <div className="text-sm text-pine-deep">
+              Language: <span className="font-medium">{language || resolvedDefaults.language || 'auto'}</span>
+            </div>
+            <div className="text-sm text-pine-deep">
+              Diarization: <span className="font-medium">{supportsDiarization ? (enableSpeakerDetection ? 'On' : 'Off') : (adminAllowsDiarization ? 'Unavailable' : 'Disabled by admin')}</span>
+            </div>
+            <div className="text-sm text-pine-deep">
+              Overrides: <span className="font-medium">ASR {allowAsrOverrides ? 'On' : 'Off'} · Diarizer {allowDiarizerOverrides ? 'On' : 'Off'}</span>
+            </div>
+            {(allowAsrOverrides || allowDiarizerOverrides) ? (
+              <p className="text-xs text-pine-mid mt-2">Adjust these in Advanced options.</p>
+            ) : (
+              <p className="text-xs text-pine-mid mt-2">Per-job overrides are disabled by the administrator.</p>
+            )}
+            {(!providerReady || !weightReady) && (
+              <p className="text-xs text-terracotta mt-2">
+                Default model is unavailable; open Advanced options to select an enabled weight.
+              </p>
+            )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsAdvancedOpen((prev) => !prev)}
+            className="mb-4 w-full flex items-center justify-between rounded-lg border border-sage-mid bg-white px-4 py-2 text-sm text-pine-deep hover:bg-sage-light transition-colors"
+            data-testid="advanced-toggle"
+          >
+            <span>Advanced options</span>
+            {isAdvancedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {isAdvancedOpen && (
+            <div className="mb-6 space-y-6 rounded-lg border border-sage-mid bg-white p-4" data-testid="advanced-panel">
+              <div>
+                <h3 className="text-sm font-semibold text-pine-deep mb-2">ASR Selection</h3>
+                {!allowAsrOverrides ? (
+                  <p className="text-xs text-pine-mid">
+                    Per-job ASR selection is disabled by the administrator.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <label
+                      htmlFor="provider"
+                      className="block text-sm font-medium text-pine-deep mb-2"
+                    >
+                      ASR Model
+                    </label>
+                    <select
+                      id="provider"
+                      value={selectedProvider}
+                      onChange={(e) => handleProviderChange(e.target.value)}
+                      disabled={isSubmitting || registryLoading || !providerOptions.length}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                      data-testid="provider-select"
+                    >
+                      {!providerOptions.length && <option value="">No providers registered</option>}
+                      {providerOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <label
+                      htmlFor="model"
+                      className="block text-sm font-medium text-pine-deep mb-2"
+                    >
+                      ASR Model Weight
+                    </label>
+                    <select
+                      id="model"
+                      value={model}
+                      onChange={(e) => {
+                        setHasUserChanges(true);
+                        setModel(e.target.value);
+                      }}
+                      disabled={
+                        isSubmitting ||
+                        !selectedProvider ||
+                        registryLoading ||
+                        !providerReady ||
+                        !weightOptions.length
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                      data-testid="model-select"
+                    >
+                      {!weightOptions.length && <option value="">No model weights registered</option>}
+                      {weightOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value} disabled={!opt.isUsable}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    {!providerReady && selectedProvider && (
+                      <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Selected ASR model set is unavailable.
+                        Enable the set and add weights.
+                      </p>
+                    )}
+                    {!weightOptions.length && providerReady && (
+                      <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Contact admin to register a model weight.
+                      </p>
+                    )}
+                    {registryError && (
+                      <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> {registryError}
+                      </p>
+                    )}
+                    {providerReady && selectedWeightOption && !weightReady && (
+                      <p className="text-xs text-terracotta mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Selected weight cannot be used. Choose an enabled weight with
+                        files.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {allowAsrOverrides && (
+                <div>
+                  <h3 className="text-sm font-semibold text-pine-deep mb-2">Language</h3>
+                  <select
+                    id="language"
+                    value={language}
+                    onChange={(e) => {
+                      setHasUserChanges(true);
+                      setLanguage(e.target.value);
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                    data-testid="language-select"
+                  >
+                    <option value="auto">Auto-detect</option>
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="nl">Dutch</option>
+                    <option value="ru">Russian</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                  </select>
+                </div>
+              )}
+
+              {allowAsrOverrides && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-pine-deep">Transcription Options</h3>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={enableTimestamps}
+                      onChange={(e) => {
+                        setHasUserChanges(true);
+                        setEnableTimestamps(e.target.checked);
+                      }}
+                      disabled={isSubmitting}
+                      className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                      data-testid="timestamps-checkbox"
+                    />
+                    <span className="ml-2 text-sm text-pine-deep">Include timestamps</span>
+                  </label>
+                </div>
+              )}
+
+              {allowDiarizerOverrides ? (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-pine-deep">Speaker Detection</h3>
+                  {!adminAllowsDiarization ? (
+                    <p className="text-xs text-pine-mid">
+                      Speaker detection is disabled by the administrator.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={enableSpeakerDetection && supportsDiarization}
+                          onChange={(e) => {
+                            setHasUserChanges(true);
+                            setEnableSpeakerDetection(e.target.checked);
+                          }}
+                          disabled={detectSpeakersDisabled}
+                          className="w-4 h-4 text-forest-green border-gray-300 rounded focus:ring-forest-green disabled:opacity-50"
+                          data-testid="speakers-checkbox"
+                        />
+                        <span className="ml-2 text-sm text-pine-deep">Detect speakers</span>
+                      </label>
+                      {detectSpeakersHelpText && (
+                        <p className="text-xs text-pine-mid pl-6">{detectSpeakersHelpText}</p>
+                      )}
+                      {enableSpeakerDetection && supportsDiarization && (
+                        <>
+                          <div className="flex flex-col gap-2 text-sm text-pine-deep">
+                            <label className="text-sm text-pine-mid">Diarizer set</label>
+                            <select
+                              value={diarizerProvider}
+                              onChange={(e) => {
+                                setHasUserChanges(true);
+                                setDiarizerProvider(e.target.value);
+                              }}
+                              disabled={detectSpeakersDisabled || !diarizerProviderGroups.length}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                              data-testid="diarizer-provider-select"
+                            >
+                              {!diarizerProviderGroups.length && <option value="">No diarizers registered</option>}
+                              {diarizerProviderGroups.map((group) => (
+                                <option key={group.name} value={group.name}>
+                                  {group.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-2 text-sm text-pine-deep">
+                            <label className="text-sm text-pine-mid">Diarizer weight</label>
+                            <select
+                              value={diarizer}
+                              onChange={(e) => {
+                                setHasUserChanges(true);
+                                setDiarizer(e.target.value);
+                              }}
+                              disabled={detectSpeakersDisabled || !diarizerWeightsForProvider.length}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                              data-testid="diarizer-select"
+                            >
+                              {!diarizerWeightsForProvider.length && (
+                                <option value="">No weights in this set</option>
+                              )}
+                              {diarizerWeightsForProvider.map((option) => (
+                                <option key={option.key} value={option.key} disabled={!option.available}>
+                                  {option.display_name}
+                                  {!option.available && option.notes.length
+                                    ? ` (${option.notes.join(', ')})`
+                                    : !option.available
+                                      ? ' (unavailable)'
+                                      : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {!availableDiarizerWeights.find((option) => option.key === diarizer) && diarizer && (
+                              <p className="text-xs text-terracotta">
+                                Selected diarization model is unavailable; choose another option.
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-pine-deep flex-wrap">
+                            <label className="text-sm text-pine-mid">Speakers:</label>
+                            <select
+                              value={speakerCount}
+                              onChange={(e) => {
+                                setHasUserChanges(true);
+                                setSpeakerCount(
+                                  e.target.value === 'auto' ? 'auto' : Number(e.target.value)
+                                );
+                              }}
+                              disabled={detectSpeakersDisabled}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent disabled:bg-gray-100"
+                              data-testid="speaker-count-select"
+                            >
+                              <option value="auto">Auto-detect</option>
+                              {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                                <option key={n} value={n}>
+                                  {n} speakers
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-pine-mid">
+                  Per-job diarization overrides are disabled by the administrator.
+                </p>
+              )}
+
+              {allowAsrOverrides && (
+                <div>
+                  <h3 className="text-sm font-semibold text-pine-deep mb-2">Extra Flags (Optional)</h3>
+                  <textarea
+                    value={extraFlags}
+                    onChange={(e) => {
+                      setHasUserChanges(true);
+                      setExtraFlags(e.target.value);
+                    }}
+                    rows={3}
+                    placeholder="Optional advanced flags for this job"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-transparent"
+                    data-testid="extra-flags-input"
+                  />
+                  <p className="text-xs text-pine-mid mt-1">
+                    Advanced flags are only used when enabled by the administrator.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">

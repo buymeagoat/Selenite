@@ -83,10 +83,15 @@ export const TranscriptView: React.FC = () => {
 
   const hasSpeakerLabels = transcript?.has_speaker_labels ?? false;
   const hasTimestamps = transcript?.has_timestamps ?? false;
-  const speakerDataPresent = useMemo(
-    () => Boolean(transcript?.segments.some((segment) => segment.speaker)),
-    [transcript?.segments]
-  );
+  const speakerDataPresent = useMemo(() => {
+    if (!transcript) return false;
+    if (transcript.segments.some((segment) => segment.speaker)) {
+      return true;
+    }
+    // Fall back to the rendered text when segment speaker labels are missing.
+    const text = transcript.text ?? '';
+    return /\bSPEAKER[_\s-]*\d+\b/i.test(text) || /\bSpeaker\s+\d+\b/i.test(text);
+  }, [transcript]);
 
   if (isLoading) {
     return (

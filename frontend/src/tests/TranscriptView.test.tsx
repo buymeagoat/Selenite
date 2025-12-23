@@ -59,10 +59,13 @@ describe('TranscriptView', () => {
     expect(localStorage.getItem('auth_token')).toBe('abc123');
     const jobHeading = await screen.findByText(/job id: job-1/i);
     expect(jobHeading).toBeInTheDocument();
-    const transcriptText = await screen.findByText(/\[00:00\.0 – 00:05\.0\] hello world/i);
+    const transcriptText = await screen.findByText(/\[00:00\.0 [-–] 00:05\.0\] hello world/i);
     expect(transcriptText).toBeInTheDocument();
     const helloInstances = await screen.findAllByText(/hello world/i);
     expect(helloInstances.length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(/speaker separation is not available for this transcript/i)
+    ).not.toBeInTheDocument();
   });
 
   it('surfaces errors and shows fallback when transcript cannot be loaded', async () => {
@@ -73,5 +76,24 @@ describe('TranscriptView', () => {
 
     await waitFor(() => expect(toastMock.showError).toHaveBeenCalled());
     expect(screen.getByText(/transcript not available/i)).toBeInTheDocument();
+  });
+
+  it('suppresses the warning when text includes speaker labels', async () => {
+    fetchTranscriptMock.mockResolvedValue({
+      job_id: 'job-2',
+      text: '[00:00.0 - 00:05.0] SPEAKER_00: Hello world',
+      segments: [{ id: 1, start: 0, end: 5, text: 'Hello world' }],
+      language: 'en',
+      duration: 5,
+      has_timestamps: true,
+      has_speaker_labels: true,
+    });
+
+    renderWithRouter('/transcripts/job-2');
+
+    await waitFor(() => expect(fetchTranscriptMock).toHaveBeenCalledWith('job-2'));
+    expect(
+      screen.queryByText(/speaker separation is not available for this transcript/i)
+    ).not.toBeInTheDocument();
   });
 });

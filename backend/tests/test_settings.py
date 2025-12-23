@@ -131,7 +131,8 @@ class TestGetSettings:
             assert data["default_language"] == "auto"
             assert data["default_diarizer"] == "diar-entry"
             assert data["diarization_enabled"] is False
-            assert data["allow_job_overrides"] is False
+            assert data["allow_asr_overrides"] is False
+            assert data["allow_diarizer_overrides"] is False
             assert data["enable_timestamps"] is True
             if "default_speaker_detection" in data:
                 assert data["default_speaker_detection"] is True
@@ -155,7 +156,8 @@ class TestGetSettings:
             assert data["default_language"] == "auto"
             assert data["default_diarizer"] == "vad"
             assert data["diarization_enabled"] is False
-            assert data["allow_job_overrides"] is False
+            assert data["allow_asr_overrides"] is False
+            assert data["allow_diarizer_overrides"] is False
             assert data["max_concurrent_jobs"] == 3
 
     async def test_get_settings_requires_auth(self, test_db):
@@ -177,7 +179,8 @@ class TestUpdateSettings:
                 "default_language": "en",
                 "default_diarizer": "diar-entry",
                 "diarization_enabled": True,
-                "allow_job_overrides": True,
+                "allow_asr_overrides": True,
+                "allow_diarizer_overrides": True,
                 "enable_timestamps": False,
                 "default_speaker_detection": False,
                 "max_concurrent_jobs": 5,
@@ -193,7 +196,8 @@ class TestUpdateSettings:
                 assert data["settings"]["default_language"] == "en"
                 assert data["settings"]["default_diarizer"] == "diar-entry"
                 assert data["settings"]["diarization_enabled"] is True
-                assert data["settings"]["allow_job_overrides"] is True
+                assert data["settings"]["allow_asr_overrides"] is True
+                assert data["settings"]["allow_diarizer_overrides"] is True
                 assert data["settings"]["enable_timestamps"] is False
                 assert data["settings"]["default_speaker_detection"] is False
                 assert data["settings"]["max_concurrent_jobs"] == 5

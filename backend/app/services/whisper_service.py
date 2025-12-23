@@ -296,42 +296,102 @@ class WhisperService:
     def _diarizer_available(self, record) -> bool:
         if not record:
             return False
+        provider = (record.set_name or "").lower()
         model_path = Path(record.abs_path)
         if not model_path.exists():
             logger.warning("Diarizer path missing for %s: %s", record.name, model_path)
             return False
-        config_path = model_path / "config.yaml" if model_path.is_dir() else model_path
-        if not config_path.exists():
-            logger.warning("Diarizer config missing for %s at %s", record.name, config_path)
-            return False
-        try:
-            import torchaudio  # type: ignore
 
-            if not hasattr(torchaudio, "set_audio_backend"):
-                torchaudio.set_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
-            if not hasattr(torchaudio, "get_audio_backend"):
-                torchaudio.get_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
-            if not hasattr(torchaudio, "list_audio_backends"):
-                torchaudio.list_audio_backends = lambda *args, **kwargs: []  # type: ignore[attr-defined]
-            else:
-                try:
-                    torchaudio.set_audio_backend("soundfile")  # type: ignore[attr-defined]
-                except Exception:
-                    torchaudio.set_audio_backend = lambda *args, **kwargs: None  # fallback no-op
-        except ImportError:
-            pass
-        try:
-            import torch  # noqa: F401
-            import pyannote.audio  # noqa: F401
-        except ImportError as exc:
-            logger.warning("Diarizer '%s' not available (missing deps): %s", record.name, exc)
-            return False
-        except Exception as exc:
-            logger.warning("Diarizer '%s' import error: %s", record.name, exc)
-            return False
-        return True
+        if provider in {"pyannote", "whisperx"}:
+            config_path = model_path / "config.yaml" if model_path.is_dir() else model_path
+            if not config_path.exists():
+                logger.warning("Diarizer config missing for %s at %s", record.name, config_path)
+                return False
+            try:
+                import torchaudio  # type: ignore
 
-    async def _run_diarization(self, audio_path: str, record) -> Dict[str, Any]:
+                if not hasattr(torchaudio, "set_audio_backend"):
+                    torchaudio.set_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+                if not hasattr(torchaudio, "get_audio_backend"):
+                    torchaudio.get_audio_backend = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+                if not hasattr(torchaudio, "list_audio_backends"):
+                    torchaudio.list_audio_backends = lambda *args, **kwargs: []  # type: ignore[attr-defined]
+                else:
+                    try:
+                        torchaudio.set_audio_backend("soundfile")  # type: ignore[attr-defined]
+                    except Exception:
+                        torchaudio.set_audio_backend = (
+                            lambda *args, **kwargs: None
+                        )  # fallback no-op
+            except ImportError:
+                pass
+            try:
+                import torch  # noqa: F401
+                import pyannote.audio  # noqa: F401
+            except ImportError as exc:
+                logger.warning("Diarizer '%s' not available (missing deps): %s", record.name, exc)
+                return False
+            except Exception as exc:
+                logger.warning("Diarizer '%s' import error: %s", record.name, exc)
+                return False
+            return True
+
+        if provider == "vad":
+            return True
+
+        logger.warning("Diarizer provider '%s' is not supported yet", provider)
+        return False
+
+    def _collect_diarization_segments(self, diarization: Any) -> list[Dict[str, Any]]:
+        """Extract diarization segments from a pyannote Annotation."""
+        segments: list[Dict[str, Any]] = []
+        if diarization is None:
+            return segments
+        try:
+            iterator = diarization.itertracks(yield_label=True)
+        except Exception:
+            return segments
+        for segment, _, label in iterator:
+            start = float(getattr(segment, "start", 0.0) or 0.0)
+            end = float(getattr(segment, "end", 0.0) or 0.0)
+            if end <= start:
+                continue
+            segments.append({"start": start, "end": end, "speaker": str(label)})
+        return segments
+
+    def _assign_speaker_labels(
+        self, segments: list[Dict[str, Any]], diarization_segments: list[Dict[str, Any]]
+    ) -> list[Dict[str, Any]]:
+        """Assign speaker labels to transcript segments by time overlap."""
+        if not diarization_segments:
+            return segments
+        for segment in segments:
+            seg_start = float(segment.get("start") or 0.0)
+            seg_end = float(segment.get("end") or 0.0)
+            if seg_end <= seg_start:
+                continue
+            best_speaker = None
+            best_overlap = 0.0
+            for diar in diarization_segments:
+                diar_start = float(diar.get("start") or 0.0)
+                diar_end = float(diar.get("end") or 0.0)
+                overlap = min(seg_end, diar_end) - max(seg_start, diar_start)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_speaker = diar.get("speaker")
+            if best_speaker:
+                segment["speaker"] = best_speaker
+        return segments
+
+    def _apply_single_speaker_label(self, segments: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        """Apply a single speaker label across all transcript segments."""
+        for segment in segments:
+            segment["speaker"] = segment.get("speaker") or "Speaker 1"
+        return segments
+
+    async def _run_pyannote_diarization(
+        self, audio_path: str, record, *, speaker_count_hint: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Run pyannote diarization for a given registry record."""
         try:
             import torchaudio  # type: ignore
@@ -493,19 +553,27 @@ class WhisperService:
                     pass
             try:
                 pipeline = Pipeline.from_pretrained(str(local_config_path))
+                diarization_args: Dict[str, Any] = {}
+                if speaker_count_hint is not None and speaker_count_hint >= 2:
+                    diarization_args["num_speakers"] = speaker_count_hint
                 try:
                     waveform, sample_rate = _load_waveform(Path(audio_path))
-                    diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+                    diarization = pipeline(
+                        {"waveform": waveform, "sample_rate": sample_rate}, **diarization_args
+                    )
                 except Exception as exc:
                     logger.warning(
                         "Falling back to path-based diarization load after waveform decode failure: %s",
                         exc,
                     )
-                    diarization = pipeline(audio_path)
-                speakers = set()
-                for segment, _, label in diarization.itertracks(yield_label=True):
-                    speakers.add(label)
-                return {"speaker_count": max(1, len(speakers)), "raw": diarization}
+                    diarization = pipeline(audio_path, **diarization_args)
+                diarization_segments = self._collect_diarization_segments(diarization)
+                speakers = {seg["speaker"] for seg in diarization_segments if seg.get("speaker")}
+                return {
+                    "speaker_count": max(1, len(speakers)),
+                    "raw": diarization,
+                    "segments": diarization_segments,
+                }
             finally:
                 torch.load = original_load  # type: ignore[assignment]
                 ser.load = original_ser_load  # type: ignore[assignment]
@@ -515,6 +583,25 @@ class WhisperService:
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _infer)
+
+    async def _run_vad_diarization(self, audio_path: str, record) -> Dict[str, Any]:
+        """Fallback diarization that tags a single speaker when VAD is selected."""
+        return {"speaker_count": 1, "segments": [], "raw": None}
+
+    async def _run_diarization(
+        self, audio_path: str, record, *, speaker_count_hint: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Run diarization for the given registry record."""
+        provider = (record.set_name or "").lower() if record else ""
+        if provider in {"pyannote", "whisperx"}:
+            if provider == "whisperx":
+                logger.info("Using pyannote pipeline for whisperx diarizer provider")
+            return await self._run_pyannote_diarization(
+                audio_path, record, speaker_count_hint=speaker_count_hint
+            )
+        if provider == "vad":
+            return await self._run_vad_diarization(audio_path, record)
+        raise RuntimeError(f"Unsupported diarizer provider: {provider or 'unknown'}")
 
     async def process_job(self, job_id: str, db: AsyncSession) -> None:
         """Process a transcription job end-to-end.
@@ -728,18 +815,44 @@ class WhisperService:
                 model_obj=model_obj,
             )
 
+            diarization_attempted = False
             if job.has_speaker_labels and diarizer_ready and diarizer_record:
                 try:
+                    speaker_count_hint = (
+                        job.speaker_count if job.speaker_count and job.speaker_count > 1 else None
+                    )
                     diarization_result = await self._run_diarization(
-                        audio_path_for_processing, diarizer_record
+                        audio_path_for_processing,
+                        diarizer_record,
+                        speaker_count_hint=speaker_count_hint,
                     )
                     job.speaker_count = diarization_result.get("speaker_count") or 1
+                    diarization_segments = diarization_result.get("segments") or []
+                    if diarization_segments:
+                        transcript_result["segments"] = self._assign_speaker_labels(
+                            transcript_result["segments"], diarization_segments
+                        )
+                        transcript_result["text"] = self._format_full_text(
+                            transcript_result["segments"],
+                            include_timestamps=job.has_timestamps,
+                            include_speakers=True,
+                        )
+                    elif diarizer_record.set_name.lower() == "vad":
+                        transcript_result["segments"] = self._apply_single_speaker_label(
+                            transcript_result["segments"]
+                        )
+                        transcript_result["text"] = self._format_full_text(
+                            transcript_result["segments"],
+                            include_timestamps=job.has_timestamps,
+                            include_speakers=True,
+                        )
                     logger.info(
                         "Job %s diarization success using %s: %s speakers",
                         job_id,
                         diarizer_record.name,
                         job.speaker_count,
                     )
+                    diarization_attempted = True
                 except Exception as exc:
                     logger.warning(
                         "Job %s diarization failed with %s: %s; falling back to 1 speaker",
@@ -750,6 +863,10 @@ class WhisperService:
                     job.diarizer_used = f"{job.diarizer_used} (failed)"
                     job.has_speaker_labels = False
                     job.speaker_count = 1
+                    diarization_attempted = True
+
+            if diarization_attempted:
+                await db.commit()
 
             duration = transcript_result.get("duration") or 0.0
             if duration <= 0 and job.duration:

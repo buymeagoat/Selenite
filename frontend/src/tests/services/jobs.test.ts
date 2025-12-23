@@ -48,6 +48,7 @@ describe('job services', () => {
       enable_timestamps: true,
       enable_speaker_detection: false,
       diarizer: 'vad',
+      extra_flags: '--foo=bar',
     });
 
     expect(apiUpload).toHaveBeenCalledWith('/jobs', expect.any(FormData));
@@ -59,6 +60,7 @@ describe('job services', () => {
     expect(entries).toContainEqual(['enable_timestamps', 'true']);
     expect(entries).toContainEqual(['enable_speaker_detection', 'false']);
     expect(entries).toContainEqual(['diarizer', 'vad']);
+    expect(entries).toContainEqual(['extra_flags', '--foo=bar']);
     const fileEntry = entries.find(([key]) => key === 'file');
     expect(fileEntry?.[1]).toBeInstanceOf(File);
   });

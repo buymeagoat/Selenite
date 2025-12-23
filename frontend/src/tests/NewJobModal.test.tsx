@@ -46,6 +46,7 @@ const mockRegistrySets = [
         description: 'default weight',
         abs_path: '/backend/models/test-asr/asr-weight',
         checksum: null,
+        has_weights: true,
         enabled: true,
         disable_reason: null,
         created_at: '2025-01-01T00:00:00Z',
@@ -91,7 +92,8 @@ const baseContext: SettingsContextValue = {
     default_diarizer_provider: 'pyannote',
     default_diarizer: 'diar-weight',
     diarization_enabled: true,
-    allow_job_overrides: true,
+    allow_asr_overrides: true,
+    allow_diarizer_overrides: true,
     enable_timestamps: true,
     max_concurrent_jobs: 3,
     time_zone: 'UTC',
@@ -138,6 +140,13 @@ const renderModal = (
     </SettingsContext.Provider>
   );
 
+const openAdvanced = async () => {
+  if (!screen.queryByTestId('advanced-panel')) {
+    fireEvent.click(await screen.findByTestId('advanced-toggle'));
+  }
+  await screen.findByTestId('advanced-panel');
+};
+
   it('does not render when isOpen is false', () => {
     renderModal({ isOpen: false });
     expect(screen.queryByText(/start transcription/i)).not.toBeInTheDocument();
@@ -168,21 +177,138 @@ const renderModal = (
 
   it('shows default model and language selections', async () => {
     renderModal();
+    await openAdvanced();
     const modelSelect = (await screen.findByLabelText(/model weight/i)) as HTMLSelectElement;
     await waitFor(() => {
       expect(modelSelect.value).toBe('asr-weight');
     });
-    expect((screen.getByLabelText(/language/i) as HTMLSelectElement).value).toBe('auto');
+    expect((screen.getByTestId('language-select') as HTMLSelectElement).value).toBe('auto');
   });
 
-  it('has timestamps checkbox checked by default', () => {
+  it('has timestamps checkbox checked by default', async () => {
     renderModal();
+    await openAdvanced();
     const checkbox = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
   });
 
+  it('initializes defaults after settings load if modal opened early', async () => {
+    const registryWithTiny = [
+      {
+        id: 1,
+        type: 'asr',
+        name: 'whisper',
+        description: 'whisper provider',
+        abs_path: '/backend/models/whisper',
+        enabled: true,
+        disable_reason: null,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+        weights: [
+          {
+            id: 1,
+            set_id: 1,
+            type: 'asr',
+            name: 'base',
+            description: 'base weight',
+            abs_path: '/backend/models/whisper/base',
+            checksum: null,
+            has_weights: true,
+            enabled: true,
+            disable_reason: null,
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z',
+          },
+          {
+            id: 2,
+            set_id: 1,
+            type: 'asr',
+            name: 'tiny',
+            description: 'tiny weight',
+            abs_path: '/backend/models/whisper/tiny',
+            checksum: null,
+            has_weights: true,
+            enabled: true,
+            disable_reason: null,
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z',
+          },
+        ],
+      },
+    ];
+    mockedListModelSets.mockResolvedValueOnce(registryWithTiny);
+
+    const loadingContext: SettingsContextValue = {
+      ...baseContext,
+      status: 'loading',
+      settings: null,
+    };
+
+    const { rerender } = render(
+      <SettingsContext.Provider value={loadingContext}>
+        <NewJobModal {...defaultProps} />
+      </SettingsContext.Provider>
+    );
+
+    await openAdvanced();
+
+    const readyContext: SettingsContextValue = {
+      ...baseContext,
+      status: 'ready',
+      settings: {
+        ...baseContext.settings!,
+        default_asr_provider: 'whisper',
+        default_model: 'tiny',
+      },
+    };
+
+    rerender(
+      <SettingsContext.Provider value={readyContext}>
+        <NewJobModal {...defaultProps} />
+      </SettingsContext.Provider>
+    );
+
+    await openAdvanced();
+    const modelSelect = (await screen.findByTestId('model-select')) as HTMLSelectElement;
+    await waitFor(() => expect(modelSelect.value).toBe('tiny'));
+  });
+
+  it('submits selected model and provider even when they match defaults', async () => {
+    const submitSpy = vi.fn().mockResolvedValue(undefined);
+    renderModal({ onSubmit: submitSpy });
+    await openAdvanced();
+    await waitFor(() => expect(screen.getByTestId('provider-select')).toBeEnabled());
+    await waitFor(() => expect(screen.getByTestId('model-select')).toBeEnabled());
+    await waitFor(() => {
+      expect((screen.getByTestId('provider-select') as HTMLSelectElement).value).toBe('test-asr');
+      expect((screen.getByTestId('model-select') as HTMLSelectElement).value).toBe('asr-weight');
+    });
+
+    const fileInput = (await screen.findByTestId('file-input')) as HTMLInputElement;
+    const file = new File(['audio'], 'sample.mp3', { type: 'audio/mpeg' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const submitButton = screen.getByTestId('start-transcription-btn');
+    await waitFor(() => expect(submitButton).toBeEnabled());
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(submitSpy).toHaveBeenCalledTimes(1));
+    expect(submitSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'test-asr',
+        model: 'asr-weight',
+        language: 'auto',
+        enableTimestamps: true,
+        enableSpeakerDetection: true,
+        diarizer: 'diar-weight',
+        speakerCount: null,
+      })
+    );
+  });
+
   it('allows toggling detect speakers', async () => {
     renderModal();
+    await openAdvanced();
     const checkbox = (await screen.findByLabelText(/detect speakers/i)) as HTMLInputElement;
     expect(checkbox).not.toBeDisabled();
     expect(checkbox.checked).toBe(true);
@@ -200,6 +326,7 @@ const renderModal = (
         },
       }
     );
+    await openAdvanced();
     const select = (await screen.findByTestId('diarizer-select')) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
     expect(select.value).toBe('diar-weight');
@@ -209,10 +336,44 @@ const renderModal = (
     mockedFetchCapabilities.mockResolvedValueOnce({ asr: [], diarizers: [] });
     mockedListModelSets.mockResolvedValueOnce([]);
     renderModal();
+    await openAdvanced();
     const modelSelect = (await screen.findByTestId('model-select')) as HTMLSelectElement;
     expect(modelSelect).toBeDisabled();
     expect(screen.getByTestId('start-transcription-btn')).toBeDisabled();
     expect(await screen.findByText(/no providers registered/i)).toBeInTheDocument();
     expect(await screen.findByText(/no model weights registered/i)).toBeInTheDocument();
+  });
+
+  it('shows advanced panel when toggled', async () => {
+    renderModal();
+    const toggle = screen.getByTestId('advanced-toggle');
+    expect(screen.queryByTestId('advanced-panel')).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(await screen.findByTestId('advanced-panel')).toBeInTheDocument();
+  });
+
+  it('hides override controls when admin disables per-job overrides', async () => {
+    renderModal(
+      {},
+      {
+        settings: {
+          ...baseContext.settings!,
+          allow_asr_overrides: false,
+          allow_diarizer_overrides: false,
+        },
+      }
+    );
+    await openAdvanced();
+    expect(
+      screen.getByText(/per-job asr selection is disabled by the administrator/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('provider-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('language-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timestamps-checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('extra-flags-input')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/per-job diarization overrides are disabled by the administrator/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('speakers-checkbox')).not.toBeInTheDocument();
   });
 });

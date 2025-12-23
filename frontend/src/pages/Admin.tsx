@@ -115,7 +115,8 @@ export const Admin: React.FC = () => {
   const [defaultDiarizerProvider, setDefaultDiarizerProvider] = useState('');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
   const [diarizationEnabled, setDiarizationEnabled] = useState(false);
-  const [allowJobOverrides, setAllowJobOverrides] = useState(false);
+    const [allowAsrOverrides, setAllowAsrOverrides] = useState(false);
+    const [allowDiarizerOverrides, setAllowDiarizerOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [transcodeToWav, setTranscodeToWav] = useState(true);
   const [enableEmptyWeights, setEnableEmptyWeights] = useState(false);
@@ -263,7 +264,8 @@ export const Admin: React.FC = () => {
         setDefaultDiarizer(settingsData.default_diarizer ?? '');
         setDefaultDiarizerProvider(settingsData.default_diarizer_provider ?? '');
         setDiarizationEnabled(settingsData.diarization_enabled);
-        setAllowJobOverrides(settingsData.allow_job_overrides);
+        setAllowAsrOverrides(settingsData.allow_asr_overrides);
+        setAllowDiarizerOverrides(settingsData.allow_diarizer_overrides);
         setEnableTimestamps(settingsData.enable_timestamps);
         setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
         setUserTimeZone(settingsData.time_zone || browserTimeZone);
@@ -852,6 +854,7 @@ export const Admin: React.FC = () => {
         default_asr_provider: provider,
         default_model: model,
         default_language: defaultLanguage,
+        allow_asr_overrides: allowAsrOverrides,
         enable_timestamps: enableTimestamps,
         max_concurrent_jobs: maxConcurrentJobs,
       });
@@ -875,7 +878,7 @@ export const Admin: React.FC = () => {
         default_diarizer_provider: provider,
         default_diarizer: weight,
         diarization_enabled: diarizationEnabled,
-        allow_job_overrides: allowJobOverrides,
+        allow_diarizer_overrides: allowDiarizerOverrides,
       });
       showSuccess('Diarization defaults saved');
       broadcastSettingsUpdated();
@@ -903,7 +906,8 @@ export const Admin: React.FC = () => {
         default_diarizer_provider: diarProvider,
         default_diarizer: diarWeight,
         diarization_enabled: diarizationEnabled,
-        allow_job_overrides: allowJobOverrides,
+        allow_asr_overrides: allowAsrOverrides,
+        allow_diarizer_overrides: allowDiarizerOverrides,
         enable_timestamps: enableTimestamps,
         max_concurrent_jobs: maxConcurrentJobs,
         transcode_to_wav: transcodeToWav,
@@ -1724,8 +1728,87 @@ export const Admin: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="border border-sage-mid rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
+              <h3 className="text-md font-semibold text-pine-deep">ASR Options</h3>
+              <button
+                type="button"
+                className="text-xs text-pine-mid underline flex items-center gap-1"
+                onClick={handleAvailabilityRefresh}
+              >
+                <RefreshCw className="w-3 h-3" /> Refresh
+              </button>
+            </div>
+            <div className="mb-3">
+              <label
+                htmlFor="default-asr-provider"
+                className="block text-sm font-medium text-pine-deep mb-1"
+              >
+                Default ASR Model
+              </label>
+              <p className="text-xs text-pine-mid mb-2">
+                Global default for all new jobs. The Model Registry tab remembers your last selection separately.
+              </p>
+              <select
+                id="default-asr-provider"
+                value={defaultAsrProvider}
+                onChange={(e) => setDefaultAsrProvider(e.target.value)}
+                disabled={isLoadingCapabilities || !registryAsrSets.length}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+                data-testid="default-asr-provider"
+              >
+                {!registryAsrSets.length && <option value="">No ASR model sets registered</option>}
+                {asrProviderOptions.map((provider) => (
+                  <option key={provider.name} value={provider.name}>
+                    {provider.enabled ? provider.name : `${provider.name} (disabled)`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-3">
+              <label
+                htmlFor="default-asr-model"
+                className="block text-sm font-medium text-pine-deep mb-1"
+              >
+                Default ASR Weight
+              </label>
+              <select
+                id="default-asr-model"
+                value={defaultModel}
+                onChange={(e) => setDefaultModel(e.target.value)}
+                disabled={isLoadingCapabilities || !asrWeightsForSelectedProvider.length}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+                data-testid="default-asr-model"
+              >
+                {!asrWeightsForSelectedProvider.length && (
+                  <option value="">No ASR weights registered for this set</option>
+                )}
+                {asrWeightsForSelectedProvider.map((weight) => (
+                  <option key={weight.name} value={weight.name}>
+                    {weight.enabled ? weight.name : `${weight.name} (disabled)`}
+                  </option>
+                ))}
+              </select>
+              {defaultAsrProvider && !asrWeightsForSelectedProvider.length && (
+                <p className="text-xs text-terracotta mt-1">
+                  No weights registered for this set. Add a weight under /backend/models/{defaultAsrProvider}/.
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end mt-4" />
+          </div>
+
+          <div className="border border-sage-mid rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-md font-semibold text-pine-deep">Diarization Options</h3>
-              {isLoadingCapabilities && <span className="text-xs text-pine-mid">Refreshing.</span>}
+              <div className="flex items-center gap-2">
+                {isLoadingCapabilities && <span className="text-xs text-pine-mid">Refreshing.</span>}
+                <button
+                  type="button"
+                  className="text-xs text-pine-mid underline flex items-center gap-1"
+                  onClick={handleAvailabilityRefresh}
+                >
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
             </div>
             <label className="flex items-center text-sm text-pine-deep mb-3">
               <input
@@ -1737,6 +1820,9 @@ export const Admin: React.FC = () => {
               />
               <span className="ml-2">Enable diarization globally</span>
             </label>
+            <p className="text-xs text-pine-mid mb-2">
+              Global defaults for diarization-enabled jobs. Choose the diarizer set and weight used when diarization is on.
+            </p>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="default-diarizer-provider" className="block text-sm font-medium text-pine-deep mb-1">
@@ -1803,94 +1889,52 @@ export const Admin: React.FC = () => {
                   </p>
                 )}
               </div>
-          <div>
-            <label className="block text-sm font-medium text-pine-deep mb-1">Per-job Overrides</label>
-            <label className="flex items-center text-sm text-pine-deep">
-              <input
-                type="checkbox"
-                    checked={allowJobOverrides}
-                    onChange={(e) => setAllowJobOverrides(e.target.checked)}
-                    disabled={!diarizationEnabled}
-                    className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green disabled:opacity-50"
-                    data-testid="default-allow-overrides"
-                  />
-                  <span className="ml-2">Allow users to pick diarizer per job</span>
-                </label>
-              </div>
-            </div>
-            <div className="flex justify-end mt-4">
-                  <div />
-                </div>
-              </div>
-
-          <div className="border border-sage-mid rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-md font-semibold text-pine-deep">ASR Models</h3>
-              <button
-                type="button"
-                className="text-xs text-pine-mid underline flex items-center gap-1"
-                onClick={handleAvailabilityRefresh}
-              >
-                <RefreshCw className="w-3 h-3" /> Refresh
-              </button>
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="default-asr-provider"
-                className="block text-sm font-medium text-pine-deep mb-1"
-              >
-                Default ASR Model
-              </label>
-              <p className="text-xs text-pine-mid mb-2">
-                Global default for all new jobs. The Model Registry tab remembers your last selection separately.
-              </p>
-              <select
-                id="default-asr-provider"
-                value={defaultAsrProvider}
-                onChange={(e) => setDefaultAsrProvider(e.target.value)}
-                disabled={isLoadingCapabilities || !registryAsrSets.length}
-                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
-                data-testid="default-asr-provider"
-              >
-                {!registryAsrSets.length && <option value="">No ASR model sets registered</option>}
-                {asrProviderOptions.map((provider) => (
-                  <option key={provider.name} value={provider.name}>
-                    {provider.enabled ? provider.name : `${provider.name} (disabled)`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="default-asr-model"
-                className="block text-sm font-medium text-pine-deep mb-1"
-              >
-                Default ASR Weight
-              </label>
-              <select
-                id="default-asr-model"
-                value={defaultModel}
-                onChange={(e) => setDefaultModel(e.target.value)}
-                disabled={isLoadingCapabilities || !asrWeightsForSelectedProvider.length}
-                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
-                data-testid="default-asr-model"
-              >
-                {!asrWeightsForSelectedProvider.length && (
-                  <option value="">No ASR weights registered for this set</option>
-                )}
-                {asrWeightsForSelectedProvider.map((weight) => (
-                  <option key={weight.name} value={weight.name}>
-                    {weight.enabled ? weight.name : `${weight.name} (disabled)`}
-                  </option>
-                ))}
-              </select>
-              {defaultAsrProvider && !asrWeightsForSelectedProvider.length && (
-                <p className="text-xs text-terracotta mt-1">
-                  No weights registered for this set. Add a weight under /backend/models/{defaultAsrProvider}/.
-                </p>
-              )}
             </div>
             <div className="flex justify-end mt-4" />
+          </div>
+
+          <div
+            className="border border-sage-mid rounded-lg p-4 lg:col-span-2"
+            data-testid="admin-overrides-card"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-md font-semibold text-pine-deep">Per-job Overrides</h3>
+            </div>
+            <p className="text-xs text-pine-mid mb-3">
+              Choose which advanced fields users can override per job in the New Job modal.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={allowAsrOverrides}
+                  onChange={(e) => setAllowAsrOverrides(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                  data-testid="default-allow-asr-overrides"
+                />
+                <span>
+                  Allow ASR overrides
+                  <span className="block text-xs text-pine-mid">
+                    Unlocks ASR model, language, timestamps, and extra flags per job.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={allowDiarizerOverrides}
+                  onChange={(e) => setAllowDiarizerOverrides(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                  data-testid="default-allow-diarizer-overrides"
+                />
+                <span>
+                  Allow diarizer overrides
+                  <span className="block text-xs text-pine-mid">
+                    Enables per-job speaker detection settings when diarization is on.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="border border-amber-200 bg-amber-50 rounded-lg p-4" data-testid="admin-empty-weights">

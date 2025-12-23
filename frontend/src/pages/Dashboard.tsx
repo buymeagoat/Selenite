@@ -165,6 +165,7 @@ export const Dashboard: React.FC = () => {
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
     speakerCount?: number | null;
+    extraFlags?: string;
   }) => {
     try {
       const response = await createJob({
@@ -176,6 +177,7 @@ export const Dashboard: React.FC = () => {
         enable_speaker_detection: jobData.enableSpeakerDetection,
         diarizer: jobData.diarizer ?? undefined,
         speaker_count: jobData.speakerCount ?? undefined,
+        extra_flags: jobData.extraFlags,
       });
       
       showSuccess(`Job created successfully: ${response.original_filename}`);

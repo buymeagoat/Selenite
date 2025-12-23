@@ -136,7 +136,8 @@ function parseAsUTC(value: string): Date {
     return job.diarizer_provider_used ? `${job.diarizer_provider_used} / ${weight}` : weight;
   })();
 
-  const speakerDetected = job.speaker_count ?? (job.has_speaker_labels ? 1 : 1);
+  const speakerDetected =
+    job.speaker_count ?? (job.status === 'completed' ? 1 : 'Pending');
   const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} | Detected: ${speakerDetected}`;
 
   const handleDelete = () => {
@@ -214,6 +215,12 @@ function parseAsUTC(value: string): Date {
           <div className="p-6">
           {/* Metadata Grid */}
           <div className="grid grid-cols-2 gap-4 mb-6" data-testid="job-metadata">
+              <div>
+                <div className="text-sm text-pine-mid">Job ID</div>
+                <div className="text-base font-medium text-pine-deep">
+                  {job.id}
+                </div>
+              </div>
               <div>
                 <div className="text-sm text-pine-mid">Duration</div>
                 <div className="text-base font-medium text-pine-deep">

@@ -63,6 +63,7 @@ export interface CreateJobParams {
   enable_speaker_detection?: boolean;
   speaker_count?: number;
   diarizer?: string;
+  extra_flags?: string;
   timestamp_timezone?: 'local' | 'utc';
   timestamp_format?: 'date-time' | 'time-date' | 'time-only';
 }
@@ -119,6 +120,9 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobRespo
   }
   if (params.diarizer) {
     formData.append('diarizer', params.diarizer);
+  }
+  if (params.extra_flags) {
+    formData.append('extra_flags', params.extra_flags);
   }
 
   if (params.timestamp_timezone) {

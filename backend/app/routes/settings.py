@@ -95,7 +95,8 @@ async def get_settings(
         default_diarizer_provider=user_settings.default_diarizer_provider,
         default_diarizer=user_settings.default_diarizer,
         diarization_enabled=user_settings.diarization_enabled,
-        allow_job_overrides=user_settings.allow_job_overrides,
+        allow_asr_overrides=user_settings.allow_asr_overrides,
+        allow_diarizer_overrides=user_settings.allow_diarizer_overrides,
         enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
         time_zone=user_settings.time_zone,
@@ -209,10 +210,15 @@ async def _apply_settings(
         user_settings.default_diarizer = user_settings.default_diarizer or "vad"
         user_settings.default_diarizer_provider = None
     user_settings.diarization_enabled = diarization_enabled_next
-    user_settings.allow_job_overrides = (
-        payload.allow_job_overrides
-        if payload.allow_job_overrides is not None
-        else user_settings.allow_job_overrides
+    user_settings.allow_asr_overrides = (
+        payload.allow_asr_overrides
+        if payload.allow_asr_overrides is not None
+        else user_settings.allow_asr_overrides
+    )
+    user_settings.allow_diarizer_overrides = (
+        payload.allow_diarizer_overrides
+        if payload.allow_diarizer_overrides is not None
+        else user_settings.allow_diarizer_overrides
     )
     user_settings.enable_timestamps = (
         payload.enable_timestamps
@@ -295,7 +301,8 @@ async def _apply_settings(
         default_diarizer_provider=user_settings.default_diarizer_provider,
         default_diarizer=user_settings.default_diarizer,
         diarization_enabled=user_settings.diarization_enabled,
-        allow_job_overrides=user_settings.allow_job_overrides,
+        allow_asr_overrides=user_settings.allow_asr_overrides,
+        allow_diarizer_overrides=user_settings.allow_diarizer_overrides,
         enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
         time_zone=user_settings.time_zone,
@@ -320,13 +327,14 @@ async def update_settings_asr(
         default_asr_provider=payload.default_asr_provider,
         default_model=payload.default_model,
         default_language=payload.default_language,
-        allow_job_overrides=payload.allow_job_overrides,
+        allow_asr_overrides=payload.allow_asr_overrides,
         enable_timestamps=payload.enable_timestamps,
         max_concurrent_jobs=payload.max_concurrent_jobs,
         default_diarizer=user_settings.default_diarizer,
         diarization_enabled=user_settings.diarization_enabled,
         last_selected_asr_set=payload.last_selected_asr_set,
         last_selected_diarizer_set=user_settings.last_selected_diarizer_set,
+        allow_diarizer_overrides=user_settings.allow_diarizer_overrides,
     )
     return await _apply_settings(base_payload, current_user, db)
 
@@ -343,10 +351,10 @@ async def update_settings_diarization(
     base_payload = SettingsUpdateRequest(
         default_model=user_settings.default_model,
         default_language=user_settings.default_language,
-        allow_job_overrides=(
-            payload.allow_job_overrides
-            if payload.allow_job_overrides is not None
-            else user_settings.allow_job_overrides
+        allow_diarizer_overrides=(
+            payload.allow_diarizer_overrides
+            if payload.allow_diarizer_overrides is not None
+            else user_settings.allow_diarizer_overrides
         ),
         enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
@@ -355,6 +363,7 @@ async def update_settings_diarization(
         default_asr_provider=user_settings.default_asr_provider,
         last_selected_asr_set=user_settings.last_selected_asr_set,
         last_selected_diarizer_set=payload.last_selected_diarizer_set,
+        allow_asr_overrides=user_settings.allow_asr_overrides,
     )
     return await _apply_settings(base_payload, current_user, db)
 

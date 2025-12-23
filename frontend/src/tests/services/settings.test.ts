@@ -29,7 +29,8 @@ describe('settings service', () => {
       default_language: 'en',
       default_diarizer: 'vad',
       diarization_enabled: true,
-      allow_job_overrides: true,
+      allow_asr_overrides: true,
+      allow_diarizer_overrides: true,
       enable_timestamps: true,
       max_concurrent_jobs: 3,
     };

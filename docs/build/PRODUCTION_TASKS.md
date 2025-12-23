@@ -3,7 +3,7 @@
 [Scope] Actionable tasks to close gaps documented in `GAP_ANALYSIS.md`. This file mirrors those IDs, tracks owners/dates/status, and is the only task backlog. Production sign-off lives in `../application_documentation/PRODUCTION_READY.md`.
 
 **Last Updated**: December 7, 2025  
-**Current Status**: Increment 19 (E2E Testing) - 96% Complete  
+**Current Status**: MVP hardening - backlog normalized  
 **Target**: Production Deployment Ready
 
 ---
@@ -14,7 +14,7 @@
 3. **Archive all test outputs.** Every time automated or manual tests run, drop the resulting logs/artifacts under `docs/memorialization/test-runs/<timestamp>-<suite>` (use `run-tests.ps1`, or copy artifacts manually if you run ad-hoc commands). This folder is gitignored and serves as the historical log.
 4. **Keep every log file.** Backend logging now emits `logs/selenite-YYYYMMDD-HHMMSS.log` and `logs/error-YYYYMMDD-HHMMSS.log` on each start-never overwrite or delete them unless you're performing an explicit archival process. Review size/retention quarterly per the hygiene policy.
 5. **Cross-reference supporting docs.** If the work also touches README, TESTING_PROTOCOL, or other artifacts, note that in the task's description so future readers can reconstruct the history.
-6. **Future-scope items stay parked.** Anything marked "Moved to Future Enhancements" remains untouched until re-prioritized here.
+6. **Future-scope items stay parked.** All future/MVP-out-of-scope work lives in **Future Enhancements (Post-MVP)** and stays untouched until re-prioritized here.
 7. **Mandate manual evaluation checkpoints.** For substantial changes (e.g., system probe/ASR/diarization/model work), stop after each milestone and perform a manual verification before proceeding; prompt the administrator for these checkpoints in the workflow.
 8. **SQLite guard is authoritative.** `scripts/sqlite_guard.py` auto-moves any stray `selenite.db` copies (bootstrap + run-tests call it). Never delete these manually; inspect `storage/backups` if it reports quarantined files.
 9. **Models guardrail.** Never delete anything under `backend/models` (or any `/models` subtree). Refuse and block any command or script that would remove those files; only copy/backup/restore is allowed.
@@ -24,6 +24,110 @@ Compliance with these directives is mandatory.
 ---
 
 ## 📓 Work Blocks
+
+### Work Block - 2025-12-22 23:05 PT (Start)
+- **Assumptions**: The New Job modal can open before settings load, causing the first enabled registry weight (alphabetical, e.g., `base`) to be selected instead of the stored default (`tiny`).
+- **Ambiguity**: Whether we should block the modal until settings load; defaulting to re-initialize defaults once settings become ready unless the user has already changed fields.
+- **Plan**: 1) Update `NewJobModal` to wait for settings readiness (or error) before initializing defaults, and to re-initialize when defaults change unless the user has interacted. 2) Add a frontend test for delayed settings initialization. 3) Run `./scripts/run-tests.ps1 -SkipE2E` and memorialize logs.
+- **Pending Checkpoints**: None beyond the standard post-change test run.
+
+### Work Block - 2025-12-22 23:20 PT (Wrap)
+- **Progress**: `NewJobModal` now defers default initialization until settings finish loading and re-initializes defaults when settings change (unless the user already modified inputs). Added a regression test to cover the “modal opened before settings loaded” case.
+- **Impact**: Default ASR weight (`tiny`) is respected even if the modal is opened immediately, eliminating the fallback to the first registry weight (`base`) when settings are still loading.
+- **Risks/Notes**: Frontend tests still emit existing act() warnings and auth 401 noise (unchanged).
+- **Next Actions**: Manual verification: open the New Job modal immediately after page load and confirm the default ASR weight matches the stored settings.
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251222-230936-backend+frontend`.
+
+### Work Block - 2025-12-22 23:30 PT (Start)
+- **Assumptions**: Advanced controls should be hidden by default and only shown when the user expands a panel; admin settings gate per-job overrides and diarization availability.
+- **Ambiguity**: Whether extra flags should be persisted server-side now or remain a frontend-only pass-through; defaulting to passing through in the request payload.
+- **Plan**: 1) Add an Advanced options toggle to the New Job modal with a defaults summary. 2) Move ASR/language/diarization controls into the advanced panel and gate them via admin settings. 3) Add an optional extra flags field (admin-gated) to the request payload. 4) Update tests and run `./scripts/run-tests.ps1 -SkipE2E`.
+- **Pending Checkpoints**: None beyond the standard post-change test run.
+
+### Work Block - 2025-12-22 23:55 PT (Wrap)
+- **Progress**: Added a collapsed Advanced options panel with ASR/language/diarization overrides and speaker count controls gated by admin settings, plus an optional extra flags field; updated Dashboard/job service to pass `extra_flags`, and expanded unit coverage for advanced toggle behavior and override gating.
+- **Impact**: The default view stays simple while admins can enable per-job overrides for ASR selection, diarization settings, and optional flags.
+- **Risks/Notes**: Backend currently ignores `extra_flags` (no schema/storage yet); UI is wired to pass it through when enabled.
+- **Next Actions**: Manual verification: open the New Job modal, expand Advanced options, and confirm fields appear/disable based on admin settings.
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251222-234701-backend+frontend`.
+
+### Work Block - 2025-12-23 00:05 PT (Start)
+- **Assumptions**: The admin toggle for per-job overrides should apply to ASR and diarizer options, not just diarizers, and must be available even if diarization is disabled.
+- **Ambiguity**: Whether to split ASR/diarizer overrides into separate toggles; defaulting to keep a single unified toggle.
+- **Plan**: 1) Update admin UI copy to reflect ASR + diarizer overrides. 2) Remove the diarization-only disable logic for the overrides toggle. 3) Run `./scripts/run-tests.ps1 -SkipE2E`.
+- **Pending Checkpoints**: None beyond the standard post-change test run.
+
+### Work Block - 2025-12-23 00:15 PT (Wrap)
+- **Progress**: Updated the Admin UI per-job overrides control to apply to ASR, language, diarizer, and flags, and removed the diarization-only disable gate so ASR overrides can be enabled independently.
+- **Impact**: Admins can now enable per-job ASR overrides even when diarization is turned off, aligning the UI with the actual behavior in the New Job modal.
+- **Risks/Notes**: None beyond existing frontend test warnings (unchanged).
+- **Next Actions**: Manual verification: in Admin, enable per-job overrides while diarization is off; confirm Advanced options shows ASR controls but hides diarizer controls until diarization is enabled.
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251223-000309-backend+frontend`.
+
+### Work Block - 2025-12-23 00:40 PT (Start)
+- **Assumptions**: Per-job overrides must be split into separate ASR and diarizer settings, persisted independently, and surfaced as separate toggles in Admin while still gating the New Job modal.
+- **Ambiguity**: Whether to keep the legacy `allow_job_overrides` column for backward compatibility; defaulting to add new columns and stop using the old field.
+- **Plan**: 1) Add migration + settings schema/model updates for `allow_asr_overrides` and `allow_diarizer_overrides`. 2) Update Admin/New Job modal gating and split override UI into its own card. 3) Update tests and run `./scripts/run-tests.ps1 -SkipE2E`.
+- **Pending Checkpoints**: None beyond the standard post-change test run.
+
+### Work Block - 2025-12-23 00:55 PT (Wrap)
+- **Progress**: Added separate ASR/diarizer override fields in the DB + settings API, updated Admin UI to show dedicated per-job override toggles in a new card, and split New Job modal gating so ASR vs diarizer overrides are handled independently. Swapped ASR/Diarization cards and renamed ASR to “ASR Options.”
+- **Impact**: Admins can independently allow per-job ASR overrides and per-job diarizer overrides, and the New Job modal reflects those permissions.
+- **Risks/Notes**: Legacy `allow_job_overrides` column remains in the database but is no longer used by the application. Existing frontend test warnings/401 noise remain unchanged.
+- **Next Actions**: Manual verification complete (admin confirmed controls operate as expected).
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251223-004400-backend+frontend`.
+
+### Work Block - 2025-12-23 10:15 PT (Start)
+- **Assumptions**: Transcript metadata already contains speaker labels, but the transcript API drops them when normalizing segments.
+- **Ambiguity**: Whether to also update export formatting; defaulting to just fix the transcript JSON response so the UI can render speakers.
+- **Plan**: 1) Preserve `speaker` when normalizing transcript segments. 2) Add backend test coverage for speaker propagation. 3) Add frontend test to ensure the speaker warning is suppressed when labels are present. 4) Run `./scripts/run-tests.ps1 -SkipE2E`.
+- **Pending Checkpoints**: Manual verification in the UI transcript view after fix.
+
+### Work Block - 2025-12-23 10:25 PT (Wrap)
+- **Progress**: Transcript API now retains speaker labels when normalizing segments, and tests cover both backend propagation and frontend suppression of the "speaker separation not available" warning when speakers exist.
+- **Impact**: Transcript preview no longer shows the warning when diarization succeeded and speaker labels are present.
+- **Risks/Notes**: None beyond existing frontend test warnings/401 noise (unchanged).
+- **Next Actions**: Manual verification: open a diarized transcript view and confirm speaker labels render inline without the warning.
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251223-101839-backend+frontend`.
+
+### Work Block - 2025-12-23 10:40 PT (Start)
+- **Assumptions**: Some transcript previews still show the speaker-warning banner even when diarization succeeded because speaker labels are present in the transcript text but missing in segment metadata.
+- **Ambiguity**: Whether to backfill segment speaker labels from stored metadata vs. suppress the warning using text-based detection; defaulting to suppressing the warning when speaker markers exist in the transcript text.
+- **Plan**: 1) Update transcript view to detect speaker labels in text as a fallback. 2) Add a frontend test to cover the text-based suppression. 3) Run `./scripts/run-tests.ps1 -SkipE2E` and memorialize logs.
+- **Pending Checkpoints**: Manual verification in the transcript view after the UI update.
+
+### Work Block - 2025-12-23 10:55 PT (Wrap)
+- **Progress**: Transcript view now treats speaker labels found in the rendered transcript text as a valid signal to suppress the warning; added a test for the fallback path.
+- **Impact**: The "Speaker separation is not available" banner no longer appears when diarization succeeded but speaker labels only appear in the text block.
+- **Risks/Notes**: Full `./scripts/run-tests.ps1 -SkipE2E` timed out twice during backend pytest; reran `./scripts/run-tests.ps1 -SkipBackend -SkipE2E` successfully (existing act() warnings unchanged).
+- **Next Actions**: Manual verification complete (admin confirmed warning no longer appears).
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipBackend -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251223-103659-frontend`.
+
+### Work Block - 2025-12-23 11:15 PT (Start)
+- **Assumptions**: The backlog had mixed status labels and scattered future items that needed normalization.
+- **Ambiguity**: Whether to keep the progress summary counts; defaulting to keep a summary but remove unmarked task lists.
+- **Plan**: 1) Normalize task status labels to Complete/Not Complete. 2) Consolidate future items into a single Future Enhancements section. 3) Convert the MVP Task Chain into a checklist and remove redundant task lists.
+- **Pending Checkpoints**: None (documentation-only update).
+
+### Work Block - 2025-12-23 11:35 PT (Wrap)
+- **Progress**: Normalized task statuses, consolidated future items into one section, and converted the MVP Task Chain to checklists.
+- **Impact**: All tasks are now explicitly marked complete or not complete, and future scope is centralized.
+- **Risks/Notes**: None.
+- **Next Actions**: None.
+- **Checkpoint Status**: N/A (documentation-only update).
+
+### Work Block - 2025-12-22 22:30 PT (Start)
+- **Assumptions**: Completed job cards are showing the wrong ASR model weight because the New Job modal is not sending the selected model/provider to the backend when it matches UI defaults.
+- **Ambiguity**: Whether backend user defaults should ever override explicit UI selections; defaulting to "UI is authoritative" unless instructed otherwise.
+- **Plan**: 1) Update the New Job modal to always submit the selected ASR model/provider (and related fields) so jobs record the actual UI choice. 2) Add a frontend test to lock the behavior. 3) Run `./scripts/run-tests.ps1 -SkipE2E` and memorialize logs.
+- **Pending Checkpoints**: None beyond the standard post-change test run.
+
+### Work Block - 2025-12-22 22:55 PT (Wrap)
+- **Progress**: `NewJobModal` now always submits the selected model/provider/language/diarizer values so completed job cards reflect the user's explicit choice; added a regression test to ensure the payload includes those selections (and updated the mock registry weight to include `has_weights: true` so provider usability matches production behavior).
+- **Impact**: Selecting "tiny" (or any other weight) now persists as the job's recorded ASR model even when it matches the UI defaults.
+- **Risks/Notes**: Frontend tests still emit existing act() warnings and auth 401 noise (unchanged).
+- **Next Actions**: Manual verification: run a job via the UI, pick a non-default ASR weight, and confirm the completed job card shows the chosen weight.
+- **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251222-224343-backend+frontend`.
 
 ### Work Block — 2025-12-06 09:30 PT (Start)
 - **Assumptions**: Working tree contains a large backlog of tracked/untracked edits from prior scopes; user explicitly asked for a clean repo state without additional guardrail runs.
@@ -169,7 +273,7 @@ Compliance with these directives is mandatory.
 
 | ID | Task | Description | Owner | Target Date | Status |
 |----|------|-------------|-------|-------------|--------|
-| [HYGIENE-AUDIT] | Repository hygiene audit | Review `repo-hygiene-policy.json` thresholds, prune `logs/` and `docs/memorialization/test-runs` if over limits, confirm automation hooks remain aligned. | Owner | 2026-02-01 (repeats quarterly) | ☐ |
+| [HYGIENE-AUDIT] | Repository hygiene audit | Review `repo-hygiene-policy.json` thresholds, prune `logs/` and `docs/memorialization/test-runs` if over limits, confirm automation hooks remain aligned. | Owner | 2026-02-01 (repeats quarterly) | Not Complete - scheduled for 2026-02-01 |
 
 ---
 
@@ -178,38 +282,21 @@ Compliance with these directives is mandatory.
 ### Implement Now
 | ID | Task | Description | Owner | Target Date | Status |
 |----|------|-------------|-------|-------------|--------|
-| [SYS-PROBE] | System info probe | Add startup + on-demand probe (OS/container/host, CPU sockets/cores/threads, RAM size/speed, GPU model/VRAM/driver + CUDA/ROCm flag, storage free/used for DB/media/transcripts paths, networking interfaces/IPs/default route, Python/Node versions). Surface via API and admin System Info card with "Detect" refresh. | Owner | 2025-11-30 | In Review - `/system/info` & detect endpoint plus Settings card implemented (Nov 25) |
-| [ADMIN-ASR-DIAR] | Admin ASR/diarization settings | Admin toggles: diarization enable, backend select (WhisperX/Pyannote [GPU note]/VAD) with availability; ASR default select; allow-per-job-override flag; runtime fallback to default/viable option on unavailable choice (never fail job). | Owner | 2025-11-30 | In Review - backend persistence + Settings UI wired; Nov 28 update removes global enable/disable switches, always exposes timestamps/diarization per job, and surfaces unavailable diarizers as disabled with reasons in both Settings and the New Job modal. Nov 30 regression fix ensures admin settings cache hydrates before the modal renders and verified manually (Settings toggles propagate, new job modal enables Detect speakers only when allowed) after `run-tests.ps1 -SkipE2E` (see memorialization run `20251130-115048`). |
-| [AVAIL-ENDPTS] | Availability reporting | Backend endpoint to report available ASR/diarizer options based on installed deps/models (no downloads). Frontend consumes to drive admin dropdown hints. | Owner | 2025-11-30 | In Review - `/system/availability` implemented (Nov 25); Nov 27 fix guards missing modules so endpoint responds even without WhisperX/Pyannote installs; Nov 28 adds token helper script + manual verification flow for `/system/availability` + `/system/info`. |
-| [ADV-OPTIONS-UI] | Advanced options in New Job modal | Add collapsible "Advanced" panel: ASR selector (if admin allows), diarization selector + speaker count (Auto/2-8) gated by admin enable, optional extra flags field (admin-controlled visibility). Default view stays simple. | Owner | 2025-11-30 | TODO |
-| [SETTINGS-STORE] | Shared settings provider & cache | Scaffold a single React context/store for admin/user settings: hydrates from localStorage, handles network fetch + timeout/retries, exposes state (`loading|ready|error`), and emits updates when settings change so modals/pages stay in sync. Include unit tests/fakes for consumers. | Owner | 2025-11-29 | In Review - provider landed (docs/build/design/SETTINGS_STORE.md); Nov 28 update reinitializes New Job modal defaults (model/language/diarizer), removes admin-level gating, and documents the new verification steps. Nov 30 coverage update adds deterministic tests for diarizer gating + readiness attributes so consumers wait for hydrated state; manual checkpoint deferred to upcoming advanced-options UI work. |
-| [FALLBACK-POLICY] | Runtime fallback | Implement resolver: per-job choice (if allowed) → admin default → next viable; if none, transcribe without diarization; log warnings. Applies to ASR and diarization. | Owner | 2025-11-30 | In Review - runtime ASR/diarization fallback implemented in Whisper service (Nov 25); request manual evaluation checkpoint |
-| [DIAR-PIPELINE] | Diarization execution | Wire actual diarization pipeline: run Whisper for ASR + selected diarizer (WhisperX/Pyannote/VAD), respect speaker_count hint (auto/2-8), tag segments/exports with speaker labels, graceful fallback to no labels if backend unavailable. | Owner | 2025-12-07 | TODO |
-| [GUARDRAILS-PREFLIGHT] | Pre-flight enforcement | Add `scripts/pre-flight-check.ps1` + CI/PR integration to enforce: authenticated endpoints by default, zero hardcoded credentials/IPs, dev-only logging, confirmation that `run-tests.ps1 -SkipE2E` succeeded, and PRODUCTION_TASKS entries for every change. Document workflow in AGENTS.md + AI_COLLAB_CHARTER.md. | Owner | 2025-12-02 | ✅ Nov 30, 2025 – script now scans for unauthenticated routes, sensitive literals, raw console usage, stale `.last_tests_run`, and prunes log noise; README/AGENTS already mandate running it pre-commit. |
-| [SECURE-DIAGNOSTICS] | Diagnostics hardening | Remove or lock down `/diagnostics/*` + `/system/*restart*` endpoints: introduce real admin flag, authentication, audit logging, and tests; update docs + Manual_Verification to cover restart/shutdown flows safely. | Owner | 2025-12-02 | In Review – Nov 30 update locks diagnostics behind `get_current_user`, scrubs sensitive context, adds tests, and gates restart/shutdown/full-restart behind the new `ENABLE_REMOTE_SERVER_CONTROL` flag (default off). Manual verification of restart orchestration is still pending before marking complete. |
-| [MOBILE-DIAG-DOCS] | Mobile/network debugging hygiene | Replace the temporary mobile debug HTML references (`login-debug.html`, `test-api.html`) in docs/scripts (`DEBUG_MOBILE_*`, `test-cors.ps1`, `test-network-access.ps1`, etc.) with sanctioned workflows that do not rely on deleted artifacts or expose credentials/IPs. Ensure guidance points to supported tooling (pre-flight, system probe, log viewer) and keeps sensitive data out of repo. | Owner | 2025-12-03 | ✅ Nov 30, 2025 – quick guide + full guide updated to reference `test-network-access.ps1`, `test-cors.ps1`, and `view-logs.ps1`; both helper scripts now auto-detect the LAN/Tailscale IP and no longer point to deleted HTML debug pages. |
-| [DEBUG-HYGIENE] | Debug artifact policy | Delete `frontend/test-api.html`, `frontend/login-debug.html`, and the Vite copy plugin; establish approved scratch-space (gitignored) and instructions in AGENTS.md/README so temporary diagnostics never land in builds. | Owner | 2025-12-02 | Done – Nov 29, 2025 (plugin removed, HTML helpers deleted, `scratch/` gitignored, docs updated). |
-| [LOG-SANITIZE] | Sensitive logging audit | Remove credential/token logging from `frontend/src/lib/api.ts`, `frontend/src/pages/Login.tsx`, etc.; add `debug.isDevelopment()` helper and a lint/pre-flight check that blocks raw `console.log` in production code. | Owner | 2025-12-02 | ✅ Nov 30, 2025 – introduced `src/lib/debug.ts` helpers, routed all console output through dev-only wrappers, and updated docs with the policy. |
-| [TEST-HARNESS-RECOVERY] | Restore automated tests | Investigate/fix `run-tests.ps1 -SkipE2E` failure (`OSError: [Errno 22] Invalid argument`), memorialize root cause, and update Manual_Verification with latest backend test run instructions. | Owner | 2025-12-01 | ✅ Nov 30, 2025 – hypertension was due to the memorialization folder exceeding policy; `run-tests.ps1` now prunes oldest archives automatically and the latest run (SkipE2E) passes with hygiene check stamping `.last_tests_run`. |
-
-### Scaffold for Future Implementation
-| ID | Task | Description | Owner | Target Date | Status |
-|----|------|-------------|-------|-------------|--------|
-| [MODEL-REGISTRY] | Model registry scaffolding | Define schema (in main DB) for ASR **and** diarizer sets/types: provider key, display name, provider type, enabled flag _(default TRUE)_, install path, download URL, status, size, checksum, last updated, admin override fields (disabled_at/by + reason), and a flag noting whether the entry auto-enabled. Paths must live under `/backend/models/<model_set>/<model_weight>/…` and be validated on save. Upon row creation the system must immediately publish the provider/model to `/system/availability`, expose it to Settings/New Job, and append a memorialized "auto-enabled" entry (docs/memorialization work log). No download/install yet. | Owner | 2025-12-05 | In Progress – Dec 6: pre-flight cleared; DB schema + memorialized auto-enable work started. |
-| [MODEL-MGMT-UI] | Model management UI stubs | Admin UI placeholders for listing/editing model & diarizer sets: dropdown selector per type, highlight newly auto-enabled weights, show enable toggles defaulted ON, require disable reason text + confirmation when turning one off, allow rename/edit URLs/paths (with browse-or-type inputs constrained to `/backend/models/...`), and provide refresh per model/set/all plus re-scan availability. UI must surface enabled/disabled status (and any disable notes) in both Settings and the New Job modal without extra prompts. | Owner | 2025-12-05 | In Progress – Dec 6: blocking backend registry wiring underway so the UI can consume live data. |
-| [ASR-MULTI] | Multi-ASR adapter | Introduce provider manager that reads the registry (treats missing `enabled` as TRUE), builds capability metadata for ASR + diarizers, and feeds the per-job/admin resolution flow (choice → default → fallback) while honoring admin-disable states. Remove hardcoded Whisper defaults so availability/admin defaults/runtimes come solely from registry weights and log when a provider falls back due to being disabled/unavailable. Keep diarizer handling in lockstep with ASR behavior. No additional providers wired yet. | Owner | 2025-12-05 | In Progress – Dec 6: scoped alongside registry so ASR/diarizer parity doesn’t drift. |
+| [SYS-PROBE] | System info probe | Add startup + on-demand probe (OS/container/host, CPU sockets/cores/threads, RAM size/speed, GPU model/VRAM/driver + CUDA/ROCm flag, storage free/used for DB/media/transcripts paths, networking interfaces/IPs/default route, Python/Node versions). Surface via API and admin System Info card with "Detect" refresh. | Owner | 2025-11-30 | Complete - `/system/info` & detect endpoint plus Settings card implemented (Nov 25) |
+| [ADMIN-ASR-DIAR] | Admin ASR/diarization settings | Admin toggles: diarization enable, backend select (WhisperX/Pyannote [GPU note]/VAD) with availability; ASR default select; allow-per-job-override flag; runtime fallback to default/viable option on unavailable choice (never fail job). | Owner | 2025-11-30 | Complete - backend persistence + Settings UI wired; Nov 28 update removes global enable/disable switches, always exposes timestamps/diarization per job, and surfaces unavailable diarizers as disabled with reasons in both Settings and the New Job modal. Nov 30 regression fix ensures admin settings cache hydrates before the modal renders and verified manually (Settings toggles propagate, new job modal enables Detect speakers only when allowed) after `run-tests.ps1 -SkipE2E` (see memorialization run `20251130-115048`). |
+| [AVAIL-ENDPTS] | Availability reporting | Backend endpoint to report available ASR/diarizer options based on installed deps/models (no downloads). Frontend consumes to drive admin dropdown hints. | Owner | 2025-11-30 | Complete - `/system/availability` implemented (Nov 25); Nov 27 fix guards missing modules so endpoint responds even without WhisperX/Pyannote installs; Nov 28 adds token helper script + manual verification flow for `/system/availability` + `/system/info`. |
+| [ADV-OPTIONS-UI] | Advanced options in New Job modal | Add collapsible "Advanced" panel: ASR selector (if admin allows), diarization selector + speaker count (Auto/2-8) gated by admin enable, optional extra flags field (admin-controlled visibility). Default view stays simple. | Codex | 2025-12-22 | Complete |
+| [SETTINGS-STORE] | Shared settings provider & cache | Scaffold a single React context/store for admin/user settings: hydrates from localStorage, handles network fetch + timeout/retries, exposes state (`loading|ready|error`), and emits updates when settings change so modals/pages stay in sync. Include unit tests/fakes for consumers. | Owner | 2025-11-29 | Complete - provider landed (docs/build/design/SETTINGS_STORE.md); Nov 28 update reinitializes New Job modal defaults (model/language/diarizer), removes admin-level gating, and documents the new verification steps. Nov 30 coverage update adds deterministic tests for diarizer gating + readiness attributes so consumers wait for hydrated state. |
+| [FALLBACK-POLICY] | Runtime fallback | Implement resolver: per-job choice (if allowed) -> admin default -> next viable; if none, transcribe without diarization; log warnings. Applies to ASR and diarization. | Owner | 2025-11-30 | Not Complete - runtime ASR/diarization fallback implemented (Nov 25); manual fallback verification pending. |
+| [DIAR-PIPELINE] | Diarization execution | Wire actual diarization pipeline: run Whisper for ASR + selected diarizer (WhisperX/Pyannote/VAD), respect speaker_count hint (auto/2-8), tag segments/exports with speaker labels, graceful fallback to no labels if backend unavailable. | Owner | 2025-12-07 | Complete - 2025-12-23 (pyannote/VAD pipeline wired, speaker_count hint honored/persisted, manual UI verification confirmed diarization working). |
+| [GUARDRAILS-PREFLIGHT] | Pre-flight enforcement | Add `scripts/pre-flight-check.ps1` + CI/PR integration to enforce: authenticated endpoints by default, zero hardcoded credentials/IPs, dev-only logging, confirmation that `run-tests.ps1 -SkipE2E` succeeded, and PRODUCTION_TASKS entries for every change. Document workflow in AGENTS.md + AI_COLLAB_CHARTER.md. | Owner | 2025-12-02 | Complete - Nov 30, 2025 - script now scans for unauthenticated routes, sensitive literals, raw console usage, stale `.last_tests_run`, and prunes log noise; README/AGENTS already mandate running it pre-commit. |
+| [SECURE-DIAGNOSTICS] | Diagnostics hardening | Remove or lock down `/diagnostics/*` + `/system/*restart*` endpoints: introduce real admin flag, authentication, audit logging, and tests; update docs + Manual_Verification to cover restart/shutdown flows safely. | Owner | 2025-12-02 | Not Complete - Nov 30 update locks diagnostics behind `get_current_user`, scrubs sensitive context, adds tests, and gates restart/shutdown/full-restart behind the new `ENABLE_REMOTE_SERVER_CONTROL` flag (default off). Manual verification of restart orchestration is still pending before marking complete. |
+| [MOBILE-DIAG-DOCS] | Mobile/network debugging hygiene | Replace the temporary mobile debug HTML references (`login-debug.html`, `test-api.html`) in docs/scripts (`DEBUG_MOBILE_*`, `test-cors.ps1`, `test-network-access.ps1`, etc.) with sanctioned workflows that do not rely on deleted artifacts or expose credentials/IPs. Ensure guidance points to supported tooling (pre-flight, system probe, log viewer) and keeps sensitive data out of repo. | Owner | 2025-12-03 | Complete - Nov 30, 2025 - quick guide + full guide updated to reference `test-network-access.ps1`, `test-cors.ps1`, and `view-logs.ps1`; both helper scripts now auto-detect the LAN/Tailscale IP and no longer point to deleted HTML debug pages. |
+| [DEBUG-HYGIENE] | Debug artifact policy | Delete `frontend/test-api.html`, `frontend/login-debug.html`, and the Vite copy plugin; establish approved scratch-space (gitignored) and instructions in AGENTS.md/README so temporary diagnostics never land in builds. | Owner | 2025-12-02 | Complete - Nov 29, 2025 (plugin removed, HTML helpers deleted, `scratch/` gitignored, docs updated). |
+| [LOG-SANITIZE] | Sensitive logging audit | Remove credential/token logging from `frontend/src/lib/api.ts`, `frontend/src/pages/Login.tsx`, etc.; add `debug.isDevelopment()` helper and a lint/pre-flight check that blocks raw `console.log` in production code. | Owner | 2025-12-02 | Complete - Nov 30, 2025 - introduced `src/lib/debug.ts` helpers, routed all console output through dev-only wrappers, and updated docs with the policy. |
+| [TEST-HARNESS-RECOVERY] | Restore automated tests | Investigate/fix `run-tests.ps1 -SkipE2E` failure (`OSError: [Errno 22] Invalid argument`), memorialize root cause, and update Manual_Verification with latest backend test run instructions. | Owner | 2025-12-01 | Complete - Nov 30, 2025 - root cause was the memorialization folder exceeding policy; `run-tests.ps1` now prunes oldest archives automatically and the latest run (SkipE2E) passes with hygiene check stamping `.last_tests_run`. |
 
 > **Auto-Expose Policy**: Per AGENTS/AI charter guardrails, any ASR or diarizer provider entered in the registry is considered enabled and user-visible immediately (Settings, New Job, `/system/availability`) until an administrator explicitly disables it. All implementation tasks above must include the memorialized auto-enable log hook and admin-disable auditing described here.
-
-### Defer (Feasible Later)
-| ID | Task | Description | Notes |
-|----|------|-------------|-------|
-| [MODEL-DL] | Model download/install flows | Admin-triggered downloads with progress/checksums/disk checks; "cached only" vs "fetch on use" (warned). |
-| [EXTRA-ASR] | Additional ASR providers | Add adapters for HF/local models/external APIs; expose via registry. |
-| [SMART/IO] | Disk SMART/I/O checks | Optional health and perf sampling beyond free/used metrics. |
-| [AUTO-RECO] | Automated default recommendation | Use probe data to auto-suggest defaults; admin can override. |
-
----
 
 ## ✅ MVP Definition
 - User can upload audio, trigger transcription, view job details, and export transcripts.
@@ -218,13 +305,12 @@ Compliance with these directives is mandatory.
 - A manual smoke test passes end-to-end; optional E2E automation can follow post-MVP.
 
 ## 🔗 MVP Task Chain (Ordered)
-1) Manual smoke-test pass for core workflow (Login → Upload → Process → View → Export) using `docs/build/testing/SMOKE_TEST.md`.
-2) Frontend wiring completeness for core actions:
-	- Confirm download, restart, delete, and tag assignment function against live API.
-3) Address any P0 issues uncovered by the smoke test (stability and error UX for core paths).
-4) Security hardening verification (rate limiting, validation, headers) — already implemented; verify via quick checks.
-5) Minimal packaging/readiness: ensure health check, logging, and configuration are in place (already implemented).
-6) Update `./testing/E2E_TEST_REPORT.md` with a short note or perform a minimal E2E sanity (optional for MVP, recommended next).
+- [ ] Manual smoke-test pass for core workflow (Login  Upload  Process  View  Export) using `docs/build/testing/SMOKE_TEST.md`.
+- [ ] Confirm download/restart/delete/tag assignment function against live API.
+- [ ] Address any P0 issues uncovered by the smoke test (stability and error UX for core paths).
+- [ ] Security hardening verification (rate limiting, validation, headers).
+- [ ] Minimal packaging/readiness: ensure health check, logging, and configuration are in place.
+- [x] Update `./testing/E2E_TEST_REPORT.md` with a short note or perform a minimal E2E sanity (optional for MVP, recommended next).
 
 ## 🎯 Critical Path Items (3-4 weeks)
 
@@ -265,24 +351,18 @@ Compliance with these directives is mandatory.
 ### 3. Frontend API Integration - Critical Actions (3-4 days)
 
 #### Dashboard Actions (Dashboard.tsx)
-- [ ] Play/pause job (line 114) - trigger transcription start  (Moved to Future Enhancements)
 - [x] Download transcript (line 118) - call export endpoint
 - [x] Restart failed job (line 122) - call `/jobs/{id}/restart`
 - [x] Delete job (line 126) - call `DELETE /jobs/{id}`
 - [x] Update tags (line 132) - call tag assignment endpoints
-- [ ] Fetch full job details (line 66) - enhance JobDetail modal  (Moved to Future Enhancements)
 
 #### Settings Operations (Settings.tsx)
 - [x] Save default settings (line 65-67) - `PUT /settings`
 - [x] Save performance settings (line 71-73) - `PUT /settings`
-- [ ] Create tag (line 77-78) - `POST /tags`  (Moved to Future Enhancements)
 - [x] Edit tag (line 79-81) - `PATCH /tags/{id}`
 - [x] Delete tag (line 82-84) - `DELETE /tags/{id}`
-- [ ] Stop server (line 93-94) - graceful shutdown endpoint  (Moved to Future Enhancements)
-- [ ] Restart server (line 101-102) - restart endpoint  (Moved to Future Enhancements)
-- [ ] Clear job history (line 108-109) - batch delete endpoint  (Moved to Future Enhancements)
 
-**Current Status**: ✅ Core actions complete (download, restart, delete, tags, settings)  
+**Current Status**: ✅ Complete (core actions: download, restart, delete, tags, settings)  
 **Blockers**: None  
 **Priority**: HIGH - Complete user experience
 
@@ -316,18 +396,14 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ### 5. Production Packaging & Deployment (2-3 days)
 - [x] Environment-based configuration (dev/prod)
-- [ ] Production build scripts (frontend + backend)  (Moved to Future Enhancements)
 - [x] Database initialization and migration scripts
 - [x] Configurable storage paths for uploads/models
 - [x] Reconcile storage root to `./storage` (legacy `backend/storage` deprecated; enforced via settings normalization + alignment check)
 - [x] Logging configuration (file output, log rotation)
-- [ ] Error reporting and monitoring setup  (Moved to Future Enhancements)
-- [ ] Production dependency lockfiles  (Moved to Future Enhancements)
-- [ ] Startup/shutdown scripts for services  (Moved to Future Enhancements)
 - [x] Health check endpoint enhancements
 - [x] Resource cleanup on shutdown
 
-**Current Status**: ✅ Core configuration complete (environment validation, logging, migrations)  
+**Current Status**: ✅ Complete (MVP scope: environment validation, logging, migrations)  
 **Recent Completion**:
 - Environment-based settings with production validation (secret key, CORS)
 - Structured logging with rotation (10MB files, 5 backups)
@@ -337,45 +413,6 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 **Blockers**: None  
 **Priority**: HIGH - Required for deployment
 
----
-
-## 🔧 Polish & Enhancement Items (1 week)
-
-### 6. Real-Time Progress Updates (2-3 days)
-- [ ] WebSocket or SSE endpoint for job progress
-- [ ] Frontend progress bar with percentage
-- [ ] Real-time status updates in job cards
-- [ ] Current processing stage display
-- [ ] Estimated time remaining calculation
-- [ ] Handle reconnection on network interruption
-
-**Current Status**: ❌ Not Started (3 E2E tests skipped)  
-**Priority**: MEDIUM - User experience enhancement
-
----
-
-### 7. Media Playback Integration (1-2 days)
-- [ ] Audio/video player component
-- [ ] Playback controls (play, pause, seek)
-- [ ] Sync transcript highlighting with playback
-- [ ] Click-to-seek from transcript segments
-- [ ] Waveform visualization (optional)
-
-**Current Status**: ❌ Not Started  
-**Priority**: MEDIUM - Enhanced UX
-
----
-
-### 8. Additional API Endpoints (1-2 days)
-- [ ] `DELETE /jobs` - Batch delete with query filters
-- [ ] `POST /system/shutdown` - Graceful shutdown
-- [x] `POST /system/restart` - Server restart (remote control gated)
-- [x] `POST /system/full-restart` - Full orchestrated restart (remote control gated)
-- [x] `GET /system/info` - System resource usage
-- [x] `GET /models/providers` - Model registry providers list
-
-**Current Status**: ? Partially complete (system endpoints in place; batch delete + shutdown pending)  
-**Priority**: LOW - Nice to have
 ---
 
 ## 📚 Documentation & Testing
@@ -395,40 +432,9 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ### 10. Final Testing (2-3 days)
 - [x] End-to-end workflow testing (upload → transcribe → export) — Minimal sanity acceptable for MVP *(Playwright `npm run e2e:full` – latest run 85/85 passing)*
-- [ ] Resolve Firefox E2E flakiness (2 failing tests)  (Moved to Future Enhancements)
-- [ ] Validate password change fix in full E2E suite  (Moved to Future Enhancements)
-- [ ] Performance testing with large files  (Moved to Future Enhancements)
-- [ ] Multi-model testing (tiny → large-v3)  (Moved to Future Enhancements)
-- [ ] Error recovery testing (network, disk, memory)  (Moved to Future Enhancements)
-- [ ] Cross-platform testing (if applicable)  (Moved to Future Enhancements)
 
-**Current Status**: ? E2E at 100% (85/85 passing)  
+**Current Status**: ✅ Complete (E2E 85/85 passing)  
 **Priority**: HIGH - Quality assurance
-
----
-
-## 🐛 Known Issues & Technical Debt
-
-### 11. E2E Test Stability  (Moved to Future Enhancements)
-- [x] Password change success message (FIXED - pending validation)
-- [ ] Firefox connection flakiness (2 tag management tests)
-- [ ] Auth setup timeout in isolated test runs
-
-**Current Status**: ⚠️ 2 known flaky tests  
-**Priority**: MEDIUM - Test reliability
-
----
-
-### 12. Code Quality & Refactoring  (Moved to Future Enhancements)
-- [ ] Remove console.log/alert placeholders after API wiring
-- [ ] Add comprehensive error boundaries in React
-- [ ] Standardize error message formatting
-- [ ] Add loading states to all async operations
-- [ ] Component prop type documentation
-- [ ] Backend service layer extraction (if needed)
-
-**Current Status**: ⚠️ 20+ placeholder locations identified  
-**Priority**: LOW - Post-MVP cleanup
 
 ---
 
@@ -442,97 +448,65 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ### Logging Enhancements (New)
 - [x] Job queue instrumentation – add `app.services.job_queue` logger statements for enqueue/worker lifecycle *(Nov 21, 2025)*
 - [x] Transcription service instrumentation – log start/finish/error paths in `app.services.transcription` *(Nov 21, 2025)*
-- [ ] Route-level tracing for critical actions (job create/delete, settings update) *(Future Enhancements)*
 
-**Current Status**: ✅ Core services instrumented; remaining route-level tracing deferred to future cleanup  
+**Current Status**: ✅ Complete (core services instrumented; route-level tracing deferred to Future Enhancements)  
 **Priority**: MEDIUM – improves troubleshooting and production telemetry
 
 ---
 
 ## 🚀 Future Enhancements (Post-MVP)
-
-### 13. Advanced Features
-- [ ] Multi-user support with authentication
-- [ ] Cloud storage integration (S3, etc.)
-- [ ] Transcript editing with re-alignment
-
-### 14. Operational Hygiene
-- [ ] Scheduled hygiene + backup job (daily/weekly) that runs `scripts/check_alignment.py`, `scripts/check_repo_hygiene.py`, and captures verified database/storage backups.
-- [ ] Artifact maintenance CLI (`scripts/manage-artifacts.ps1`) to archive/prune historical logs, memorialization test runs, and other transient outputs.
-- [ ] Flesh out the portable build framework doc (`docs/pre-build/PORTABLE_BUILD_FRAMEWORK.md`) once the app stabilizes.
-- [ ] Custom vocabulary/glossary support
-- [ ] Translation to other languages
-- [ ] Summarization with LLMs
-- [ ] Search within transcripts
-
-**Current Status**: ❌ Out of scope for initial release  
-**Priority**: FUTURE
-
----
-
-### 15. Infrastructure Improvements
-- [ ] Database migration to PostgreSQL (for multi-user)
-- [ ] Celery/Redis for distributed job queue
-- [ ] Docker containerization
-- [x] CI/CD pipeline setup *(GitHub Actions now runs `run-tests.ps1` + lint/type-check/build)*
-- [ ] Automated backup system
-- [ ] Performance monitoring and analytics
-
-**Current Status**: ❌ Out of scope for single-user desktop app  
-**Priority**: FUTURE
-
----
-
-### 16. Moved to Future Enhancements (from above)
-
-#### Dashboard & Settings
-- Play/pause job (Start/pause control UI)
-- Fetch full job details (enhanced modal)
-- Create tag (Settings)
-- Stop/restart server endpoints
-- Clear job history (batch delete)
-
-#### Production & Ops
-- Production build scripts (frontend + backend)
-- Error reporting and monitoring setup
-- Production dependency lockfiles
-- Startup/shutdown service scripts
-
-#### Testing & Stability
-- [x] Unified `run-tests.ps1` harness + documentation (TESTING_PROTOCOL.md + README instructions)
-- Resolve Firefox E2E flakiness
-- Validate password change fix across full E2E suite
-- Performance testing (large files)
-- Multi-model testing (tiny → large)
-- Error recovery testing (network/disk/memory)
-- Cross-platform testing
-
-#### UX & Observability
-- [x] Show completed-job metadata (ASR provider + entry, diarizer, speakers detected, transcription duration) on the job card and completed modal; handle diarizer/speaker failure states gracefully.
-- [x] Fix the progress bar so it reflects real work completion or replace it with a clearer “work in progress” indicator.
-- Real-time progress via WebSocket/SSE
-- Media playback with transcript sync
-- Additional API endpoints (batch delete, system info, models listing)
-- Codebase polish: error boundaries, loading states, standardize error messages, refactors
-
+- [ ] Play/pause job (start/pause control UI).
+- [ ] Fetch full job details in JobDetail modal.
+- [ ] Create tag (Settings) via `POST /tags`.
+- [ ] Stop server endpoint (`POST /system/shutdown`) and UI wiring.
+- [ ] Restart server endpoint wiring (`POST /system/restart`) for admin UI.
+- [ ] Clear job history (batch delete).
+- [ ] Production build scripts (frontend + backend).
+- [ ] Error reporting and monitoring setup.
+- [ ] Production dependency lockfiles.
+- [ ] Startup/shutdown service scripts.
+- [ ] Resolve Firefox E2E flakiness (2 tag management tests).
+- [ ] Validate password change fix in full E2E suite.
+- [ ] Performance testing with large files.
+- [ ] Multi-model testing (tiny  large-v3).
+- [ ] Error recovery testing (network/disk/memory).
+- [ ] Cross-platform testing (if applicable).
+- [ ] Real-time progress updates (SSE/WebSocket, progress bar, stage display, ETA, reconnection).
+- [ ] Media playback integration (player, seek, transcript sync, waveform).
+- [ ] Additional API endpoints: batch delete jobs, shutdown.
+- [ ] Codebase polish: error boundaries, loading states, standardize error messages, refactors, remove console placeholders.
+- [ ] Route-level tracing for critical actions (job create/delete, settings update).
+- [ ] Scheduled hygiene + backup job (alignment/hygiene/backup capture).
+- [ ] Artifact maintenance CLI to archive/prune logs and memorialization test runs.
+- [ ] Portable build framework doc (`docs/pre-build/PORTABLE_BUILD_FRAMEWORK.md`) refresh.
+- [ ] Custom vocabulary/glossary support.
+- [ ] Translation to other languages.
+- [ ] Summarization with LLMs.
+- [ ] Search within transcripts.
+- [ ] Multi-user support with authentication.
+- [ ] Cloud storage integration (S3, etc.).
+- [ ] Transcript editing with re-alignment.
+- [ ] Model download/install flows (admin-triggered with checksums/disk checks).
+- [ ] Additional ASR providers (HF/local/external).
+- [ ] Disk SMART/I/O checks.
+- [ ] Automated default recommendation (probe-driven).
+- [ ] Database migration to PostgreSQL (multi-user).
+- [ ] Celery/Redis for distributed job queue.
+- [ ] Docker containerization.
+- [ ] Automated backup system.
+- [ ] Performance monitoring and analytics.
 
 ## 📊 Progress Summary
 
 **Total Tasks**: 90+  
-**Completed**: ~89 (96%)  
-**In Progress**: 3  
-**Not Started**: ~1  
+**Completed**: Majority (see checklists and work blocks)  
+**Not Complete**: MVP Task Chain + Future Enhancements (Post-MVP)  
 
 **E2E Test Suite**: 85/85 passing (100%) — see `./testing/E2E_TEST_REPORT.md`
 
 **Estimated Time to Production**: 1-2 days of focused development
 
-**MVP Critical Path**:
-1. Smoke test pass for core workflow
-2. Verify frontend core actions (download/restart/delete/tag assignment)
-3. Remediate any P0 issues from smoke test
-4. Validate security hardening in place
-5. Optional: minimal E2E sanity and update E2E report
+**MVP Critical Path**: See MVP Task Chain above.
 
 ---
 

@@ -40,7 +40,6 @@ Create a reusable blueprint for building and maintaining apps with strong guardr
 - `scripts/start-selenite.ps1`
 - `scripts/restart-selenite.ps1`
 - `scripts/stop-selenite.ps1`
-- `scripts/watch-restart.ps1`
 
 ### Governance Docs
 - `AGENTS.md` (operator rules + guardrails)

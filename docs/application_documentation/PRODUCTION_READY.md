@@ -1,19 +1,18 @@
 # Selenite - Production Ready Checklist
 
-**Date**: November 21, 2025  
+**Date**: December 29, 2025  
 **Status**: ✅ PRODUCTION READY (MVP)  
 **Completion**: 100% of MVP tasks (future enhancements tracked separately)
 
 ---
 
-## 🔍 Verification Snapshot (Nov 21, 2025)
-- `./scripts/run-tests.ps1 -SkipE2E`  
-  - Backend: 313 pytest cases, **89%** statement coverage (see console log above).  
-  - Frontend: Vitest coverage – **90.0% statements**, **69.4% functions**, **91.9% branches** (`frontend/coverage/coverage-summary.json`).  
-- `npm run e2e:full`  
-  - Boots backend via `scripts/start-backend-e2e.js`, builds frontend, then executes **85 Playwright specs** across Chromium/Firefox/WebKit.  
-  - Latest run: 85/85 passing; artifacts stored in `frontend/playwright-report` and `frontend/test-results/.last-run.json`.  
-- Coverage hardening: `app/services/transcription.py` and `app/utils/file_validation.py` now ≥98% due to new dedicated unit suites.
+## Verification Snapshot (Dec 29, 2025)
+- ./scripts/run-tests.ps1 -SkipE2E  
+  - Backend: pytest suite passed (see docs/memorialization/test-runs/20251229-160347-backend+frontend/backend.pytest.log).  
+  - Frontend: Vitest coverage - **60.61% statements**, **52.84% branches**, **62.70% functions**, **61.20% lines** (frontend/coverage/coverage-summary.json).  
+- npm run e2e:full  
+  - Not re-run in this snapshot; last full run (Nov 21, 2025) completed 85/85 across Chromium/Firefox/WebKit.  
+- Coverage hardening: app/services/transcription.py and app/utils/file_validation.py now >=98% due to new dedicated unit suites.
 
 Supporting evidence:
 - `docs/build/testing/E2E_TEST_REPORT.md` – latest + historical Playwright results  

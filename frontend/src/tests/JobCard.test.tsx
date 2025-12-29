@@ -39,7 +39,7 @@ describe('JobCard', () => {
     expect(onClick).toHaveBeenCalledWith('123');
   });
 
-  it('shows progress bar for processing jobs', () => {
+  it('shows processing status with elapsed time instead of a progress bar', () => {
     const processingJob = {
       ...mockJob,
       status: 'processing' as const,
@@ -51,8 +51,9 @@ describe('JobCard', () => {
     };
     
     render(<JobCard job={processingJob} onClick={vi.fn()} />);
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByText(/Transcribing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Elapsed/i)).toBeInTheDocument();
   });
 
   it('shows queued state without progress', () => {
@@ -81,6 +82,6 @@ describe('JobCard', () => {
     const onClick = vi.fn();
     render(<JobCard job={mockJob} onClick={onClick} />);
     
-    expect(screen.getByText(/30:34/)).toBeInTheDocument();
+    expect(screen.getByText(/Duration:\s*00:30:34/)).toBeInTheDocument();
   });
 });

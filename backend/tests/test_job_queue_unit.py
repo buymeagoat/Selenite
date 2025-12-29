@@ -8,11 +8,16 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from app.services.job_queue import TranscriptionJobQueue
+from app.services.job_queue import (
+    TranscriptionJobQueue,
+    resolve_queue_concurrency,
+    finalize_incomplete_jobs,
+)
 import app.services.job_queue as job_queue_module
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.job import Job
 from app.models.user import User
+from app.models.user_settings import UserSettings
 
 
 class DummySession:
@@ -229,6 +234,107 @@ async def test_resume_queued_jobs_requeues_pending(monkeypatch):
             if user_id is not None:
                 await session.execute(delete(User).where(User.id == user_id))
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_resolve_queue_concurrency_prefers_admin():
+    """Startup concurrency should prefer admin user settings when present."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    try:
+        async with AsyncSessionLocal() as session:
+            admin = User(username="admin", email="admin@example.com", hashed_password="hashed")
+            other = User(username="member", email="member@example.com", hashed_password="hashed")
+            session.add_all([admin, other])
+            await session.flush()
+            session.add_all(
+                [
+                    UserSettings(user_id=admin.id, max_concurrent_jobs=1),
+                    UserSettings(user_id=other.id, max_concurrent_jobs=5),
+                ]
+            )
+            await session.commit()
+
+            value = await resolve_queue_concurrency(session)
+
+        assert value == 1
+    finally:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.mark.asyncio
+async def test_finalize_incomplete_jobs_marks_cancelled():
+    """Startup cleanup should cancel queued/processing/cancelling jobs."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as session:
+        user = User(
+            username="cancel_admin", email="cancel_admin@example.com", hashed_password="hashed"
+        )
+        session.add(user)
+        await session.flush()
+        jobs = [
+            Job(
+                id=str(uuid4()),
+                user_id=user.id,
+                original_filename="queued.wav",
+                saved_filename="queued.wav",
+                file_path="/tmp/queued.wav",
+                file_size=123,
+                mime_type="audio/wav",
+                status="queued",
+                progress_percent=0,
+                model_used="medium",
+                has_timestamps=True,
+                has_speaker_labels=False,
+                created_at=datetime.utcnow(),
+            ),
+            Job(
+                id=str(uuid4()),
+                user_id=user.id,
+                original_filename="processing.wav",
+                saved_filename="processing.wav",
+                file_path="/tmp/processing.wav",
+                file_size=123,
+                mime_type="audio/wav",
+                status="processing",
+                progress_percent=40,
+                model_used="medium",
+                has_timestamps=True,
+                has_speaker_labels=False,
+                created_at=datetime.utcnow(),
+                started_at=datetime.utcnow(),
+            ),
+            Job(
+                id=str(uuid4()),
+                user_id=user.id,
+                original_filename="cancelling.wav",
+                saved_filename="cancelling.wav",
+                file_path="/tmp/cancelling.wav",
+                file_size=123,
+                mime_type="audio/wav",
+                status="cancelling",
+                progress_percent=40,
+                model_used="medium",
+                has_timestamps=True,
+                has_speaker_labels=False,
+                created_at=datetime.utcnow(),
+            ),
+        ]
+        session.add_all(jobs)
+        await session.commit()
+
+        cleared = await finalize_incomplete_jobs(session)
+        assert cleared == 3
+        for job in jobs:
+            await session.refresh(job)
+            assert job.status == "cancelled"
+            assert job.progress_stage is None
 
 
 @pytest.mark.asyncio

@@ -13,15 +13,13 @@ async function convert() {
   const { createCoverageMap } = coverageLib;
   const map = createCoverageMap({});
 
-  if (!fs.existsSync(tmpDir)) {
-    if (fs.existsSync(finalJson)) {
-      const finalPayload = JSON.parse(fs.readFileSync(finalJson, 'utf8'));
-      map.merge(finalPayload);
-    } else {
-      console.error('No coverage data found. Run "npm run test:coverage" first.');
-      process.exitCode = 1;
-      return;
-    }
+  if (fs.existsSync(finalJson)) {
+    const finalPayload = JSON.parse(fs.readFileSync(finalJson, 'utf8'));
+    map.merge(finalPayload);
+  } else if (!fs.existsSync(tmpDir)) {
+    console.error('No coverage data found. Run "npm run test:coverage" first.');
+    process.exitCode = 1;
+    return;
   } else {
     const files = fs
       .readdirSync(tmpDir)

@@ -316,12 +316,13 @@ class TestJobTagAssociations:
             assert sample_tags[2].id in returned_tag_ids
 
     async def test_assign_tags_empty_list(self, test_db, auth_headers: dict, sample_job: Job):
-        """Test assigning empty tag list fails."""
+        """Test assigning empty tag list clears tags."""
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/jobs/{sample_job.id}/tags", headers=auth_headers, json={"tag_ids": []}
             )
-            assert response.status_code == 422
+            assert response.status_code == 200
+            assert response.json()["tags"] == []
 
     async def test_assign_tags_nonexistent_job(
         self, test_db, auth_headers: dict, sample_tags: list[Tag]
@@ -550,13 +551,13 @@ class TestTagRouteDirect:
     async def test_assign_tags_invalid_payload_direct(self, test_db, sample_job):
         async with AsyncSessionLocal() as session:
             user = await session.get(User, 1)
-            with pytest.raises(HTTPException):
-                await tags_module.assign_tags_to_job(
-                    sample_job.id,
-                    TagAssignment(tag_ids=[]),
-                    db=session,
-                    current_user=user,
-                )
+            resp = await tags_module.assign_tags_to_job(
+                sample_job.id,
+                TagAssignment(tag_ids=[]),
+                db=session,
+                current_user=user,
+            )
+            assert resp.tags == []
 
     async def test_remove_tag_from_job_direct(self, test_db, sample_job, sample_tags):
         async with AsyncSessionLocal() as session:

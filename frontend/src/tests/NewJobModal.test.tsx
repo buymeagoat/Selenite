@@ -175,6 +175,37 @@ const openAdvanced = async () => {
     expect(screen.getByText(/start transcription/i)).toBeDisabled();
   });
 
+  it('prefills fields when restart data is provided', async () => {
+    const file = new File(['audio'], 'restart.mp3', { type: 'audio/mpeg' });
+    renderModal({
+      prefill: {
+        file,
+        jobName: 'Restarted Job',
+        provider: 'test-asr',
+        model: 'asr-weight',
+        language: 'en',
+        enableTimestamps: false,
+        enableSpeakerDetection: true,
+        diarizerProvider: 'pyannote',
+        diarizer: 'diar-weight',
+        speakerCount: 2,
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText('restart.mp3')).toBeInTheDocument());
+    const nameInput = screen.getByLabelText(/job name/i) as HTMLInputElement;
+    await waitFor(() => expect(nameInput.value).toBe('Restarted Job'));
+
+    await openAdvanced();
+    expect((screen.getByTestId('provider-select') as HTMLSelectElement).value).toBe('test-asr');
+    expect((screen.getByTestId('model-select') as HTMLSelectElement).value).toBe('asr-weight');
+    expect((screen.getByTestId('language-select') as HTMLSelectElement).value).toBe('en');
+    const timestamps = screen.getByLabelText(/include timestamps/i) as HTMLInputElement;
+    expect(timestamps.checked).toBe(false);
+    const speakerCount = screen.getByTestId('speaker-count-select') as HTMLSelectElement;
+    expect(speakerCount.value).toBe('2');
+  });
+
   it('shows default model and language selections', async () => {
     renderModal();
     await openAdvanced();
@@ -295,6 +326,7 @@ const openAdvanced = async () => {
     await waitFor(() => expect(submitSpy).toHaveBeenCalledTimes(1));
     expect(submitSpy).toHaveBeenCalledWith(
       expect.objectContaining({
+        jobName: 'sample',
         provider: 'test-asr',
         model: 'asr-weight',
         language: 'auto',

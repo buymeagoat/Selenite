@@ -1,6 +1,7 @@
 """Integration tests for job management routes."""
 
 import io
+from pathlib import Path
 from datetime import datetime, timedelta
 from uuid import uuid4
 from unittest.mock import AsyncMock, patch
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.main import app
-from app.config import BACKEND_ROOT
+from app.config import BACKEND_ROOT, settings
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.models.job import Job
@@ -153,6 +154,27 @@ class TestCreateJob:
         assert json_data["status"] == "queued"
         assert "created_at" in json_data
 
+    async def test_create_job_with_custom_name(self, test_db, auth_headers, tmp_path, monkeypatch):
+        """Custom job name should update the stored filename."""
+        monkeypatch.setattr(settings, "media_storage_path", str(tmp_path))
+        file_content = b"fake audio content for testing"
+        files = {"file": ("original.mp3", io.BytesIO(file_content), "audio/mpeg")}
+        data = {"model": "test-entry", "job_name": "Renamed Job"}
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/jobs", files=files, data=data, headers=auth_headers)
+
+        assert response.status_code == 201
+        json_data = response.json()
+        assert json_data["original_filename"] == "Renamed Job.mp3"
+
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, json_data["id"])
+            assert job is not None
+            assert Path(job.file_path).exists()
+            assert Path(job.file_path).name == "Renamed Job.mp3"
+
     # Rate limit test removed as requested. Invalid file format test no longer asserts rate limit errors.
 
     async def test_create_job_invalid_format(self, test_db, auth_headers):
@@ -185,6 +207,36 @@ class TestCreateJob:
         data = response.json()
         assert data["original_filename"] == "default.mp3"
         assert data["status"] == "queued"
+
+
+@pytest.mark.asyncio
+class TestRenameJob:
+    """Tests for PATCH /jobs/{job_id}/rename endpoint."""
+
+    async def test_rename_job_updates_media(self, test_db, auth_headers, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "media_storage_path", str(tmp_path))
+        job_id = str(uuid4())
+        original_path = tmp_path / "original.mp3"
+        original_path.write_bytes(b"audio")
+        await _create_job_record(
+            job_id=job_id,
+            original_filename="original.mp3",
+            file_path=str(original_path),
+        )
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.patch(
+                f"/jobs/{job_id}/rename",
+                json={"name": "Updated"},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["original_filename"] == "Updated.mp3"
+        assert not original_path.exists()
+        assert (tmp_path / "Updated.mp3").exists()
 
 
 @pytest.mark.asyncio
@@ -495,7 +547,8 @@ class TestJobTagAssignments:
             response = await client.post(
                 f"/jobs/{job.id}/tags", json={"tag_ids": []}, headers=auth_headers
             )
-        assert response.status_code == 422
+        assert response.status_code == 200
+        assert response.json()["tags"] == []
 
     async def test_assign_tags_job_not_found(self, test_db, auth_headers):
         transport = ASGITransport(app=app)

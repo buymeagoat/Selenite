@@ -33,7 +33,7 @@ describe('AudioPlayer', () => {
       />
     );
     
-    expect(screen.getByText(/3:05/)).toBeInTheDocument();
+    expect(screen.getByText(/00:03:05/)).toBeInTheDocument();
   });
 
   it('shows play button initially', () => {

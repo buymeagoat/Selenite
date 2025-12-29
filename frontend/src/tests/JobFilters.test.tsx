@@ -26,6 +26,14 @@ describe('JobFilters', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
+  it('closes dropdown when clicking outside', () => {
+    render(<JobFilters currentFilters={{}} availableTags={tags} onFilterChange={vi.fn()} onReset={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /status/i }));
+    expect(screen.getByText('All')).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText('All')).not.toBeInTheDocument();
+  });
+
   it('selecting a status calls onFilterChange', () => {
     const handleChange = vi.fn();
     render(<JobFilters currentFilters={{}} availableTags={tags} onFilterChange={handleChange} onReset={vi.fn()} />);
@@ -50,6 +58,22 @@ describe('JobFilters', () => {
     fireEvent.click(screen.getByRole('button', { name: /date/i }));
     fireEvent.click(screen.getByText('Today'));
     expect(handleChange).toHaveBeenCalledWith({ dateRange: 'today' });
+  });
+
+  it('selecting custom range calls onCustomRange', () => {
+    const handleCustomRange = vi.fn();
+    render(
+      <JobFilters
+        currentFilters={{}}
+        availableTags={tags}
+        onFilterChange={vi.fn()}
+        onCustomRange={handleCustomRange}
+        onReset={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /date/i }));
+    fireEvent.click(screen.getByText('Custom Range'));
+    expect(handleCustomRange).toHaveBeenCalledTimes(1);
   });
 
   it('opens tags dropdown and shows tag checkboxes', () => {
@@ -93,5 +117,26 @@ describe('JobFilters', () => {
     const resetBtn = screen.getByRole('button', { name: /reset filters/i });
     fireEvent.click(resetBtn);
     expect(handleReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows active filter chips and allows removing them', () => {
+    const handleChange = vi.fn();
+    render(
+      <JobFilters
+        currentFilters={{ status: 'completed', dateRange: 'today', tags: [1] }}
+        availableTags={tags}
+        onFilterChange={handleChange}
+        onReset={vi.fn()}
+      />
+    );
+    expect(screen.getByText('Status: Completed')).toBeInTheDocument();
+    expect(screen.getByText('Date: Today')).toBeInTheDocument();
+    expect(screen.getByText('Tag: interviews')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /remove status filter/i }));
+    expect(handleChange).toHaveBeenCalledWith({ status: undefined, dateRange: 'today', tags: [1] });
+    fireEvent.click(screen.getByRole('button', { name: /remove date filter/i }));
+    expect(handleChange).toHaveBeenCalledWith({ status: 'completed', dateRange: undefined, tags: [1] });
+    fireEvent.click(screen.getByRole('button', { name: /remove tag interviews/i }));
+    expect(handleChange).toHaveBeenCalledWith({ status: 'completed', dateRange: 'today', tags: [] });
   });
 });

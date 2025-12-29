@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
 import type { Job } from '../services/jobs';
 
@@ -39,6 +39,7 @@ describe('JobDetailModal', () => {
   const mockOnRestart = vi.fn();
   const mockOnDelete = vi.fn();
   const mockOnStop = vi.fn();
+  const mockOnRename = vi.fn();
   const mockOnViewTranscript = vi.fn();
   const mockOnUpdateTags = vi.fn();
 
@@ -49,6 +50,7 @@ describe('JobDetailModal', () => {
     mockOnRestart.mockClear();
     mockOnDelete.mockClear();
     mockOnStop.mockClear();
+    mockOnRename.mockClear();
     mockOnViewTranscript.mockClear();
     mockOnUpdateTags.mockClear();
   });
@@ -64,6 +66,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -83,6 +86,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -102,6 +106,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -121,6 +126,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -146,13 +152,14 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
     
-    expect(screen.getByText('#interviews')).toBeInTheDocument();
-    expect(screen.getByText('#important')).toBeInTheDocument();
+    expect(screen.getByText('interviews')).toBeInTheDocument();
+    expect(screen.getByText('important')).toBeInTheDocument();
   });
 
   it('closes modal when X button is clicked', () => {
@@ -166,6 +173,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -187,6 +195,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -208,12 +217,39 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
     );
     
     expect(screen.getByText(/download transcript/i)).toBeInTheDocument();
+  });
+
+  it('calls onRename when rename is confirmed', async () => {
+    render(
+      <JobDetailModal
+        isOpen={true}
+        onClose={mockOnClose}
+        job={mockJob}
+        onPlay={mockOnPlay}
+        onDownload={mockOnDownload}
+        onRestart={mockOnRestart}
+        onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onRename={mockOnRename}
+        onViewTranscript={mockOnViewTranscript}
+        onUpdateTags={mockOnUpdateTags}
+      />
+    );
+
+    fireEvent.click(screen.getByText(/rename job/i));
+    const dialog = screen.getByRole('dialog', { name: /rename job/i });
+    fireEvent.change(screen.getByLabelText(/new name/i), { target: { value: 'Updated' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^rename$/i }));
+    await waitFor(() => {
+      expect(mockOnRename).toHaveBeenCalledWith('123', 'Updated');
+    });
   });
 
   it('calls onRestart when restart button is clicked', () => {
@@ -227,6 +263,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -248,6 +285,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />
@@ -271,6 +309,7 @@ describe('JobDetailModal', () => {
         onRestart={mockOnRestart}
         onDelete={mockOnDelete}
         onStop={mockOnStop}
+        onRename={mockOnRename}
         onViewTranscript={mockOnViewTranscript}
         onUpdateTags={mockOnUpdateTags}
       />

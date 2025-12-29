@@ -7,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from fastapi import HTTPException
 
 from app.main import app
+from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
 from app.models.user import User
 from app.models.job import Job
@@ -164,6 +165,29 @@ async def test_export_missing_transcript(tmp_path, test_db, auth_headers_user1):
         response = await client.get(f"/jobs/{job.id}/export", headers=auth_headers_user1)
     assert response.status_code == 404
     assert "Transcript file not found" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_export_falls_back_to_default_transcript_path(
+    tmp_path, test_db, auth_headers_user1, monkeypatch
+):
+    job_id = "job-fallback"
+    fallback_path = tmp_path / f"{job_id}.txt"
+    fallback_path.write_text("Fallback transcript", encoding="utf-8")
+    monkeypatch.setattr(settings, "transcript_storage_path", str(tmp_path))
+
+    job = await _create_job(
+        job_id=job_id,
+        user_id=1,
+        status="completed",
+        transcript_path=None,
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(f"/jobs/{job.id}/export?format=txt", headers=auth_headers_user1)
+
+    assert response.status_code == 200
+    assert response.text == "Fallback transcript"
 
 
 @pytest.mark.anyio

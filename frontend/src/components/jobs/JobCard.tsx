@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Download, Eye, Gauge, Pause, Play, Square } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
-import { ProgressBar } from './ProgressBar';
+import { getTagColor, getTagTextColor } from '../tags/tagColors';
 
 interface Job {
   id: string;
@@ -21,7 +22,7 @@ interface Job {
   diarizer_used?: string | null;
   diarizer_provider_used?: string | null;
   completed_at?: string | null;
-  tags: Array<{ id: number; name: string; color: string }>;
+  tags: Array<{ id: number; name: string; color?: string | null }>;
 }
 
 interface JobCardProps {
@@ -62,17 +63,50 @@ export const JobCard: React.FC<JobCardProps> = ({
   onSelectToggle,
   timeZone = null,
 }) => {
+  const [now, setNow] = useState(() => Date.now());
   const durationSeconds = job.duration ?? 0;
+  const isProcessing = ['processing', 'cancelling'].includes(job.status);
 
   const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const totalSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}`;
   };
+
+  const parseTimestamp = (value?: string | null) => {
+    if (!value) return null;
+    let normalized = value.replace(' ', 'T');
+    normalized = normalized.replace(/(\.\d{3})\d+/, '$1');
+    if (!/Z$/i.test(normalized) && !/[+-]\d{2}:\d{2}$/.test(normalized)) {
+      normalized = `${normalized}Z`;
+    }
+    const ts = Date.parse(normalized);
+    return Number.isNaN(ts) ? null : ts;
+  };
+
+  const elapsedSeconds = useMemo(() => {
+    const startedTs = parseTimestamp(job.started_at) ?? parseTimestamp(job.created_at);
+    if (startedTs === null) return null;
+    return Math.max(0, Math.floor((now - startedTs) / 1000));
+  }, [job.created_at, job.started_at, now]);
+
+  const formatStage = (stage?: string | null) => {
+    if (stage) {
+      const normalized = stage.replace(/_/g, ' ').trim();
+      return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : undefined;
+    }
+    return job.status === 'cancelling' ? 'Cancelling' : 'Processing';
+  };
+
+  useEffect(() => {
+    if (!isProcessing) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [isProcessing]);
 
   const speakerText = (() => {
     const detected = job.speaker_count ?? (job.has_speaker_labels ? 1 : null);
@@ -97,7 +131,6 @@ export const JobCard: React.FC<JobCardProps> = ({
       hour: 'numeric',
       minute: '2-digit',
       timeZone: timeZone || undefined,
-      timeZoneName: 'short',
     });
   };
 
@@ -115,14 +148,6 @@ export const JobCard: React.FC<JobCardProps> = ({
     return job.diarizer_provider_used
       ? `${job.diarizer_provider_used} / ${job.diarizer_used}`
       : job.diarizer_used;
-  })();
-
-  const processingDuration = (() => {
-    if (!job.started_at || !job.completed_at) return null;
-    const started = parseAsUTC(job.started_at).getTime();
-    const completed = parseAsUTC(job.completed_at).getTime();
-    if (!started || !completed || completed < started) return null;
-    return Math.floor((completed - started) / 1000);
   })();
 
   return (
@@ -160,13 +185,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span>Duration: {formatDuration(durationSeconds)}</span>
           </>
         )}
-        {showCompletedMetadata && processingDuration !== null && (
-          <>
-            <span aria-hidden="true" className="text-gray-300">|</span>
-            <span>Processed: {formatDuration(processingDuration)}</span>
-          </>
-        )}
-        {speakerText && (
+        {job.status === 'completed' && speakerText && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
             <span>Speakers: {speakerText}</span>
@@ -182,31 +201,33 @@ export const JobCard: React.FC<JobCardProps> = ({
         </div>
       )}
 
-      {/* Progress Bar for Processing */}
-      {['processing', 'cancelling'].includes(job.status) && job.progress_percent != null && (
-        <div className="mb-3">
-          <ProgressBar
-            percent={job.progress_percent}
-            stage={job.progress_stage || undefined}
-            estimatedTimeLeft={job.estimated_time_left || undefined}
-            startedAt={job.started_at || undefined}
-            createdAt={job.created_at || undefined}
-            stalled={job.progress_stage === 'stalled' || Boolean(job.stalled_at)}
-            indeterminate
-            hidePercent
-          />
+      {isProcessing && (
+        <div className="flex items-center justify-between text-xs text-pine-mid mb-3">
+          <span>
+            {job.progress_stage === 'stalled' || Boolean(job.stalled_at)
+              ? 'Stalled - no recent progress'
+              : formatStage(job.progress_stage)}
+          </span>
+          {elapsedSeconds !== null && <span>Elapsed {formatDuration(elapsedSeconds)}</span>}
         </div>
-        )}
+      )}
 
       {/* Tags */}
       {job.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3" data-testid="job-tags">
           {job.tags.map((tag) => {
+            const tagColor = getTagColor(tag);
+            const tagTextColor = getTagTextColor(tagColor);
             return (
               <span
                 key={tag.id}
                 data-testid="job-tag-chip"
-                className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-900 border border-gray-300"
+                className="text-xs px-2 py-1 rounded border"
+                style={{
+                  backgroundColor: tagColor,
+                  color: tagTextColor,
+                  borderColor: tagColor,
+                }}
               >
                 #{tag.name}
               </span>
@@ -225,8 +246,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                 e.stopPropagation();
                 onPlay?.(job.id);
               }}
+              aria-label={isActive && isPlaying ? 'Pause playback' : 'Play media'}
+              title={isActive && isPlaying ? 'Pause' : 'Play'}
             >
-              {isActive && isPlaying ? 'Pause' : 'Play'}
+              {isActive && isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>
             <button
               className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
@@ -235,8 +258,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                 onStop?.(job.id);
               }}
               disabled={!isActive}
+              aria-label="Stop playback"
+              title="Stop"
             >
-              Stop
+              <Square className="w-4 h-4" />
             </button>
             <button
               className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
@@ -245,8 +270,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                 onSpeed?.(job.id);
               }}
               disabled={!isActive}
+              aria-label="Change playback speed"
+              title={`Speed ${playbackRate}x`}
             >
-              {playbackRate}x
+              <Gauge className="w-4 h-4" />
             </button>
             <button
               className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
@@ -254,8 +281,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                 e.stopPropagation();
                 onDownload?.(job.id);
               }}
+              aria-label="Download transcript"
+              title="Download"
             >
-              Download
+              <Download className="w-4 h-4" />
             </button>
             <button
               className="text-sm px-3 py-1 rounded bg-sage-light hover:bg-sage-mid text-pine-deep"
@@ -263,8 +292,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                 e.stopPropagation();
                 onView?.(job.id);
               }}
+              aria-label="View transcript"
+              title="View"
             >
-              View
+              <Eye className="w-4 h-4" />
             </button>
           </div>
           <div className="flex items-center gap-2">
@@ -280,7 +311,7 @@ export const JobCard: React.FC<JobCardProps> = ({
               aria-label={`Seek ${job.original_filename}`}
             />
             <span className="text-xs text-pine-mid">
-              {Math.floor(currentTime)}/{durationSeconds ? Math.floor(durationSeconds) : '0'}s
+              {formatDuration(currentTime)}/{formatDuration(durationSeconds)}
             </span>
           </div>
         </div>

@@ -78,7 +78,7 @@ describe('TagInput', () => {
       await act(async () => {
         fireEvent.click(createOption);
       });
-      expect(handleCreate).toHaveBeenCalledWith('newtagname');
+      expect(handleCreate).toHaveBeenCalledWith('newtagname', '#000000');
     });
 
   it('calls onCreate and adds new tag when Enter pressed with no match', async () => {
@@ -87,7 +87,7 @@ describe('TagInput', () => {
     render(<TagInput availableTags={mockTags} selectedTags={[]} onChange={handleChange} onCreate={handleCreate} />);
     const input = screen.getByRole('textbox');
     await userEvent.type(input, 'urgent{enter}');
-    expect(handleCreate).toHaveBeenCalledWith('urgent');
+    expect(handleCreate).toHaveBeenCalledWith('urgent', '#000000');
   });
 
   it('does not show already selected tags in dropdown', async () => {

@@ -1,51 +1,76 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Tag, X } from 'lucide-react';
+import { TAG_COLOR_PALETTE, getTagColor, getTagTextColor, pickTagColor } from './tagColors';
 
 interface TagInfo {
   id: number;
   name: string;
-  color: string;
+  color?: string | null;
 }
 
 interface TagInputProps {
   availableTags: TagInfo[];
   selectedTags: number[];
+  selectedTagOptions?: TagInfo[];
+  selectedTagsPosition?: 'above' | 'below';
   onChange: (tagIds: number[]) => void;
-  onCreate: (tagName: string) => Promise<TagInfo>;
+  onCreate: (tagName: string, color: string) => Promise<TagInfo>;
   placeholder?: string;
+  colorPalette?: string[];
 }
 
 export const TagInput: React.FC<TagInputProps> = ({
   availableTags,
   selectedTags,
+  selectedTagOptions,
+  selectedTagsPosition = 'below',
   onChange,
   onCreate,
-  placeholder = 'Add tags...'
+  placeholder = 'Add tags...',
+  colorPalette = TAG_COLOR_PALETTE
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const defaultColor = useMemo(() => pickTagColor(availableTags, colorPalette[0]), [availableTags, colorPalette]);
+  const [createColor, setCreateColor] = useState(defaultColor);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedTagObjects = availableTags.filter(t => selectedTags.includes(t.id));
+  const selectedTagMap = useMemo(() => {
+    const map = new Map<number, TagInfo>();
+    availableTags.forEach((tag) => map.set(tag.id, tag));
+    (selectedTagOptions ?? []).forEach((tag) => map.set(tag.id, tag));
+    return map;
+  }, [availableTags, selectedTagOptions]);
+
+  const selectedTagObjects = selectedTags
+    .map((id) => selectedTagMap.get(id))
+    .filter(Boolean) as TagInfo[];
   const unselectedTags = availableTags.filter(t => !selectedTags.includes(t.id));
 
   const filteredTags = inputValue.trim()
     ? unselectedTags.filter(t => t.name.toLowerCase().includes(inputValue.toLowerCase()))
     : unselectedTags;
 
-  const exactMatch = filteredTags.find(t => t.name.toLowerCase() === inputValue.toLowerCase());
-  const showCreateOption = inputValue.trim() && !exactMatch && filteredTags.length === 0;
+  const exactMatch = availableTags.find(t => t.name.toLowerCase() === inputValue.toLowerCase());
+  const showCreateOption = inputValue.trim() && !exactMatch;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.parentElement?.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!inputValue.trim()) {
+      setCreateColor(defaultColor);
+    }
+  }, [defaultColor, inputValue]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
@@ -67,10 +92,13 @@ export const TagInput: React.FC<TagInputProps> = ({
     if (!inputValue.trim() || isCreating) return;
     setIsCreating(true);
     try {
-      const newTag = await onCreate(inputValue.trim());
+      const newTag = await onCreate(inputValue.trim(), createColor);
       onChange([...selectedTags, newTag.id]);
       setInputValue('');
       setShowDropdown(false);
+      setCreateColor(defaultColor);
+    } catch (error) {
+      return;
     } finally {
       setIsCreating(false);
     }
@@ -78,16 +106,48 @@ export const TagInput: React.FC<TagInputProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && inputValue.trim()) {
-      if (filteredTags.length === 1) {
-        handleSelectTag(filteredTags[0].id);
-      } else if (showCreateOption) {
+      e.preventDefault();
+      if (exactMatch) {
+        if (!selectedTags.includes(exactMatch.id)) {
+          handleSelectTag(exactMatch.id);
+        }
+        return;
+      }
+      if (showCreateOption) {
         handleCreateTag();
       }
     }
   };
 
+  const selectedTagsContent = selectedTagObjects.length > 0 && (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {selectedTagObjects.map(tag => {
+        const tagColor = getTagColor(tag);
+        const tagTextColor = getTagTextColor(tagColor);
+        return (
+          <span
+            key={tag.id}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded text-sm"
+            style={{ backgroundColor: tagColor, color: tagTextColor }}
+          >
+            {tag.name}
+            <button
+              type="button"
+              onClick={() => handleRemoveTag(tag.id)}
+              aria-label={`Remove ${tag.name}`}
+              className="ml-1 hover:opacity-75"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="w-full">
+    <div className="w-full" ref={containerRef}>
+      {selectedTagsPosition === 'above' && selectedTagsContent}
       <div className="relative">
         <div className="flex items-center border border-sage-mid rounded-lg px-3 py-2 bg-white focus-within:border-forest-green focus-within:ring-1 focus-within:ring-forest-green">
           <Tag className="w-4 h-4 text-pine-mid mr-2" />
@@ -105,7 +165,11 @@ export const TagInput: React.FC<TagInputProps> = ({
         </div>
 
         {showDropdown && (filteredTags.length > 0 || showCreateOption) && (
-          <div data-testid="tag-dropdown" className="absolute z-20 w-full mt-1 bg-white border border-sage-mid rounded-lg shadow-lg max-h-48 overflow-auto">
+          <div
+            data-testid="tag-dropdown"
+            className="absolute z-20 w-full mt-1 bg-white border border-sage-mid rounded-lg shadow-lg max-h-48 overflow-auto"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             {filteredTags.map(tag => (
               <button
                 key={tag.id}
@@ -115,47 +179,43 @@ export const TagInput: React.FC<TagInputProps> = ({
               >
                 <div
                   className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: tag.color }}
+                  style={{ backgroundColor: getTagColor(tag) }}
                 />
                 <span>{tag.name}</span>
               </button>
             ))}
             {showCreateOption && (
-              <button
-                type="button"
-                onClick={handleCreateTag}
-                disabled={isCreating}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-sage-light text-left text-forest-green border-t border-sage-mid"
-              >
-                <Tag className="w-3 h-3" />
-                <span>Create new tag: <strong>{inputValue}</strong></span>
-              </button>
+              <div className="border-t border-sage-mid">
+                <div className="flex items-center gap-2 px-3 py-2">
+                  {colorPalette.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Select ${color}`}
+                      onClick={() => setCreateColor(color)}
+                      className={`w-4 h-4 rounded-full border ${
+                        createColor === color ? 'border-forest-green ring-2 ring-forest-green/40' : 'border-sage-mid'
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateTag}
+                  disabled={isCreating}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-sage-light text-left text-forest-green"
+                >
+                  <Tag className="w-3 h-3" />
+                  <span>Create new tag: <strong>{inputValue}</strong></span>
+                </button>
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {selectedTagObjects.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {selectedTagObjects.map(tag => (
-            <span
-              key={tag.id}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded text-sm text-white"
-              style={{ backgroundColor: tag.color }}
-            >
-              {tag.name}
-              <button
-                type="button"
-                onClick={() => handleRemoveTag(tag.id)}
-                aria-label={`Remove ${tag.name}`}
-                className="ml-1 hover:opacity-75"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {selectedTagsPosition === 'below' && selectedTagsContent}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Dashboard } from '../pages/Dashboard';
 import { ApiError } from '../lib/api';
@@ -13,7 +13,12 @@ const deleteJobMock = vi.fn();
 const assignTagMock = vi.fn();
 const removeTagMock = vi.fn();
 const fetchTagsMock = vi.fn();
+const createTagMock = vi.fn();
 const fetchSettingsMock = vi.fn();
+const renameJobMock = vi.fn();
+const jsZipFileMock = vi.fn();
+const jsZipGenerateMock = vi.fn();
+const jsZipMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../services/jobs', () => ({
   fetchJobs: (...args: any[]) => fetchJobsMock(...args),
@@ -23,10 +28,12 @@ vi.mock('../services/jobs', () => ({
   deleteJob: (...args: any[]) => deleteJobMock(...args),
   assignTag: (...args: any[]) => assignTagMock(...args),
   removeTag: (...args: any[]) => removeTagMock(...args),
+  renameJob: (...args: any[]) => renameJobMock(...args),
 }));
 
 vi.mock('../services/tags', () => ({
   fetchTags: (...args: any[]) => fetchTagsMock(...args),
+  createTag: (...args: any[]) => createTagMock(...args),
 }));
 
 vi.mock('../services/settings', () => ({
@@ -46,6 +53,10 @@ vi.mock('../context/ToastContext', () => ({
 
 vi.mock('../hooks/usePolling', () => ({
   usePolling: vi.fn(),
+}));
+
+vi.mock('jszip', () => ({
+  default: jsZipMock,
 }));
 
 const buildJob = (overrides: Partial<any> = {}) => ({
@@ -93,11 +104,29 @@ vi.mock('../components/common/SearchBar', () => ({
 }));
 
 vi.mock('../components/jobs/JobFilters', () => ({
-  JobFilters: () => <div data-testid="job-filters" />,
+  JobFilters: ({ onCustomRange }: any) => (
+    <button type="button" data-testid="open-custom-range" onClick={() => onCustomRange?.()}>
+      Open Custom Range
+    </button>
+  ),
 }));
 
 vi.mock('../components/jobs/JobCard', () => ({
-  JobCard: ({ job }: any) => <div>{job.original_filename}</div>,
+  JobCard: ({ job, selectionMode, selected, onSelectToggle, onClick }: any) => (
+    <div>
+      {selectionMode && (
+        <input
+          data-testid={`select-${job.id}`}
+          type="checkbox"
+          checked={selected}
+          onChange={(event) => onSelectToggle?.(job.id, event.target.checked)}
+        />
+      )}
+      <button type="button" onClick={() => onClick(job.id)}>
+        {job.original_filename}
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('../components/common/Skeleton', () => ({
@@ -109,7 +138,12 @@ vi.mock('../components/modals/NewJobModal', () => ({
 }));
 
 vi.mock('../components/modals/JobDetailModal', () => ({
-  JobDetailModal: () => null,
+  JobDetailModal: ({ isOpen, job, onUpdateTags }: any) =>
+    isOpen ? (
+      <button data-testid="update-tags" onClick={() => onUpdateTags(job.id, [1, 2])}>
+        Update tags
+      </button>
+    ) : null,
 }));
 
 const settingsCacheKey = 'dashboard_test_settings';
@@ -137,7 +171,12 @@ describe('Dashboard', () => {
     removeTagMock.mockReset();
     toastMock.showError.mockReset();
     toastMock.showSuccess.mockReset();
+    createTagMock.mockReset();
+    renameJobMock.mockReset();
     localStorage.removeItem(settingsCacheKey);
+    jsZipFileMock.mockReset();
+    jsZipGenerateMock.mockReset();
+    jsZipMock.mockReset();
   });
 
   it('loads jobs and filters with the search bar', async () => {
@@ -177,6 +216,162 @@ describe('Dashboard', () => {
     expect(screen.queryByText(/All Hands Recording/i)).not.toBeInTheDocument();
   });
 
+  it('selects all visible jobs when toggling select all', async () => {
+    const jobA = buildJob({ id: 'job-a', original_filename: 'Alpha' });
+    const jobB = buildJob({ id: 'job-b', original_filename: 'Beta' });
+    fetchJobsMock.mockResolvedValue(jobsResponse([jobA, jobB]));
+    fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: true,
+      allow_asr_overrides: true,
+      allow_diarizer_overrides: true,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    jsZipMock.mockImplementation(() => ({
+      file: jsZipFileMock,
+      generateAsync: jsZipGenerateMock.mockResolvedValue(new Blob(['zip'])),
+    }));
+
+    renderDashboard();
+
+    await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+    const selectAll = screen.getByRole('checkbox', { name: /select all/i });
+    fireEvent.click(selectAll);
+
+    await waitFor(() => {
+      expect((screen.getByTestId('select-job-a') as HTMLInputElement).checked).toBe(true);
+      expect((screen.getByTestId('select-job-b') as HTMLInputElement).checked).toBe(true);
+    });
+
+    fireEvent.click(selectAll);
+
+    await waitFor(() => {
+      expect((screen.getByTestId('select-job-a') as HTMLInputElement).checked).toBe(false);
+      expect((screen.getByTestId('select-job-b') as HTMLInputElement).checked).toBe(false);
+    });
+  });
+
+  it('downloads selected transcripts as a zip when multiple jobs are selected', async () => {
+    const jobA = buildJob({ id: 'job-a', original_filename: 'Alpha' });
+    const jobB = buildJob({ id: 'job-b', original_filename: 'Beta' });
+    fetchJobsMock.mockResolvedValue(jobsResponse([jobA, jobB]));
+    fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: true,
+      allow_asr_overrides: true,
+      allow_diarizer_overrides: true,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    jsZipMock.mockImplementation(() => ({
+      file: jsZipFileMock,
+      generateAsync: jsZipGenerateMock.mockResolvedValue(new Blob(['zip'])),
+    }));
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(['transcript']),
+      headers: {
+        get: () => 'attachment; filename="transcript.txt"',
+      },
+    });
+    const originalFetch = globalThis.fetch;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    globalThis.fetch = fetchMock as any;
+    URL.createObjectURL = vi.fn(() => 'blob:download');
+    URL.revokeObjectURL = vi.fn();
+
+    try {
+      renderDashboard();
+      await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByTestId('select-job-a'));
+      fireEvent.click(screen.getByTestId('select-job-b'));
+
+    fireEvent.click(screen.getByRole('button', { name: /^download$/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /export transcripts/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^download$/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(jsZipMock).toHaveBeenCalledTimes(1);
+    expect(jsZipFileMock).toHaveBeenCalledTimes(2);
+    expect(jsZipGenerateMock).toHaveBeenCalledWith({ type: 'blob' });
+    } finally {
+      globalThis.fetch = originalFetch;
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+  });
+
+  it('renames a selected job from the bulk rename modal', async () => {
+    const job = buildJob({ id: 'job-9', original_filename: 'Original.mp3' });
+    fetchJobsMock
+      .mockResolvedValueOnce(jobsResponse([job]))
+      .mockResolvedValueOnce(jobsResponse([{ ...job, original_filename: 'Updated.mp3' }]));
+    fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: true,
+      allow_asr_overrides: true,
+      allow_diarizer_overrides: true,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+    renameJobMock.mockResolvedValue({ ...job, original_filename: 'Updated.mp3' });
+
+    renderDashboard();
+    await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('select-job-9'));
+    fireEvent.click(screen.getByRole('button', { name: /^rename$/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /rename job/i });
+    fireEvent.change(within(dialog).getByLabelText(/new name/i), {
+      target: { value: 'Updated' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^rename$/i }));
+
+    await waitFor(() => expect(renameJobMock).toHaveBeenCalledWith('job-9', 'Updated'));
+  });
+
   it('shows empty-state and surfaces toast errors when fetching jobs fails', async () => {
     fetchJobsMock.mockRejectedValueOnce(new ApiError('Boom', 500));
     fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
@@ -203,5 +398,118 @@ describe('Dashboard', () => {
     await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/no transcriptions yet/i)).toBeInTheDocument());
     expect(toastMock.showError).toHaveBeenCalledWith(expect.stringContaining('Boom'));
+  });
+
+  it('creates a custom tag and applies it to selected jobs', async () => {
+    const job = buildJob({ id: 'job-1', original_filename: 'Custom tag test' });
+    fetchJobsMock
+      .mockResolvedValueOnce(jobsResponse([job]))
+      .mockResolvedValueOnce(jobsResponse([job]));
+    fetchTagsMock
+      .mockResolvedValueOnce({ total: 0, items: [] })
+      .mockResolvedValueOnce({
+        total: 1,
+        items: [{ id: 42, name: 'Priority', color: '#000000', job_count: 0, created_at: new Date().toISOString() }],
+      });
+    createTagMock.mockResolvedValue({ id: 42, name: 'Priority', color: '#000000', job_count: 0, created_at: new Date().toISOString() });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: false,
+      allow_asr_overrides: false,
+      allow_diarizer_overrides: false,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    renderDashboard();
+    await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('select-job-1'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'custom' } });
+
+    const dialog = screen.getByRole('dialog', { name: /custom tag/i });
+    fireEvent.change(within(dialog).getByLabelText(/tag name/i), { target: { value: 'Priority' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(createTagMock).toHaveBeenCalledWith({ name: 'Priority', color: '#000000' }));
+    await waitFor(() =>
+      expect(assignTagMock).toHaveBeenCalledWith('job-1', expect.arrayContaining([1, 42]))
+    );
+    expect(toastMock.showSuccess).toHaveBeenCalledWith(expect.stringContaining('Applied tag'));
+  });
+
+  it('updates tags from the modal without dropping existing tags', async () => {
+    const job = buildJob({ id: 'job-2', original_filename: 'Modal tag test' });
+    fetchJobsMock.mockResolvedValue(jobsResponse([job]));
+    fetchTagsMock.mockResolvedValue({ total: 1, items: [{ id: 1, name: 'General', color: '#1D8348', job_count: 1, created_at: new Date().toISOString() }] });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: false,
+      allow_asr_overrides: false,
+      allow_diarizer_overrides: false,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    renderDashboard();
+    await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText(/Modal tag test/i));
+    fireEvent.click(screen.getByTestId('update-tags'));
+
+    await waitFor(() => expect(assignTagMock).toHaveBeenCalledWith('job-2', [1, 2]));
+  });
+
+  it('defaults custom range meridiem to AM', async () => {
+    const job = buildJob({ id: 'job-3', original_filename: 'Range test' });
+    fetchJobsMock.mockResolvedValue(jobsResponse([job]));
+    fetchTagsMock.mockResolvedValue({ total: 0, items: [] });
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: false,
+      allow_asr_overrides: false,
+      allow_diarizer_overrides: false,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    renderDashboard();
+    await waitFor(() => expect(fetchJobsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('open-custom-range'));
+    const startMeridiem = screen.getByLabelText(/start meridiem/i) as HTMLSelectElement;
+    const endMeridiem = screen.getByLabelText(/end meridiem/i) as HTMLSelectElement;
+    expect(startMeridiem.value).toBe('AM');
+    expect(endMeridiem.value).toBe('AM');
   });
 });

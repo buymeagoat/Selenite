@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
-from unittest.mock import AsyncMock
+from unittest.mock import Mock
 from types import SimpleNamespace
 from fastapi import HTTPException
 
@@ -369,7 +369,7 @@ async def test_helper_creates_and_reuses_settings(test_db):
 
 @pytest.mark.asyncio
 async def test_update_settings_sets_queue_concurrency(test_db, monkeypatch):
-    """Ensure queue.set_concurrency executes when not in testing mode."""
+    """Ensure queue concurrency scheduling executes when not in testing mode."""
     async with AsyncSessionLocal() as session:
         user = await session.get(User, 1)
         payload = SettingsUpdateRequest(
@@ -378,19 +378,20 @@ async def test_update_settings_sets_queue_concurrency(test_db, monkeypatch):
             default_language="es",
             max_concurrent_jobs=4,
         )
-        mock_set = AsyncMock()
-        monkeypatch.setattr(settings_routes.queue, "set_concurrency", mock_set)
+        mock_schedule = Mock()
+        monkeypatch.setattr(settings_routes, "_schedule_queue_concurrency", mock_schedule)
+        monkeypatch.setattr(settings_routes.queue, "validate_concurrency", lambda value: None)
         monkeypatch.setattr(settings_routes, "settings", SimpleNamespace(is_testing=False))
 
         response = await settings_routes.update_settings(payload, current_user=user, db=session)
 
-        mock_set.assert_awaited_once_with(4)
+        mock_schedule.assert_called_once_with(4)
         assert response.max_concurrent_jobs == 4
 
 
 @pytest.mark.asyncio
 async def test_update_settings_queue_failure_raises_http_error(test_db, monkeypatch):
-    """If queue rejects the concurrency value, the route should raise HTTP 400."""
+    """If queue validation fails, the route should raise HTTP 400."""
     async with AsyncSessionLocal() as session:
         user = await session.get(User, 1)
         payload = SettingsUpdateRequest(
@@ -401,8 +402,8 @@ async def test_update_settings_queue_failure_raises_http_error(test_db, monkeypa
         )
         monkeypatch.setattr(
             settings_routes.queue,
-            "set_concurrency",
-            AsyncMock(side_effect=ValueError("invalid concurrency")),
+            "validate_concurrency",
+            lambda value: (_ for _ in ()).throw(ValueError("invalid concurrency")),
         )
         monkeypatch.setattr(settings_routes, "settings", SimpleNamespace(is_testing=False))
 

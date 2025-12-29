@@ -64,4 +64,14 @@ describe('TagList', () => {
     expect(screen.getAllByText('marketing').length).toBeGreaterThan(0);
     expect(screen.getAllByText('research').length).toBeGreaterThan(0);
   });
+
+  it('sorts by name when the header is clicked', () => {
+    render(<TagList tags={mockTags} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const names = screen.getAllByTestId('tag-name').map((node) => node.textContent);
+    expect(names).toEqual(['interviews', 'marketing', 'research']);
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const reversed = screen.getAllByTestId('tag-name').map((node) => node.textContent);
+    expect(reversed).toEqual(['research', 'marketing', 'interviews']);
+  });
 });

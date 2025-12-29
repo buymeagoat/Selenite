@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle, Pencil } from 'lucide-react';
 import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Job } from '../../services/jobs';
 import { createTag, type Tag } from '../../services/tags';
+import { TagInput } from '../tags/TagInput';
 import { devError } from '../../lib/debug';
 
 interface JobDetailModalProps {
@@ -15,6 +16,7 @@ interface JobDetailModalProps {
   onRestart: (jobId: string) => void;
   onDelete: (jobId: string) => void;
   onStop: (jobId: string) => void;
+  onRename: (jobId: string, name: string) => Promise<void> | void;
   onViewTranscript: (jobId: string) => void;
   onUpdateTags: (jobId: string, tagIds: number[]) => void;
   availableTags?: Tag[];
@@ -22,6 +24,18 @@ interface JobDetailModalProps {
   asrProviderHint?: string | null;
   defaultDiarizerHint?: string | null;
 }
+
+type TagOption = {
+  id: number;
+  name: string;
+  color: string | null;
+};
+
+const mergeTags = (...groups: TagOption[][]) => {
+  const map = new Map<number, TagOption>();
+  groups.flat().forEach((tag) => map.set(tag.id, tag));
+  return Array.from(map.values());
+};
 
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   isOpen,
@@ -32,22 +46,38 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onRestart,
   onDelete,
   onStop,
+  onRename,
   onViewTranscript,
   onUpdateTags,
-  availableTags = [],
+  availableTags,
   timeZone = null,
   asrProviderHint = null,
   defaultDiarizerHint = null,
 }) => {
+  const resolvedAvailableTags = useMemo(() => availableTags ?? [], [availableTags]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-  const [tagInputValue, setTagInputValue] = useState('');
-  const [editableTags, setEditableTags] = useState(job.tags);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [editableTags, setEditableTags] = useState<TagOption[]>(job.tags);
+  const [tagCatalog, setTagCatalog] = useState<TagOption[]>(() => mergeTags(job.tags, resolvedAvailableTags));
+
+  const stripExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
     // keep local tags in sync when a different job is opened
     setEditableTags(job.tags);
-  }, [job]);
+    setTagCatalog((prev) => mergeTags(prev, job.tags, resolvedAvailableTags));
+    setRenameValue(stripExtension(job.original_filename));
+    setRenameError('');
+    setShowRenameModal(false);
+    setIsRenaming(false);
+  }, [isOpen, job, resolvedAvailableTags]);
 
   if (!isOpen) return null;
 
@@ -55,8 +85,10 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const hasTranscript = job.status === 'completed';
 const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
 const canDelete = !['processing', 'cancelling'].includes(job.status);
+const canRename = !['processing', 'cancelling'].includes(job.status);
 const canStop = job.status === 'processing' || job.status === 'queued';
   const hasMedia = true; // Media always exists if job was created
+  const canPlayMedia = hasMedia && job.status !== 'processing';
   const mediaDuration = job.duration ?? 0;
   const processingDuration =
     job.started_at && job.completed_at
@@ -139,6 +171,9 @@ function parseAsUTC(value: string): Date {
   const speakerDetected =
     job.speaker_count ?? (job.status === 'completed' ? 1 : 'Pending');
   const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} | Detected: ${speakerDetected}`;
+  const jobExtension = job.original_filename.includes('.')
+    ? job.original_filename.slice(job.original_filename.lastIndexOf('.'))
+    : '';
 
   const handleDelete = () => {
     onDelete(job.id);
@@ -151,35 +186,54 @@ function parseAsUTC(value: string): Date {
     setShowDownloadMenu(false);
   };
 
-  const handleAddTag = async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    // Already on job
-    if (editableTags.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) {
-      setTagInputValue('');
+  const handleRenameSubmit = async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setRenameError('Enter a job name.');
       return;
     }
-    // Reuse existing tag if available globally
-    let tagToUse = availableTags.find(t => t.name.toLowerCase() === trimmed.toLowerCase());
-    if (!tagToUse) {
-      try {
-        tagToUse = await createTag({ name: trimmed, color: '#0F3D2E' });
-      } catch (err) {
-        devError('Failed to create tag', err);
-        setTagInputValue('');
-        return;
-      }
+    if (!canRename) {
+      setRenameError('Active jobs cannot be renamed.');
+      return;
     }
-    const next = [...editableTags, tagToUse];
-    setEditableTags(next);
-    setTagInputValue('');
-    onUpdateTags(job.id, next.map(t => t.id));
+    setIsRenaming(true);
+    setRenameError('');
+    try {
+      await onRename(job.id, trimmed);
+      setShowRenameModal(false);
+    } catch (error) {
+      devError('Rename failed', error);
+      setRenameError('Failed to rename job. Please try again.');
+    } finally {
+      setIsRenaming(false);
+    }
   };
 
-  const handleRemoveTag = async (id: number) => {
-    const next = editableTags.filter(t => t.id !== id);
-    setEditableTags(next);
-    onUpdateTags(job.id, next.map(t => t.id));
+  const handleCreateTag = async (name: string, color: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error('Tag name required');
+    }
+    const existing = tagCatalog.find((tag) => tag.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      return existing;
+    }
+    try {
+      const created = await createTag({ name: trimmed, color });
+      setTagCatalog((prev) => mergeTags(prev, [created]));
+      return created;
+    } catch (err) {
+      devError('Failed to create tag', err);
+      throw err;
+    }
+  };
+
+  const handleTagIdsChange = (tagIds: number[]) => {
+    const tagMap = new Map<number, TagOption>();
+    [...tagCatalog, ...editableTags].forEach((tag) => tagMap.set(tag.id, tag));
+    const nextTags = tagIds.map((id) => tagMap.get(id)).filter(Boolean) as TagOption[];
+    setEditableTags(nextTags);
+    onUpdateTags(job.id, tagIds);
   };
 
   return (
@@ -274,53 +328,19 @@ function parseAsUTC(value: string): Date {
             {/* Tags Section (view & edit) */}
             <div className="mb-6" data-testid="job-tags-section">
               <div className="text-sm text-pine-mid mb-2" data-testid="tags-section-title">Tags</div>
-              <div className="flex flex-wrap gap-2 mb-3" data-testid="job-tags">
-                {editableTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    data-testid="tag-chip"
-                    className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-sage-light text-pine-deep"
-                    style={{ backgroundColor: tag.color + '20', color: tag.color }}
-                  >
-                    <span>#{tag.name}</span>
-                    <button
-                      type="button"
-                      data-testid="remove-tag"
-                      aria-label={`Remove tag ${tag.name}`}
-                      onClick={() => handleRemoveTag(tag.id)}
-                      className="text-xs px-1 rounded hover:bg-red-100 hover:text-red-600 transition"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                {editableTags.length === 0 && (
-                  <span className="text-xs text-pine-mid">No tags</span>
-                )}
-              </div>
-              <div className="relative max-w-xs">
-                <input
-                  data-testid="tag-input"
-                  type="text"
-                  value={tagInputValue}
-                  onChange={(e) => setTagInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddTag(tagInputValue);
-                    }
-                  }}
+              {editableTags.length === 0 && (
+                <div className="text-xs text-pine-mid mb-2">No tags</div>
+              )}
+              <div className="max-w-md" data-testid="job-tags">
+                <TagInput
+                  availableTags={tagCatalog}
+                  selectedTags={editableTags.map((tag) => tag.id)}
+                  selectedTagOptions={editableTags}
+                  selectedTagsPosition="above"
+                  onChange={handleTagIdsChange}
+                  onCreate={handleCreateTag}
                   placeholder="Add tag"
-                  className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => handleAddTag(tagInputValue.trim())}
-                  disabled={!tagInputValue.trim()}
-                  className="mt-2 px-3 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50 text-sm"
-                >
-                  Add tag
-                </button>
               </div>
             </div>
 
@@ -334,10 +354,10 @@ function parseAsUTC(value: string): Date {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="job-actions">
               {/* Play Media - Always available if media exists */}
               <button
-                onClick={() => onPlay(job.id)}
-                disabled={!hasMedia}
+                onClick={() => canPlayMedia && onPlay(job.id)}
+                disabled={!canPlayMedia}
                 className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                  hasMedia
+                  canPlayMedia
                     ? 'bg-forest-green text-white hover:bg-pine-deep'
                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
@@ -391,6 +411,19 @@ function parseAsUTC(value: string): Date {
                 )}
               </div>
 
+              <button
+                onClick={() => canRename && setShowRenameModal(true)}
+                disabled={!canRename}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                  canRename
+                    ? 'bg-sage-light text-pine-deep hover:bg-sage-mid'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Pencil className="w-5 h-5" />
+                <span>Rename Job</span>
+              </button>
+
               {/* Restart Transcription - Only for completed/failed/cancelled jobs */}
               {canRestart && (
                 <button
@@ -430,6 +463,61 @@ function parseAsUTC(value: string): Date {
           </div>
         </div>
       </div>
+
+      {showRenameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-job-title"
+          >
+            <h2 id="rename-job-title" className="text-lg font-semibold text-pine-deep mb-4">
+              Rename job
+            </h2>
+            <label className="text-sm text-pine-deep mb-2 block" htmlFor="rename-job-input">
+              New name
+            </label>
+            <input
+              id="rename-job-input"
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+              value={renameValue}
+              onChange={(event) => {
+                setRenameValue(event.target.value);
+                if (renameError) {
+                  setRenameError('');
+                }
+              }}
+              placeholder="Enter a name"
+            />
+            <p className="text-xs text-pine-mid mt-2">
+              File extension {jobExtension || '(.ext)'} stays the same.
+            </p>
+            {!canRename && (
+              <p className="text-xs text-amber-700 mt-2">
+                Active jobs cannot be renamed while processing.
+              </p>
+            )}
+            {renameError && <p className="text-sm text-red-600 mt-2">{renameError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                onClick={() => setShowRenameModal(false)}
+                disabled={isRenaming}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 text-sm bg-forest-green text-white rounded hover:bg-pine-deep disabled:opacity-50"
+                onClick={handleRenameSubmit}
+                disabled={!canRename || isRenaming}
+              >
+                {isRenaming ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

@@ -30,9 +30,15 @@ from app.schemas.job import (
     JobResponse,
     JobStatusResponse,
     TagAssignRequest,
+    JobRenameRequest,
 )
 from app.models.tag import Tag
-from app.utils.file_handling import save_uploaded_file, generate_secure_filename
+from app.utils.file_handling import (
+    save_uploaded_file,
+    generate_secure_filename,
+    build_job_filename,
+    resolve_unique_media_path,
+)
 from app.utils.file_validation import validate_media_file
 from app.services.job_queue import queue
 from app.services.capabilities import ModelResolutionError, resolve_job_preferences
@@ -45,6 +51,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 @router.post("", response_model=JobCreatedResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(
     file: UploadFile = File(...),
+    job_name: Optional[str] = Form(default=None, alias="job_name"),
     provider: Optional[str] = Form(default=None, alias="provider"),
     model: Optional[str] = Form(default=None),
     language: Optional[str] = Form(default=None),
@@ -82,6 +89,31 @@ async def create_job(
 
     # Generate secure filename and get UUID
     secure_filename, job_uuid = generate_secure_filename(file.filename)
+
+    # Normalize job name (defaults to the uploaded filename)
+    requested_name = job_name or file.filename
+    extension = Path(file.filename).suffix or Path(file_path).suffix
+    try:
+        normalized_name = build_job_filename(requested_name, extension)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if len(normalized_name) > 255:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is too long",
+        )
+
+    target_path = resolve_unique_media_path(normalized_name, settings.media_storage_path, file_path)
+    current_path = Path(file_path)
+    if not current_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Uploaded file missing from storage",
+        )
+    if current_path.resolve() != target_path.resolve():
+        current_path.rename(target_path)
+        file_path = str(target_path)
+    secure_filename = target_path.name
 
     # Validate speaker_count if provided
     if speaker_count is not None:
@@ -126,7 +158,7 @@ async def create_job(
     job = Job(
         id=str(job_uuid),
         user_id=current_user.id,
-        original_filename=file.filename,
+        original_filename=normalized_name,
         saved_filename=secure_filename,
         file_path=file_path,
         file_size=file_size,
@@ -300,6 +332,66 @@ async def get_job(
     return JobResponse.model_validate(job)
 
 
+@router.patch("/{job_id}/rename", response_model=JobResponse)
+async def rename_job(
+    job_id: UUID,
+    payload: JobRenameRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename a job and its underlying media file."""
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.status in {"processing", "cancelling"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot rename an active job",
+        )
+    if not job.file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Media file not found",
+        )
+
+    extension = Path(job.original_filename).suffix or Path(job.file_path).suffix
+    try:
+        normalized_name = build_job_filename(payload.name, extension)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if len(normalized_name) > 255:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is too long",
+        )
+
+    current_path = Path(job.file_path)
+    if not current_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Media file not found",
+        )
+
+    target_path = resolve_unique_media_path(
+        normalized_name, settings.media_storage_path, job.file_path
+    )
+    if current_path.resolve() != target_path.resolve():
+        current_path.rename(target_path)
+        job.file_path = str(target_path)
+        job.saved_filename = target_path.name
+
+    job.original_filename = normalized_name
+    await db.commit()
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id)).options(selectinload(Job.tags))
+    )
+    job = result.scalar_one()
+    return JobResponse.model_validate(job)
+
+
 @router.get("/{job_id}/media")
 async def download_media(
     job_id: UUID,
@@ -440,12 +532,10 @@ async def assign_tag(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
-    # If empty list, return 422 (test expects failure for empty list)
-    if tag_ids == []:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="tag_ids must be a non-empty list",
-        )
+    if not tag_ids:
+        job.tags.clear()
+        await db.commit()
+        return JobTagsResponse(job_id=str(job.id), tags=[])
 
     # Get the tags
     stmt = select(Tag).where(Tag.id.in_(tag_ids))
@@ -461,11 +551,10 @@ async def assign_tag(
     for tag in tags:
         job.tags.append(tag)
     await db.commit()
-    await db.refresh(job)
 
     return JobTagsResponse(
         job_id=str(job.id),
-        tags=[TagBasic.model_validate(tag) for tag in job.tags],
+        tags=[TagBasic.model_validate(tag) for tag in tags],
     )
 
 

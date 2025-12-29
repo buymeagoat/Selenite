@@ -1,5 +1,6 @@
 """Settings routes: get and update user transcription preferences."""
 
+import asyncio
 import logging
 from zoneinfo import ZoneInfo
 
@@ -23,9 +24,29 @@ from app.schemas.settings import (
 from app.services.job_queue import queue
 from app.services.provider_manager import ProviderManager
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
 
-logger = logging.getLogger(__name__)
+
+def _schedule_queue_concurrency(new_value: int) -> None:
+    """Schedule a concurrency update without blocking the request."""
+
+    async def _apply() -> None:
+        await queue.set_concurrency(new_value)
+
+    try:
+        task = asyncio.create_task(_apply())
+    except RuntimeError as exc:
+        logger.warning("Unable to schedule queue concurrency update: %s", exc)
+        return
+
+    def _done_callback(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except Exception as exc:
+            logger.warning("Queue concurrency update failed: %s", exc)
+
+    task.add_done_callback(_done_callback)
 
 
 async def _get_or_create_settings(current_user: User, db: AsyncSession) -> UserSettings:
@@ -62,6 +83,7 @@ async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
             server_time_zone=default_tz,
             transcode_to_wav=True,
             enable_empty_weights=False,
+            default_tags_seeded=False,
         )
         db.add(prefs)
         await db.commit()
@@ -291,9 +313,10 @@ async def _apply_settings(
         await ProviderManager.refresh(db)
     if not settings.is_testing:
         try:
-            await queue.set_concurrency(user_settings.max_concurrent_jobs)
+            queue.validate_concurrency(user_settings.max_concurrent_jobs)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        _schedule_queue_concurrency(user_settings.max_concurrent_jobs)
     return SettingsResponse(
         default_asr_provider=user_settings.default_asr_provider,
         default_model=user_settings.default_model,

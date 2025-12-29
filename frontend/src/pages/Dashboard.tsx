@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import JSZip from 'jszip';
 import { JobCard } from '../components/jobs/JobCard';
 import { NewJobModal } from '../components/modals/NewJobModal';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
@@ -9,36 +10,79 @@ import { usePolling } from '../hooks/usePolling';
 import {
   fetchJobs,
   createJob,
-  restartJob,
   cancelJob,
   deleteJob,
   assignTag,
   removeTag,
+  renameJob,
   type Job,
 } from '../services/jobs';
-import { fetchTags, type Tag } from '../services/tags';
+import { createTag, fetchTags, type Tag } from '../services/tags';
+import { TAG_COLOR_PALETTE, pickTagColor } from '../components/tags/tagColors';
 import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { useAdminSettings } from '../context/SettingsContext';
 import { devError } from '../lib/debug';
+
+type RestartPrefill = {
+  file: File;
+  jobName?: string;
+  provider?: string | null;
+  model?: string | null;
+  language?: string | null;
+  enableTimestamps?: boolean;
+  enableSpeakerDetection?: boolean;
+  diarizer?: string | null;
+  diarizerProvider?: string | null;
+  speakerCount?: number | null;
+  extraFlags?: string;
+};
 
 export const Dashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
+  const [restartPrefill, setRestartPrefill] = useState<RestartPrefill | null>(null);
+  const [isRestartPreparing, setIsRestartPreparing] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkTagId, setBulkTagId] = useState<number | ''>('' as any);
+  const [bulkTagSelection, setBulkTagSelection] = useState<string>('');
+  const [isBulkDownloadSubmitting, setIsBulkDownloadSubmitting] = useState(false);
+  const [isBulkDownloadModalOpen, setIsBulkDownloadModalOpen] = useState(false);
+  const [bulkDownloadFormat, setBulkDownloadFormat] = useState('txt');
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [isRenameSubmitting, setIsRenameSubmitting] = useState(false);
+  const [isBulkTagModalOpen, setIsBulkTagModalOpen] = useState(false);
+  const [customTagName, setCustomTagName] = useState('');
+  const [customTagColor, setCustomTagColor] = useState<string>(TAG_COLOR_PALETTE[0]);
+  const [bulkTagError, setBulkTagError] = useState('');
+  const [isBulkTagSubmitting, setIsBulkTagSubmitting] = useState(false);
+  const [isCustomRangeOpen, setIsCustomRangeOpen] = useState(false);
+  const [customRangeStartDate, setCustomRangeStartDate] = useState('');
+  const [customRangeStartTime, setCustomRangeStartTime] = useState('');
+  const [customRangeStartMeridiem, setCustomRangeStartMeridiem] = useState<'AM' | 'PM'>('AM');
+  const [customRangeEndDate, setCustomRangeEndDate] = useState('');
+  const [customRangeEndTime, setCustomRangeEndTime] = useState('');
+  const [customRangeEndMeridiem, setCustomRangeEndMeridiem] = useState<'AM' | 'PM'>('AM');
+  const [customRangeError, setCustomRangeError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{status?: string; dateRange?: string; tags?: number[]}>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
   const [audioJobId, setAudioJobId] = useState<string | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioRate, setAudioRate] = useState(1);
   const [streamActive, setStreamActive] = useState(false);
+  const [streamStale, setStreamStale] = useState(false);
+  const streamRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const lastStreamEventRef = useRef(0);
   const { showError, showSuccess } = useToast();
   const {
     settings: adminSettings,
@@ -46,6 +90,7 @@ export const Dashboard: React.FC = () => {
     error: adminSettingsError,
   } = useAdminSettings();
   const effectiveTimeZone = adminSettings?.time_zone || adminSettings?.server_time_zone || null;
+  const downloadTimeZone = adminSettings?.time_zone || null;
   const settingsErrorNotified = useRef(false);
 
   useEffect(() => {
@@ -85,6 +130,12 @@ export const Dashboard: React.FC = () => {
   }, [showError]);
 
   useEffect(() => {
+    if (!customTagName.trim()) {
+      setCustomTagColor(pickTagColor(tags));
+    }
+  }, [customTagName, tags]);
+
+  useEffect(() => {
     if (typeof window === 'undefined' || !('EventSource' in window)) {
       return;
     }
@@ -93,35 +144,117 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    const url = `${API_BASE_URL}/jobs/stream?token=${encodeURIComponent(token)}`;
-    const source = new EventSource(url);
+    const streamUrl = `${API_BASE_URL}/jobs/stream?token=${encodeURIComponent(token)}`;
+    const retryBaseMs = 1000;
+    const retryMaxMs = 30000;
+    const heartbeatTimeoutMs = 12000;
+    const heartbeatCheckMs = 3000;
+    let disposed = false;
 
-    source.onopen = () => {
-      setStreamActive(true);
+    const clearReconnectTimer = () => {
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
     };
 
-    source.addEventListener('jobs', (event) => {
-      try {
-        const payload = JSON.parse((event as MessageEvent).data);
-        if (payload?.items) {
-          setJobs(payload.items);
-        }
-      } catch (error) {
-        devError('Failed to parse job stream payload:', error);
+    const closeStream = () => {
+      if (streamRef.current) {
+        streamRef.current.close();
+        streamRef.current = null;
       }
-    });
+    };
 
-    source.addEventListener('error', () => {
+    const handleHeartbeat = () => {
+      lastStreamEventRef.current = Date.now();
+      if (!disposed) {
+        setStreamStale(false);
+      }
+    };
+
+    function connectStream() {
+      closeStream();
       setStreamActive(false);
-    });
+      setStreamStale(false);
+
+      const source = new EventSource(streamUrl);
+      streamRef.current = source;
+
+      source.onopen = () => {
+        if (disposed) return;
+        reconnectAttemptRef.current = 0;
+        lastStreamEventRef.current = Date.now();
+        setStreamActive(true);
+        setStreamStale(false);
+      };
+
+      source.addEventListener('jobs', (event) => {
+        lastStreamEventRef.current = Date.now();
+        if (!disposed) {
+          setStreamStale(false);
+        }
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          if (payload?.items) {
+            setJobs(payload.items);
+          }
+        } catch (error) {
+          devError('Failed to parse job stream payload:', error);
+        }
+      });
+
+      source.addEventListener('heartbeat', handleHeartbeat);
+
+      source.addEventListener('error', () => {
+        if (disposed) return;
+        setStreamActive(false);
+        setStreamStale(true);
+        closeStream();
+        scheduleReconnect();
+      });
+    }
+
+    function scheduleReconnect() {
+      if (disposed || reconnectTimerRef.current) return;
+      const attempt = reconnectAttemptRef.current + 1;
+      reconnectAttemptRef.current = attempt;
+      const delay = Math.min(retryMaxMs, retryBaseMs * Math.pow(2, attempt - 1));
+      const jitter = Math.floor(Math.random() * 500);
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connectStream();
+      }, delay + jitter);
+    }
+
+    connectStream();
+
+    const heartbeatTimer = window.setInterval(() => {
+      if (disposed || !streamRef.current || !lastStreamEventRef.current) {
+        return;
+      }
+      const ageMs = Date.now() - lastStreamEventRef.current;
+      if (ageMs > heartbeatTimeoutMs) {
+        setStreamActive(false);
+        setStreamStale(true);
+        closeStream();
+        scheduleReconnect();
+      }
+    }, heartbeatCheckMs);
 
     return () => {
-      source.close();
+      disposed = true;
+      clearReconnectTimer();
+      window.clearInterval(heartbeatTimer);
+      closeStream();
     };
   }, []);
 
-  // Poll for job updates (processing jobs only)
-  const hasProcessingJobs = jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'cancelling');
+  // Poll for job updates (fast when active, slow when idle)
+  const hasProcessingJobs = jobs.some(
+    (j) => j.status === 'processing' || j.status === 'queued' || j.status === 'cancelling'
+  );
+  const shouldPoll = !streamActive || streamStale;
+  const pollingIntervalMs = hasProcessingJobs ? 2000 : 15000;
   
   const fetchJobUpdates = async () => {
     // Fetch latest job data from API
@@ -136,8 +269,8 @@ export const Dashboard: React.FC = () => {
   };
 
   usePolling(fetchJobUpdates, {
-    enabled: hasProcessingJobs && !isLoading && !streamActive,
-    interval: 2000
+    enabled: !isLoading && shouldPoll,
+    interval: pollingIntervalMs
   });
 
   const handleJobClick = (jobId: string) => {
@@ -161,6 +294,7 @@ export const Dashboard: React.FC = () => {
     provider?: string;
     model?: string;
     language?: string;
+    jobName?: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
@@ -170,6 +304,7 @@ export const Dashboard: React.FC = () => {
     try {
       const response = await createJob({
         file: jobData.file,
+        job_name: jobData.jobName?.trim() || undefined,
         provider: jobData.provider,
         model: jobData.model,
         language: jobData.language,
@@ -285,34 +420,11 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleDownload = async (jobId: string, format: string) => {
-    // Trigger download via export endpoint
     const token = localStorage.getItem('auth_token');
     const url = `${API_BASE_URL}/jobs/${jobId}/export?format=${format}`;
-    
-    // Create temporary anchor element to trigger download
-    const link = document.createElement('a');
-    link.href = url;
-    // Add auth header by fetching manually so we can honor Content-Disposition filename
     try {
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-      const blob = await response.blob();
-      const cd = response.headers.get('Content-Disposition') || '';
-      const match = cd.match(/filename="?([^";]+)"?/i);
-      const filename = match ? match[1] : `transcript.${format}`;
-      const downloadUrl = window.URL.createObjectURL(blob);
-      link.href = downloadUrl;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      const { blob, filename } = await fetchTranscriptExport(url, token, format);
+      triggerBrowserDownload(blob, filename);
       showSuccess(`Transcript downloaded as ${filename}`);
     } catch (error: any) {
       devError('Download failed:', error);
@@ -322,21 +434,247 @@ export const Dashboard: React.FC = () => {
 
   const handleDownloadDefault = (jobId: string) => handleDownload(jobId, 'txt');
 
-  const handleRestart = async (jobId: string) => {
-    try {
-      const response = await restartJob(jobId);
-      showSuccess(`Job restarted: ${response.original_filename}`);
-      
-      // Refresh job list to show new job
-      const jobsResponse = await fetchJobs();
-      setJobs(jobsResponse.items);
-    } catch (error) {
-      devError('Failed to restart job:', error);
-      if (error instanceof ApiError) {
-        showError(`Failed to restart job: ${error.message}`);
-      } else {
-        showError('Failed to restart job. Please try again.');
+  const fetchTranscriptExport = async (url: string, token: string | null, format: string) => {
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
+    });
+    if (!response.ok) {
+      throw new Error('Download failed');
+    }
+    const blob = await response.blob();
+    const cd = response.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^";]+)"?/i);
+    const filename = match ? match[1] : `transcript.${format}`;
+    return { blob, filename };
+  };
+
+  const triggerBrowserDownload = (blob: Blob, filename: string) => {
+    const link = document.createElement('a');
+    const downloadUrl = window.URL.createObjectURL(blob);
+    link.href = downloadUrl;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  };
+
+  const formatZipFilename = (timeZone: string | null) => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const formatParts = (zone?: string) => {
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(now);
+      const lookup = (type: string) => parts.find((part) => part.type === type)?.value || '';
+      return {
+        year: lookup('year'),
+        month: lookup('month'),
+        day: lookup('day'),
+        hour: lookup('hour'),
+        minute: lookup('minute'),
+        second: lookup('second'),
+      };
+    };
+
+    let parts;
+    try {
+      parts = formatParts(timeZone || undefined);
+    } catch {
+      parts = formatParts();
+    }
+    const datePart = `${parts.year}${parts.month}${parts.day}`;
+    const timePart = `${parts.hour}${parts.minute}${parts.second}`;
+    if (datePart.length === 8 && timePart.length === 6) {
+      return `Selenite_${datePart}_${timePart}.zip`;
+    }
+    const fallbackDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const fallbackTime = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `Selenite_${fallbackDate}_${fallbackTime}.zip`;
+  };
+
+  const ensureUniqueFilename = (filename: string, used: Set<string>, jobId: string) => {
+    if (!used.has(filename)) {
+      used.add(filename);
+      return filename;
+    }
+    const dotIndex = filename.lastIndexOf('.');
+    const base = dotIndex >= 0 ? filename.slice(0, dotIndex) : filename;
+    const ext = dotIndex >= 0 ? filename.slice(dotIndex) : '';
+    const candidate = `${base}-${jobId}${ext}`;
+    used.add(candidate);
+    return candidate;
+  };
+
+  const handleBulkDownload = async (format: string) => {
+    if (selectedIds.size === 0 || isBulkDownloadSubmitting) return;
+    const ids = Array.from(selectedIds);
+    setIsBulkDownloadSubmitting(true);
+    try {
+      if (ids.length === 1) {
+        await handleDownload(ids[0], format);
+        return;
+      }
+      const token = localStorage.getItem('auth_token');
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      for (const jobId of ids) {
+        const url = `${API_BASE_URL}/jobs/${jobId}/export?format=${format}`;
+        const { blob, filename } = await fetchTranscriptExport(url, token, format);
+        const uniqueName = ensureUniqueFilename(filename, usedNames, jobId);
+        zip.file(uniqueName, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipName = formatZipFilename(downloadTimeZone);
+      triggerBrowserDownload(zipBlob, zipName);
+      showSuccess(`Downloaded ${ids.length} transcripts`);
+    } catch (error: any) {
+      devError('Bulk download failed:', error);
+      showError(`Failed to download transcripts: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsBulkDownloadSubmitting(false);
+    }
+  };
+
+  const handleBulkDownloadConfirm = async () => {
+    const format = bulkDownloadFormat || 'txt';
+    await handleBulkDownload(format);
+    resetBulkDownloadModal();
+  };
+
+  const refreshJobsAfterRename = async () => {
+    const jobsResponse = await fetchJobs();
+    setJobs(jobsResponse.items);
+    if (selectedJob) {
+      const updatedJob = jobsResponse.items.find((item) => item.id === selectedJob.id);
+      if (updatedJob) {
+        setSelectedJob(updatedJob);
+      }
+    }
+  };
+
+  const handleRenameJob = async (jobId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error('Enter a job name.');
+    }
+    await renameJob(jobId, trimmed);
+    await refreshJobsAfterRename();
+  };
+
+  const handleBulkRenameConfirm = async () => {
+    const trimmed = stripExtension(renameValue.trim());
+    if (!trimmed) {
+      setRenameError('Enter a job name.');
+      return;
+    }
+    if (hasActiveSelection) {
+      setRenameError('Active jobs cannot be renamed.');
+      return;
+    }
+    setIsRenameSubmitting(true);
+    setRenameError('');
+    try {
+      if (selectedJobs.length === 1) {
+        await handleRenameJob(selectedJobs[0].id, trimmed);
+      } else {
+        const existingBases = new Set(
+          jobs.map((job) => stripExtension(job.original_filename).toLowerCase())
+        );
+        selectedJobs.forEach((job) =>
+          existingBases.delete(stripExtension(job.original_filename).toLowerCase())
+        );
+        let counter = 1;
+        for (const job of selectedJobs) {
+          let candidate = '';
+          while (true) {
+            candidate = `${trimmed}-${String(counter).padStart(2, '0')}`;
+            counter += 1;
+            if (!existingBases.has(candidate.toLowerCase())) {
+              existingBases.add(candidate.toLowerCase());
+              break;
+            }
+          }
+          await renameJob(job.id, candidate);
+        }
+        await refreshJobsAfterRename();
+      }
+      showSuccess(
+        selectedJobs.length === 1
+          ? 'Job renamed successfully'
+          : `Renamed ${selectedJobs.length} job(s)`
+      );
+      resetRenameModal();
+    } catch (error) {
+      devError('Bulk rename failed:', error);
+      showError('Failed to rename job(s). Please try again.');
+      setRenameError('Rename failed. Please try again.');
+    } finally {
+      setIsRenameSubmitting(false);
+    }
+  };
+
+  const handleRestart = async (jobId: string) => {
+    if (isRestartPreparing) {
+      return;
+    }
+    const job = selectedJob?.id === jobId ? selectedJob : jobs.find((item) => item.id === jobId);
+    if (!job) {
+      showError('Job not found.');
+      return;
+    }
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      showError('You are not authenticated. Please log in again.');
+      return;
+    }
+
+    setIsRestartPreparing(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/media`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load the original file for restart.');
+      }
+      const blob = await response.blob();
+      const fileType = blob.type || job.mime_type || 'application/octet-stream';
+      const file = new File([blob], job.original_filename, { type: fileType });
+      const languageCandidate = job.language_detected?.toLowerCase();
+      const languagePrefill =
+        languageCandidate && languageCandidate.length <= 3 ? languageCandidate : undefined;
+
+      setRestartPrefill({
+        file,
+        jobName: stripExtension(job.original_filename),
+        provider: job.asr_provider_used ?? undefined,
+        model: job.model_used ?? undefined,
+        language: languagePrefill,
+        enableTimestamps: job.has_timestamps,
+        enableSpeakerDetection: job.has_speaker_labels,
+        diarizer: job.diarizer_used ?? undefined,
+        diarizerProvider: job.diarizer_provider_used ?? undefined,
+        speakerCount: job.speaker_count ?? null,
+      });
+      setIsNewJobModalOpen(true);
+      setSelectedJob(null);
+    } catch (error) {
+      devError('Failed to prepare restart job:', error);
+      showError('Failed to load the original file for restart. Please try again.');
+    } finally {
+      setIsRestartPreparing(false);
     }
   };
 
@@ -428,20 +766,91 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleBulkTag = async () => {
-    if (!bulkTagId || selectedIds.size === 0) return;
+  const resetBulkTagModal = () => {
+    setIsBulkTagModalOpen(false);
+    setCustomTagName('');
+    setBulkTagError('');
+    setBulkTagSelection('');
+    setCustomTagColor(pickTagColor(tags));
+  };
+
+  const resetBulkDownloadModal = () => {
+    setIsBulkDownloadModalOpen(false);
+    setBulkDownloadFormat('txt');
+  };
+
+  const resetRenameModal = () => {
+    setIsRenameModalOpen(false);
+    setRenameValue('');
+    setRenameError('');
+  };
+
+  const openRenameModal = () => {
+    if (selectedJobs.length === 0) return;
+    const defaultName = stripExtension(selectedJobs[0].original_filename);
+    setRenameValue(defaultName);
+    setRenameError('');
+    setIsRenameModalOpen(true);
+  };
+
+  const applyTagToSelection = async (tagId: number) => {
     const ids = Array.from(selectedIds);
-    try {
-      for (const id of ids) {
-        await assignTag(id, bulkTagId as number);
+    for (const id of ids) {
+      const job = jobs.find((item) => item.id === id);
+      if (!job) {
+        continue;
       }
-      showSuccess(`Applied tag to ${ids.length} job(s)`);
-      const jobsResponse = await fetchJobs();
-      setJobs(jobsResponse.items);
-      clearSelection();
+      const tagIds = new Set(job.tags.map((tag) => tag.id));
+      tagIds.add(tagId);
+      await assignTag(id, Array.from(tagIds));
+    }
+    showSuccess(`Applied tag to ${ids.length} job(s)`);
+    const [jobsResponse, tagsResponse] = await Promise.all([fetchJobs(), fetchTags()]);
+    setJobs(jobsResponse.items);
+    setTags(tagsResponse.items);
+    clearSelection();
+  };
+
+  const handleBulkTag = async () => {
+    if (!bulkTagSelection || bulkTagSelection === 'custom' || selectedIds.size === 0) return;
+    const tagId = Number(bulkTagSelection);
+    if (!tagId) return;
+    setIsBulkTagSubmitting(true);
+    try {
+      await applyTagToSelection(tagId);
+      setBulkTagSelection('');
     } catch (error) {
       devError('Bulk tag failed:', error);
       showError('Failed to apply tag to selected jobs.');
+    } finally {
+      setIsBulkTagSubmitting(false);
+    }
+  };
+
+  const handleCustomTagApply = async () => {
+    if (selectedIds.size === 0) {
+      resetBulkTagModal();
+      return;
+    }
+    const trimmed = customTagName.trim();
+    if (!trimmed) {
+      setBulkTagError('Enter a tag name.');
+      return;
+    }
+    setIsBulkTagSubmitting(true);
+    setBulkTagError('');
+    try {
+      let tagToUse = tags.find((tag) => tag.name.toLowerCase() === trimmed.toLowerCase());
+      if (!tagToUse) {
+        tagToUse = await createTag({ name: trimmed, color: customTagColor || pickTagColor(tags) });
+      }
+      await applyTagToSelection(tagToUse.id);
+      resetBulkTagModal();
+    } catch (error) {
+      devError('Custom tag apply failed:', error);
+      showError('Failed to create or apply the custom tag.');
+    } finally {
+      setIsBulkTagSubmitting(false);
     }
   };
 
@@ -456,26 +865,8 @@ export const Dashboard: React.FC = () => {
 
   const handleUpdateTags = async (jobId: string, tagIds: number[]) => {
     try {
-      // Find the job to determine which tags to add/remove
-      const job = jobs.find(j => j.id === jobId);
-      if (!job) return;
-      
-      const currentTagIds = job.tags.map(t => t.id);
-      const tagsToAdd = tagIds.filter(id => !currentTagIds.includes(id));
-      const tagsToRemove = currentTagIds.filter(id => !tagIds.includes(id));
-      
-      // Add new tags
-      if (tagsToAdd.length) {
-        for (const tagId of tagsToAdd) {
-          await assignTag(jobId, tagId);
-        }
-      }
-      
-      // Remove tags
-      for (const tagId of tagsToRemove) {
-        await removeTag(jobId, tagId);
-      }
-      
+      await assignTag(jobId, tagIds);
+
       // Refresh job list and tag catalog to get updated tags
       const [jobsResponse, tagsResponse] = await Promise.all([fetchJobs(), fetchTags()]);
       setJobs(jobsResponse.items);
@@ -500,6 +891,15 @@ export const Dashboard: React.FC = () => {
   };
 
   const availableTags = tags;
+
+  const stripExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
+  const selectedJobs = useMemo(
+    () => jobs.filter((job) => selectedIds.has(job.id)),
+    [jobs, selectedIds]
+  );
+  const hasActiveSelection = selectedJobs.some((job) =>
+    ['processing', 'cancelling'].includes(job.status)
+  );
 
   const filteredJobs = useMemo(() => {
     let data = [...jobs];
@@ -527,6 +927,29 @@ export const Dashboard: React.FC = () => {
         case 'this_month':
           data = data.filter(j => (now - createdMs(j.created_at)) < 30 * 86400_000);
           break;
+        case 'custom_range': {
+          const startValue = toLocalDateTime(
+            customRangeStartDate,
+            customRangeStartTime,
+            customRangeStartMeridiem
+          );
+          const endValue = toLocalDateTime(
+            customRangeEndDate,
+            customRangeEndTime,
+            customRangeEndMeridiem
+          );
+          if (startValue && endValue) {
+            const startMs = new Date(startValue).getTime();
+            const endMs = new Date(endValue).getTime();
+            if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) {
+              data = data.filter(j => {
+                const created = createdMs(j.created_at);
+                return created >= startMs && created <= endMs;
+              });
+            }
+          }
+          break;
+        }
         default:
           break;
       }
@@ -537,12 +960,93 @@ export const Dashboard: React.FC = () => {
     return data;
   }, [jobs, searchQuery, filters]);
 
+  const visibleJobIds = useMemo(() => filteredJobs.map((job) => job.id), [filteredJobs]);
+  const allVisibleSelected =
+    visibleJobIds.length > 0 && visibleJobIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleJobIds.some((id) => selectedIds.has(id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
   const handleFilterChange = (f: {status?: string; dateRange?: string; tags?: number[]}) => {
     setFilters(f);
+    if (f.dateRange && f.dateRange !== 'custom_range') {
+      setCustomRangeStartDate('');
+      setCustomRangeStartTime('');
+      setCustomRangeStartMeridiem('AM');
+      setCustomRangeEndDate('');
+      setCustomRangeEndTime('');
+      setCustomRangeEndMeridiem('AM');
+    }
   };
 
   const handleResetFilters = () => {
     setFilters({});
+    setCustomRangeStartDate('');
+    setCustomRangeStartTime('');
+    setCustomRangeStartMeridiem('AM');
+    setCustomRangeEndDate('');
+    setCustomRangeEndTime('');
+    setCustomRangeEndMeridiem('AM');
+    setCustomRangeError('');
+  };
+
+  const handleSelectAllToggle = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(visibleJobIds));
+      return;
+    }
+    clearSelection();
+  };
+
+  const toLocalDateTime = (date: string, time: string, meridiem: 'AM' | 'PM') => {
+    if (!date || !time) return null;
+    const [hourText, minuteText] = time.split(':');
+    const hourNumber = Number(hourText);
+    const minuteNumber = Number(minuteText);
+    if (!Number.isFinite(hourNumber) || !Number.isFinite(minuteNumber)) return null;
+    const clampedHour = Math.min(Math.max(hourNumber, 1), 12);
+    const clampedMinute = Math.min(Math.max(minuteNumber, 0), 59);
+    const hour24 =
+      meridiem === 'PM'
+        ? (clampedHour === 12 ? 12 : clampedHour + 12)
+        : (clampedHour === 12 ? 0 : clampedHour);
+    const hourValue = String(hour24).padStart(2, '0');
+    const minuteValue = String(clampedMinute).padStart(2, '0');
+    return `${date}T${hourValue}:${minuteValue}:00`;
+  };
+
+  const handleCustomRangeApply = () => {
+    const startValue = toLocalDateTime(
+      customRangeStartDate,
+      customRangeStartTime,
+      customRangeStartMeridiem
+    );
+    const endValue = toLocalDateTime(
+      customRangeEndDate,
+      customRangeEndTime,
+      customRangeEndMeridiem
+    );
+    if (!startValue || !endValue) {
+      setCustomRangeError('Select a start and end date.');
+      return;
+    }
+    const startMs = new Date(startValue).getTime();
+    const endMs = new Date(endValue).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+      setCustomRangeError('Enter a valid date range.');
+      return;
+    }
+    if (endMs < startMs) {
+      setCustomRangeError('End date must be after start date.');
+      return;
+    }
+    setCustomRangeError('');
+    setIsCustomRangeOpen(false);
+    setFilters(prev => ({ ...prev, dateRange: 'custom_range' }));
   };
 
   if (isLoading) {
@@ -564,7 +1068,10 @@ export const Dashboard: React.FC = () => {
             <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
             <button
               data-testid="new-job-btn"
-              onClick={() => setIsNewJobModalOpen(true)}
+              onClick={() => {
+                setRestartPrefill(null);
+                setIsNewJobModalOpen(true);
+              }}
               className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
             >
               + New Job
@@ -609,13 +1116,32 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex flex-col md:flex-row gap-4 md:items-center">
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search jobs" />
-            <JobFilters
-              currentFilters={filters}
-              availableTags={availableTags}
-              onFilterChange={handleFilterChange}
-              onReset={handleResetFilters}
-            />
+              <JobFilters
+                currentFilters={filters}
+                availableTags={availableTags}
+                onFilterChange={handleFilterChange}
+                onCustomRange={() => {
+                  setIsCustomRangeOpen(true);
+                  setCustomRangeError('');
+                  setCustomRangeStartMeridiem('AM');
+                  setCustomRangeEndMeridiem('AM');
+                }}
+                onReset={handleResetFilters}
+              />
           </div>
+          {filteredJobs.length > 0 && (
+            <label className="flex items-center gap-2 text-sm text-pine-deep">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                className="h-4 w-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                checked={allVisibleSelected}
+                onChange={(event) => handleSelectAllToggle(event.target.checked)}
+                aria-label="Select all jobs"
+              />
+              <span>Select all</span>
+            </label>
+          )}
           {selectedIds.size > 0 && (
             <div className="flex flex-col md:flex-row gap-3 md:items-center bg-sage-light border border-sage-mid rounded-md p-3">
               <span className="text-sm text-pine-deep">{selectedIds.size} selected</span>
@@ -624,25 +1150,49 @@ export const Dashboard: React.FC = () => {
                   onClick={handleBulkDelete}
                   className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
                 >
-                  Delete selected
+                  Delete
+                </button>
+                <button
+                  onClick={() => setIsBulkDownloadModalOpen(true)}
+                  className="px-3 py-2 bg-forest-green text-white rounded hover:bg-pine-deep text-sm disabled:opacity-50"
+                  disabled={isBulkDownloadSubmitting}
+                >
+                  {isBulkDownloadSubmitting ? 'Downloading...' : 'Download'}
+                </button>
+                <button
+                  onClick={openRenameModal}
+                  className="px-3 py-2 bg-sage-light text-pine-deep rounded hover:bg-sage-mid text-sm disabled:opacity-50"
+                  disabled={isRenameSubmitting || hasActiveSelection}
+                >
+                  Rename
                 </button>
                 <div className="flex items-center gap-2">
                   <select
                     className="px-3 py-2 border border-gray-300 rounded"
-                    value={bulkTagId}
-                    onChange={(e) => setBulkTagId(e.target.value ? Number(e.target.value) : '')}
+                    value={bulkTagSelection}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setBulkTagSelection(nextValue);
+                      if (nextValue === 'custom') {
+                        setIsBulkTagModalOpen(true);
+                        setCustomTagName('');
+                        setBulkTagError('');
+                        setCustomTagColor(pickTagColor(tags));
+                      }
+                    }}
                   >
-                    <option value="">Apply tag…</option>
+                    <option value="">Apply tag...</option>
                     {availableTags.map((t) => (
-                      <option key={t.id} value={t.id}>
+                      <option key={t.id} value={String(t.id)}>
                         #{t.name}
                       </option>
                     ))}
+                    <option value="custom">Custom...</option>
                   </select>
                   <button
                     onClick={handleBulkTag}
                     className="px-3 py-2 bg-forest-green text-white rounded hover:bg-pine-deep text-sm disabled:opacity-50"
-                    disabled={!bulkTagId}
+                    disabled={!bulkTagSelection || bulkTagSelection === 'custom' || isBulkTagSubmitting}
                   >
                     Apply
                   </button>
@@ -703,6 +1253,7 @@ export const Dashboard: React.FC = () => {
         onRestart={handleRestart}
         onDelete={handleDelete}
         onStop={handleStop}
+        onRename={handleRenameJob}
         onViewTranscript={handleViewTranscript}
         onUpdateTags={handleUpdateTags}
         availableTags={availableTags}
@@ -713,13 +1264,304 @@ export const Dashboard: React.FC = () => {
     )}
       <NewJobModal
         isOpen={isNewJobModalOpen}
-        onClose={() => setIsNewJobModalOpen(false)}
+        onClose={() => {
+          setIsNewJobModalOpen(false);
+          setRestartPrefill(null);
+        }}
         onSubmit={handleNewJob}
+        prefill={restartPrefill ?? undefined}
         defaultModel={adminSettings?.default_model}
         defaultLanguage={adminSettings?.default_language}
         defaultDiarizer={adminSettings?.default_diarizer}
         defaultDiarizerProvider={adminSettings?.default_diarizer_provider ?? undefined}
       />
+      {isBulkTagModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-custom-tag-title"
+          >
+            <h2 id="bulk-custom-tag-title" className="text-lg font-semibold text-pine-deep mb-4">
+              Custom tag
+            </h2>
+            <label className="text-sm text-pine-deep mb-2 block" htmlFor="bulk-custom-tag">
+              Tag name
+            </label>
+            <input
+              id="bulk-custom-tag"
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+              value={customTagName}
+              onChange={(e) => {
+                setCustomTagName(e.target.value);
+                if (bulkTagError) {
+                  setBulkTagError('');
+                }
+              }}
+              placeholder="Enter a tag name"
+            />
+            {bulkTagError && <p className="text-sm text-red-600 mt-2">{bulkTagError}</p>}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="text-xs text-pine-mid">Tag color</span>
+              {TAG_COLOR_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Select ${color}`}
+                  onClick={() => setCustomTagColor(color)}
+                  className={`w-6 h-6 rounded-full border ${
+                    customTagColor === color ? 'border-forest-green ring-2 ring-forest-green/40' : 'border-sage-mid'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 text-sm rounded border border-gray-300 text-pine-deep"
+                onClick={resetBulkTagModal}
+                disabled={isBulkTagSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 text-sm rounded bg-forest-green text-white disabled:opacity-50"
+                onClick={handleCustomTagApply}
+                disabled={!customTagName.trim() || isBulkTagSubmitting}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isBulkDownloadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-download-title"
+          >
+            <h2 id="bulk-download-title" className="text-lg font-semibold text-pine-deep mb-4">
+              Export transcripts
+            </h2>
+            <label className="text-sm text-pine-deep mb-2 block" htmlFor="bulk-download-format">
+              Export format
+            </label>
+            <select
+              id="bulk-download-format"
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+              value={bulkDownloadFormat}
+              onChange={(event) => setBulkDownloadFormat(event.target.value)}
+            >
+              <option value="txt">Plain text (.txt)</option>
+              <option value="srt">SubRip (.srt)</option>
+              <option value="vtt">WebVTT (.vtt)</option>
+              <option value="json">JSON (.json)</option>
+              <option value="docx">Word (.docx)</option>
+              <option value="md">Markdown (.md)</option>
+            </select>
+            <p className="text-xs text-pine-mid mt-2">
+              Multiple selections will download as a zip bundle.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                onClick={resetBulkDownloadModal}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 text-sm bg-forest-green text-white rounded hover:bg-pine-deep disabled:opacity-50"
+                onClick={handleBulkDownloadConfirm}
+                disabled={isBulkDownloadSubmitting}
+              >
+                {isBulkDownloadSubmitting ? 'Downloading...' : 'Download'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isRenameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-jobs-title"
+          >
+            <h2 id="rename-jobs-title" className="text-lg font-semibold text-pine-deep mb-4">
+              Rename job{selectedJobs.length > 1 ? 's' : ''}
+            </h2>
+            <label className="text-sm text-pine-deep mb-2 block" htmlFor="rename-jobs-input">
+              New name
+            </label>
+            <input
+              id="rename-jobs-input"
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+              value={renameValue}
+              onChange={(event) => {
+                setRenameValue(event.target.value);
+                if (renameError) {
+                  setRenameError('');
+                }
+              }}
+              placeholder="Enter a name"
+            />
+            <p className="text-xs text-pine-mid mt-2">
+              File extensions stay the same.{' '}
+              {selectedJobs.length > 1
+                ? 'Multiple jobs will be numbered automatically.'
+                : 'Your job name will be updated.'}
+            </p>
+            {hasActiveSelection && (
+              <p className="text-xs text-amber-700 mt-2">
+                Active jobs cannot be renamed while processing.
+              </p>
+            )}
+            {renameError && <p className="text-sm text-red-600 mt-2">{renameError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                onClick={resetRenameModal}
+                disabled={isRenameSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 text-sm bg-forest-green text-white rounded hover:bg-pine-deep disabled:opacity-50"
+                onClick={handleBulkRenameConfirm}
+                disabled={isRenameSubmitting || hasActiveSelection}
+              >
+                {isRenameSubmitting ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCustomRangeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="custom-range-title"
+          >
+            <h2 id="custom-range-title" className="text-lg font-semibold text-pine-deep mb-4">
+              Custom range
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-pine-deep mb-2 block" htmlFor="custom-range-start-date">
+                  Start date
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    id="custom-range-start-date"
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeStartDate}
+                    onChange={(e) => {
+                      setCustomRangeStartDate(e.target.value);
+                      if (customRangeError) {
+                        setCustomRangeError('');
+                      }
+                    }}
+                  />
+                  <input
+                    id="custom-range-start-time"
+                    type="time"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeStartTime}
+                    onChange={(e) => {
+                      setCustomRangeStartTime(e.target.value);
+                      if (customRangeError) {
+                        setCustomRangeError('');
+                      }
+                    }}
+                  />
+                  <label className="sr-only" htmlFor="custom-range-start-meridiem">
+                    Start meridiem
+                  </label>
+                  <select
+                    id="custom-range-start-meridiem"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeStartMeridiem}
+                    onChange={(e) => setCustomRangeStartMeridiem(e.target.value === 'PM' ? 'PM' : 'AM')}
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-pine-deep mb-2 block" htmlFor="custom-range-end-date">
+                  End date
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    id="custom-range-end-date"
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeEndDate}
+                    onChange={(e) => {
+                      setCustomRangeEndDate(e.target.value);
+                      if (customRangeError) {
+                        setCustomRangeError('');
+                      }
+                    }}
+                  />
+                  <input
+                    id="custom-range-end-time"
+                    type="time"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeEndTime}
+                    onChange={(e) => {
+                      setCustomRangeEndTime(e.target.value);
+                      if (customRangeError) {
+                        setCustomRangeError('');
+                      }
+                    }}
+                  />
+                  <label className="sr-only" htmlFor="custom-range-end-meridiem">
+                    End meridiem
+                  </label>
+                  <select
+                    id="custom-range-end-meridiem"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+                    value={customRangeEndMeridiem}
+                    onChange={(e) => setCustomRangeEndMeridiem(e.target.value === 'PM' ? 'PM' : 'AM')}
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            {customRangeError && <p className="text-sm text-red-600 mt-3">{customRangeError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 text-sm rounded border border-gray-300 text-pine-deep"
+                onClick={() => setIsCustomRangeOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 text-sm rounded bg-forest-green text-white disabled:opacity-50"
+                onClick={handleCustomRangeApply}
+                disabled={!customRangeStartDate || !customRangeEndDate}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
+
+
+

@@ -158,3 +158,63 @@ async def save_uploaded_file(file: UploadFile, storage_path: str) -> Tuple[str, 
     mime_type = get_mime_type(file.filename)
 
     return file_path, file_size, mime_type
+
+
+def sanitize_user_filename(raw_name: str) -> str:
+    """Sanitize a user-provided filename for safe storage."""
+    if not raw_name:
+        raise ValueError("Filename is required")
+    trimmed = raw_name.strip()
+    if not trimmed:
+        raise ValueError("Filename is required")
+    if any(token in trimmed for token in ["../", "..\\", "\0", "/", "\\"]):
+        raise ValueError("Invalid filename")
+    name = Path(trimmed).name
+    if not name or name in {".", ".."}:
+        raise ValueError("Invalid filename")
+    return name
+
+
+def build_job_filename(raw_name: str, extension: str) -> str:
+    """Build a safe job filename with a fixed extension."""
+    safe_name = sanitize_user_filename(raw_name)
+    base = Path(safe_name).stem.strip()
+    if not base:
+        raise ValueError("Invalid filename")
+    ext = extension if extension.startswith(".") else f".{extension}" if extension else ""
+    return f"{base}{ext}"
+
+
+def resolve_unique_media_path(
+    filename: str,
+    storage_path: str,
+    current_path: Optional[str] = None,
+) -> Path:
+    """Resolve a unique media path inside storage_path for the provided filename."""
+    base_dir = Path(storage_path)
+    candidate = base_dir / filename
+    current = Path(current_path).resolve() if current_path else None
+    try:
+        if current and candidate.resolve() == current:
+            return candidate
+    except FileNotFoundError:
+        # If the target doesn't exist yet, resolve() can fail; continue with raw path.
+        pass
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    counter = 1
+    while True:
+        next_name = f"{stem}-{counter:02d}{suffix}"
+        next_path = base_dir / next_name
+        if current:
+            try:
+                if next_path.resolve() == current:
+                    return next_path
+            except FileNotFoundError:
+                pass
+        if not next_path.exists():
+            return next_path
+        counter += 1

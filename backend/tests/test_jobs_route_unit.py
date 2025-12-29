@@ -220,14 +220,13 @@ async def test_assign_tag_variants(session_with_user):
     job = await _create_job(session, user.id, status="completed")
     tag = await _create_tag(session, 10, "Legal")
 
-    with pytest.raises(HTTPException) as exc:
-        await assign_tag(
-            job_id=job.id,
-            assignment=TagAssignRequest(tag_ids=[]),
-            current_user=user,
-            db=session,
-        )
-    assert exc.value.status_code == 422
+    response = await assign_tag(
+        job_id=job.id,
+        assignment=TagAssignRequest(tag_ids=[]),
+        current_user=user,
+        db=session,
+    )
+    assert response.tags == []
 
     with pytest.raises(HTTPException) as exc:
         await assign_tag(

@@ -356,6 +356,26 @@ def test_load_transcript_missing_file(tmp_path):
     assert exc.value.status_code == 404
 
 
+def test_load_transcript_falls_back_to_default_path(tmp_path, monkeypatch):
+    """Fallback to transcript storage path when job.transcript_path is missing."""
+    job_id = "fallback-job"
+    fallback_path = tmp_path / f"{job_id}.txt"
+    fallback_path.write_text("Fallback text", encoding="utf-8")
+    monkeypatch.setattr(settings, "transcript_storage_path", str(tmp_path))
+    job = SimpleNamespace(
+        id=job_id,
+        transcript_path=None,
+        language_detected="en",
+        duration=12.0,
+        has_timestamps=False,
+        has_speaker_labels=False,
+    )
+
+    text, _, _, _, _, _ = transcript_routes._load_transcript_data(job)
+
+    assert text == "Fallback text"
+
+
 def test_load_transcript_with_metadata(tmp_path):
     """Metadata file should override language/duration and normalize segments."""
     transcript_file = tmp_path / "sample.txt"

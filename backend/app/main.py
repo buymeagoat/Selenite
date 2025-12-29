@@ -21,7 +21,11 @@ from app.routes import system as system_module
 from app.routes import diagnostics as diagnostics_module
 from app.routes import model_registry as model_registry_module
 from app.routes import file_browser as file_browser_module
-from app.services.job_queue import queue, resume_queued_jobs
+from app.services.job_queue import (
+    queue,
+    resolve_queue_concurrency,
+    finalize_incomplete_jobs,
+)
 from app.services.system_probe import SystemProbeService
 
 # Initialize logging
@@ -83,12 +87,22 @@ async def lifespan(app: FastAPI):
     if settings.is_testing and not force_queue_start:
         logger.info("Testing mode detected; job queue will be started by tests as needed")
     else:
-        await queue.start()
-        resumed = await resume_queued_jobs(queue)
-        if resumed:
-            logger.info("Job queue started and resumed %s queued job(s)", resumed)
-        else:
-            logger.info("Job queue started")
+        desired_concurrency = None
+        try:
+            async with AsyncSessionLocal() as session:
+                cleared = await finalize_incomplete_jobs(session)
+                if cleared:
+                    logger.info("Finalized %s incomplete job(s) from previous run", cleared)
+                desired_concurrency = await resolve_queue_concurrency(session)
+        except Exception as exc:
+            logger.warning("Queue concurrency sync failed during startup: %s", exc)
+
+        if desired_concurrency is not None and desired_concurrency != queue._concurrency:
+            await queue.set_concurrency(desired_concurrency)
+
+        if not queue._started:
+            await queue.start()
+        logger.info("Job queue started")
 
     # Prime the system probe cache so the admin UI has data immediately
     try:

@@ -21,6 +21,7 @@ from app.models import (
     user_settings,  # noqa: F401
 )
 from app.models.model_provider import ModelSet, ModelEntry
+from app.models.tag import Tag
 from app.models.system_preferences import SystemPreferences
 
 logger = logging.getLogger("app.startup")
@@ -44,6 +45,15 @@ _CURATED = {
     },
 }
 
+_DEFAULT_TAGS = [
+    {"name": "Interview", "color": "#000000"},
+    {"name": "Meeting", "color": "#FFD700"},
+    {"name": "Lecture", "color": "#228B22"},
+    {"name": "Podcast", "color": "#4169E1"},
+    {"name": "Webinar", "color": "#E34234"},
+    {"name": "Dictation", "color": "#F0EAD6"},
+]
+
 
 async def ensure_core_tables() -> None:
     """
@@ -66,8 +76,12 @@ async def ensure_core_tables() -> None:
                 server_time_zone="UTC",
                 transcode_to_wav=True,
                 enable_empty_weights=False,
+                default_tags_seeded=False,
             )
             session.add(pref)
+
+        models_root = Path(settings.model_storage_path)
+        models_root.mkdir(parents=True, exist_ok=True)
 
         # If registry tables are empty (likely dropped), re-seed curated providers/entries
         set_count = (await session.execute(select(func.count(ModelSet.id)))).scalar_one()
@@ -76,38 +90,74 @@ async def ensure_core_tables() -> None:
             logger.warning(
                 "Registry tables empty; re-seeding curated providers/entries as a guardrail."
             )
-            models_root = Path(settings.model_storage_path)
-            models_root.mkdir(parents=True, exist_ok=True)
-            for ptype, providers in _CURATED.items():
-                for provider, entries in providers.items():
-                    set_path = (models_root / provider).resolve()
-                    set_path.mkdir(parents=True, exist_ok=True)
-                    model_set = ModelSet(
-                        type=ptype,
-                        name=provider,
-                        description=f"Seeded {ptype} provider '{provider}' (weights not included).",
-                        abs_path=str(set_path),
-                        enabled=False,
-                        disable_reason="Seeded provider; add weights to enable.",
-                    )
-                    session.add(model_set)
-                    await session.flush()
-                    for entry in entries:
-                        entry_path = (set_path / entry).resolve()
-                        entry_path.mkdir(parents=True, exist_ok=True)
-                        session.add(
-                            ModelEntry(
-                                set_id=model_set.id,
-                                type=ptype,
-                                name=entry,
-                                description=f"Seeded {ptype} entry '{entry}' (weights not included).",
-                                abs_path=str(entry_path),
-                                enabled=False,
-                                disable_reason="Weights not present; drop files then enable.",
-                            )
-                        )
+            await _seed_curated_registry(session, models_root)
+        else:
+            existing = await session.execute(select(ModelSet.type, ModelSet.name))
+            existing_keys = {(row[0], row[1]) for row in existing.fetchall()}
+            curated_keys = {
+                (ptype, provider) for ptype, providers in _CURATED.items() for provider in providers
+            }
+            if existing_keys and not (existing_keys & curated_keys):
+                logger.warning(
+                    "Registry missing curated providers; re-seeding curated catalog as a guardrail."
+                )
+                await _seed_curated_registry(session, models_root)
+
+        if not pref.default_tags_seeded:
+            tag_count = (await session.execute(select(func.count(Tag.id)))).scalar_one()
+            if tag_count == 0:
+                logger.warning("Seeding default tags for new installs.")
+                for tag in _DEFAULT_TAGS:
+                    session.add(Tag(name=tag["name"], color=tag["color"]))
+            pref.default_tags_seeded = True
 
         await session.commit()
+
+
+async def _seed_curated_registry(session: AsyncSession, models_root: Path) -> None:
+    existing_sets = await session.execute(select(ModelSet))
+    sets = list(existing_sets.scalars().all())
+    sets_by_key = {(model_set.type, model_set.name): model_set for model_set in sets}
+
+    existing_entries = await session.execute(select(ModelEntry))
+    entries_by_key = {
+        (entry.set_id, entry.name): entry for entry in existing_entries.scalars().all()
+    }
+
+    for ptype, providers in _CURATED.items():
+        for provider, entries in providers.items():
+            model_set = sets_by_key.get((ptype, provider))
+            if not model_set:
+                set_path = (models_root / provider).resolve()
+                set_path.mkdir(parents=True, exist_ok=True)
+                model_set = ModelSet(
+                    type=ptype,
+                    name=provider,
+                    description=f"Seeded {ptype} provider '{provider}' (weights not included).",
+                    abs_path=str(set_path),
+                    enabled=False,
+                    disable_reason="Seeded provider; add weights to enable.",
+                )
+                session.add(model_set)
+                await session.flush()
+                sets_by_key[(ptype, provider)] = model_set
+
+            for entry in entries:
+                if (model_set.id, entry) in entries_by_key:
+                    continue
+                entry_path = (Path(model_set.abs_path) / entry).resolve()
+                entry_path.mkdir(parents=True, exist_ok=True)
+                session.add(
+                    ModelEntry(
+                        set_id=model_set.id,
+                        type=ptype,
+                        name=entry,
+                        description=f"Seeded {ptype} entry '{entry}' (weights not included).",
+                        abs_path=str(entry_path),
+                        enabled=False,
+                        disable_reason="Weights not present; drop files then enable.",
+                    )
+                )
 
 
 def validate_configuration() -> list[str]:

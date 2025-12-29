@@ -11,11 +11,10 @@ describe('TagBadge', () => {
     expect(screen.getByText('interviews')).toBeInTheDocument();
   });
 
-  it('applies consistent high-contrast styling', () => {
+  it('uses the assigned tag color styling', () => {
     render(<TagBadge tag={mockTag} />);
     const badge = screen.getByText('interviews');
-    expect(badge).toHaveStyle({ backgroundColor: '#EEF1EA', border: '1px solid #CBD5E1' });
-    expect(badge).toHaveClass('text-gray-900');
+    expect(badge).toHaveStyle({ backgroundColor: '#0F3D2E', border: '1px solid #0F3D2E', color: '#FFFFFF' });
   });
 
   it('renders with small size', () => {

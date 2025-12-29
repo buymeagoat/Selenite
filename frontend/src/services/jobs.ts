@@ -4,7 +4,7 @@
  * Functions for interacting with job management endpoints.
  */
 
-import { apiGet, apiUpload, apiPost, apiDelete } from '../lib/api';
+import { apiGet, apiUpload, apiPost, apiDelete, apiPatch } from '../lib/api';
 
 export interface Job {
   id: string;
@@ -28,7 +28,7 @@ export interface Job {
   tags: Array<{
     id: number;
     name: string;
-    color: string;
+    color: string | null;
   }>;
   created_at: string;
   updated_at?: string;
@@ -56,6 +56,7 @@ export interface FetchJobsParams {
 
 export interface CreateJobParams {
   file: File;
+  job_name?: string;
   provider?: string;
   model?: string;
   language?: string;
@@ -98,6 +99,10 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobRespo
 
   if (params.provider) {
     formData.append('provider', params.provider);
+  }
+
+  if (params.job_name) {
+    formData.append('job_name', params.job_name);
   }
   
   if (params.model) {
@@ -169,4 +174,11 @@ export async function assignTag(jobId: string, tagIds: number | number[]): Promi
  */
 export async function removeTag(jobId: string, tagId: number): Promise<Job['tags']> {
   return apiDelete<Job['tags']>(`/jobs/${jobId}/tags/${tagId}`);
+}
+
+/**
+ * Rename a job (updates the display name and underlying media file)
+ */
+export async function renameJob(jobId: string, name: string): Promise<Job> {
+  return apiPatch<Job>(`/jobs/${jobId}/rename`, { name });
 }

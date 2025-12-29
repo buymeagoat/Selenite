@@ -3,6 +3,7 @@ import { render, screen, act, fireEvent, within, waitFor } from '@testing-librar
 import { vi } from 'vitest';
 import { Admin } from '../pages/Admin';
 import { updateSettings } from '../services/settings';
+import { createTag, fetchTags } from '../services/tags';
 
 const mockAuthContext = vi.hoisted(() => ({
   user: {
@@ -107,7 +108,6 @@ vi.mock('../services/system', () => ({
   fetchCapabilities: vi.fn().mockResolvedValue(mockCapabilities),
   restartServer: vi.fn().mockResolvedValue({ message: 'Restart requested' }),
   shutdownServer: vi.fn().mockResolvedValue({ message: 'Shutdown requested' }),
-  fullRestartServer: vi.fn().mockResolvedValue({ message: 'Full restart requested' }),
 }));
 
 refreshSpy.mockResolvedValue(mockSystemInfo);
@@ -173,6 +173,28 @@ vi.mock('../services/modelRegistry', () => ({
   deleteModelWeight: vi.fn(),
 }));
 
+const mockTags = vi.hoisted(() => ([
+  {
+    id: 1,
+    name: 'Interview',
+    color: '#2D6A4F',
+    job_count: 0,
+    created_at: new Date().toISOString(),
+  },
+]));
+
+vi.mock('../services/tags', () => ({
+  fetchTags: vi.fn().mockResolvedValue({ total: mockTags.length, items: mockTags }),
+  createTag: vi.fn().mockImplementation((payload: { name: string; color?: string }) => Promise.resolve({
+    id: 99,
+    name: payload.name,
+    color: payload.color ?? '#2D6A4F',
+    job_count: 0,
+    created_at: new Date().toISOString(),
+  })),
+  deleteTag: vi.fn().mockResolvedValue({ message: 'deleted', id: 1, jobs_affected: 0 }),
+}));
+
 const renderAdmin = async () => {
   let utils: ReturnType<typeof render>;
   await act(async () => {
@@ -222,9 +244,8 @@ describe('Admin page', () => {
     ).toBeInTheDocument();
   });
 
-  it('allows adjusting throughput slider and surfaces storage summary', async () => {
+  it('allows adjusting throughput slider', async () => {
     await renderAdmin();
-    await screen.findByTestId('admin-storage-summary');
     await waitFor(() => {
       expect(screen.getByTestId('default-diarizer')).toHaveAttribute('data-ready', 'true');
     });
@@ -233,7 +254,6 @@ describe('Admin page', () => {
     await waitFor(() => {
       expect(screen.getByTestId('max-concurrent-label')).toHaveTextContent('Max Concurrent Jobs: 4');
     });
-    expect(screen.getByTestId('admin-storage-summary')).toBeInTheDocument();
     const saveButton = screen.getByTestId('admin-save-all');
     await act(async () => {
       fireEvent.click(saveButton);
@@ -250,6 +270,19 @@ describe('Admin page', () => {
       fireEvent.click(detectButton);
     });
     expect(refreshSpy).toHaveBeenCalled();
+  });
+
+  it('loads tags and allows creating a tag', async () => {
+    await renderAdmin();
+    await screen.findByTestId('admin-tags-card');
+    expect(fetchTags).toHaveBeenCalled();
+    const input = screen.getByTestId('admin-tag-name') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'Research' } });
+    const createButton = screen.getByTestId('admin-tag-create');
+    await act(async () => {
+      fireEvent.click(createButton);
+    });
+    expect(createTag).toHaveBeenCalled();
   });
 
   it('shows locked notice for non-admin users', async () => {

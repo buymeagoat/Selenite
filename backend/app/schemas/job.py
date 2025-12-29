@@ -72,6 +72,12 @@ class JobResponse(BaseModel):
     stalled_at: Optional[datetime] = None
 
 
+class JobRenameRequest(BaseModel):
+    """Request schema for renaming a job."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+
+
 class JobListItem(BaseModel):
     """Simplified job schema for list view."""
 

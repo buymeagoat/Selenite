@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.job import Job
 from app.routes.auth import get_current_user
@@ -27,13 +28,18 @@ router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 
 def _load_transcript_data(job: Job) -> Tuple[str, List[Dict[str, Any]], str, float, bool, bool]:
     """Load transcript text, segments, language and duration from disk."""
-    if not job.transcript_path:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Transcript file not found."
-        )
-
-    transcript_path = Path(job.transcript_path)
-    if not transcript_path.exists():
+    transcript_path = None
+    if job.transcript_path:
+        candidate = Path(job.transcript_path)
+        if candidate.exists():
+            transcript_path = candidate
+    if not transcript_path:
+        job_id = getattr(job, "id", None)
+        if job_id:
+            fallback = Path(settings.transcript_storage_path) / f"{job_id}.txt"
+            if fallback.exists():
+                transcript_path = fallback
+    if not transcript_path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Transcript file not found."
         )

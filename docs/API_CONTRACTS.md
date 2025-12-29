@@ -225,6 +225,7 @@ Authorization: Bearer <token>
 - Content-Type: `multipart/form-data`
 - Fields:
   - `file` (required): Audio or video file
+  - `job_name` (optional): Friendly job name override (extension preserved)
   - `provider` (optional): ASR model set name (e.g., "whisper")
   - `model` (optional): ASR model weight name (e.g., "tiny")
   - `language` (optional, default: "auto"): Language code (en, es, fr, etc.) or "auto"
@@ -306,6 +307,38 @@ Authorization: Bearer <token>
   "original_job_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "queued",
   "created_at": "2025-11-15T12:00:00Z"
+}
+```
+
+---
+
+### PATCH /jobs/{job_id}/rename
+**Description**: Rename a job and its stored media file
+
+**Path Parameters**:
+- `job_id` (required): UUID of the job
+
+**Request**:
+```json
+{
+  "name": "Quarterly Review"
+}
+```
+
+**Response 200 OK**:
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "original_filename": "Quarterly Review.mp3",
+  "status": "completed",
+  "updated_at": "2025-11-15T12:05:00Z"
+}
+```
+
+**Response 400 Bad Request**:
+```json
+{
+  "detail": "Cannot rename an active job"
 }
 ```
 
@@ -897,14 +930,7 @@ Authorization: Bearer <token>
 ---
 
 ### POST /system/restart
-**Description**: Restart the backend server (admin only; remote control must be enabled)
-
-**Request**:
-```json
-{
-  "password": "string (required, current user password)"
-}
-```
+**Description**: Restart the backend server (admin only)
 
 **Response 200 OK**:
 ```json
@@ -921,24 +947,10 @@ Authorization: Bearer <token>
 }
 ```
 
-**Response 503 Service Unavailable**:
-```json
-{
-  "detail": "Remote server control (restart) is disabled. Run scripts/stop-selenite.ps1 and scripts/start-selenite.ps1 on the host or set ENABLE_REMOTE_SERVER_CONTROL=true to opt in."
-}
-```
-
 ---
 
 ### POST /system/shutdown
-**Description**: Shutdown the backend server (admin only; remote control must be enabled)
-
-**Request**:
-```json
-{
-  "password": "string (required, current user password)"
-}
-```
+**Description**: Shutdown the backend server (admin only)
 
 **Response 200 OK**:
 ```json
@@ -954,42 +966,6 @@ Authorization: Bearer <token>
   "detail": "Only administrators can shutdown the server"
 }
 ```
-
-**Response 503 Service Unavailable**:
-```json
-{
-  "detail": "Remote server control (shutdown) is disabled. Run scripts/stop-selenite.ps1 and scripts/start-selenite.ps1 on the host or set ENABLE_REMOTE_SERVER_CONTROL=true to opt in."
-}
-```
-
----
-
-### POST /system/full-restart
-**Description**: Orchestrated restart using a sentinel file (admin only; remote control must be enabled)
-
-**Response 200 OK**:
-```json
-{
-  "message": "Full restart requested. Services will recycle shortly.",
-  "success": true
-}
-```
-
-**Response 403 Forbidden**:
-```json
-{
-  "detail": "Only administrators can perform a full restart"
-}
-```
-
-**Response 503 Service Unavailable**:
-```json
-{
-  "detail": "Remote server control (full restart) is disabled. Run scripts/stop-selenite.ps1 and scripts/start-selenite.ps1 on the host or set ENABLE_REMOTE_SERVER_CONTROL=true to opt in."
-}
-```
-
----
 
 ## Error Response Format
 

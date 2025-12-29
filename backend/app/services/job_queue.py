@@ -13,7 +13,11 @@ from app.database import AsyncSessionLocal
 from app.logging_config import get_logger
 from app.services.transcription import process_transcription_job
 from app.models.job import Job
+from app.models.user import User
+from app.models.user_settings import UserSettings
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_
 
 # Module-level logger for standalone functions
 _logger = get_logger(__name__)
@@ -157,6 +161,11 @@ class TranscriptionJobQueue:
             # No running loop (e.g., during teardown); skip auto-start.
             pass
 
+    def validate_concurrency(self, new_value: int) -> None:
+        """Validate a new concurrency value without mutating state."""
+        if new_value <= 0:
+            raise ValueError("Concurrency must be >= 1")
+
     async def _watchdog(self) -> None:
         """Fail processing jobs that run far beyond their estimated time."""
         interval = max(1.0, float(settings.stall_check_interval_seconds))
@@ -228,3 +237,39 @@ async def resume_queued_jobs(queue_obj: TranscriptionJobQueue) -> int:
             await queue_obj.enqueue(str(job_id))
 
         return len(job_ids)
+
+
+async def finalize_incomplete_jobs(session: AsyncSession) -> int:
+    """Mark lingering queued/processing/cancelling jobs as cancelled (startup cleanup)."""
+    result = await session.execute(
+        select(Job).where(Job.status.in_(["queued", "processing", "cancelling"]))
+    )
+    jobs = result.scalars().all()
+    if not jobs:
+        return 0
+    now = datetime.utcnow()
+    for job in jobs:
+        job.status = "cancelled"
+        job.progress_stage = None
+        job.estimated_time_left = None
+        job.completed_at = job.completed_at or now
+    await session.commit()
+    return len(jobs)
+
+
+async def resolve_queue_concurrency(session: AsyncSession) -> Optional[int]:
+    """Determine the desired queue concurrency from admin (or fallback) settings."""
+    result = await session.execute(
+        select(UserSettings)
+        .join(User)
+        .where(or_(User.username == "admin", User.id == 1))
+        .order_by(UserSettings.updated_at.desc())
+        .limit(1)
+    )
+    settings_row = result.scalars().first()
+    if not settings_row:
+        result = await session.execute(
+            select(UserSettings).order_by(UserSettings.updated_at.desc()).limit(1)
+        )
+        settings_row = result.scalars().first()
+    return settings_row.max_concurrent_jobs if settings_row else None

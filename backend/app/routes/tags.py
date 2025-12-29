@@ -173,11 +173,17 @@ async def assign_tags_to_job(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Assign tags to a job."""
-    # Validate tag_ids
-    if not assignment.tag_ids or not isinstance(assignment.tag_ids, list):
+    # Validate tag_ids (allow empty to clear all tags)
+    tag_ids = assignment.tag_ids if assignment.tag_ids is not None else []
+    if not isinstance(tag_ids, list):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="tag_ids must be a non-empty list",
+            detail="tag_ids must be a list",
+        )
+    if not all(isinstance(tid, int) for tid in tag_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="tag_ids must be a list of integers",
         )
 
     # Get the job
@@ -192,25 +198,28 @@ async def assign_tags_to_job(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
     # Get the tags
-    stmt = select(Tag).where(Tag.id.in_(assignment.tag_ids))
+    if not tag_ids:
+        job.tags.clear()
+        await db.commit()
+        return JobTagsResponse(job_id=job.id, tags=[])
+
+    stmt = select(Tag).where(Tag.id.in_(tag_ids))
     result = await db.execute(stmt)
     tags = result.scalars().all()
-    if len(tags) != len(set(assignment.tag_ids)):
+    if len(tags) != len(set(tag_ids)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="One or more tags not found"
         )
 
-    # Assign tags (idempotent)
-    assigned_tag_ids = {tag.id for tag in job.tags}
+    # Assign tags (idempotent: clear then add)
+    job.tags.clear()
     for tag in tags:
-        if tag.id not in assigned_tag_ids:
-            job.tags.append(tag)
+        job.tags.append(tag)
     await db.commit()
-    await db.refresh(job)
 
     return JobTagsResponse(
         job_id=job.id,
-        tags=[TagBasic(id=tag.id, name=tag.name, color=tag.color) for tag in job.tags],
+        tags=[TagBasic(id=tag.id, name=tag.name, color=tag.color) for tag in tags],
     )
 
 

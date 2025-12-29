@@ -1,10 +1,11 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { getTagColor, getTagTextColor } from './tagColors';
 
 interface Tag {
   id: number;
   name: string;
-  color: string;
+  color?: string | null;
 }
 
 interface TagBadgeProps {
@@ -25,9 +26,13 @@ export const TagBadge: React.FC<TagBadgeProps> = ({
     md: 'text-sm px-3 py-1'
   };
 
-  // Force consistent high-contrast style regardless of tag color
-  const textColor = 'text-gray-900';
-  const backgroundStyle = { backgroundColor: '#EEF1EA', border: '1px solid #CBD5E1' };
+  const tagColor = getTagColor(tag);
+  const tagTextColor = getTagTextColor(tagColor);
+  const backgroundStyle = {
+    backgroundColor: tagColor,
+    border: `1px solid ${tagColor}`,
+    color: tagTextColor,
+  };
   const clickable = onClick ? 'cursor-pointer hover:opacity-90' : '';
 
   const handleClick = () => {
@@ -41,7 +46,7 @@ export const TagBadge: React.FC<TagBadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded ${sizeClasses[size]} ${textColor} ${clickable}`}
+      className={`inline-flex items-center gap-1 rounded ${sizeClasses[size]} ${clickable}`}
       style={backgroundStyle}
       onClick={handleClick}
     >

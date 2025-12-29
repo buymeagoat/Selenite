@@ -6,6 +6,7 @@ from sqlalchemy import select
 from pathlib import Path
 import json
 
+from app.config import settings
 from app.database import get_db
 from app.models.job import Job
 from app.models.user import User
@@ -13,6 +14,17 @@ from app.routes.auth import get_current_user
 from app.services.export_service import export_service
 
 router = APIRouter(prefix="/jobs", tags=["exports"])
+
+
+def _resolve_transcript_path(job: Job) -> Path:
+    if job.transcript_path:
+        candidate = Path(job.transcript_path)
+        if candidate.exists():
+            return candidate
+    fallback = Path(settings.transcript_storage_path) / f"{job.id}.txt"
+    if fallback.exists():
+        return fallback
+    raise HTTPException(status_code=404, detail="Transcript file not found")
 
 
 @router.get("/{job_id}/export")
@@ -63,18 +75,16 @@ async def export_transcript(
             detail=f"Job is not completed (status: {job.status}). Cannot export transcript.",
         )
 
-    # Check if transcript exists
-    if not job.transcript_path or not Path(job.transcript_path).exists():
-        raise HTTPException(status_code=404, detail="Transcript file not found")
+    transcript_path = _resolve_transcript_path(job)
 
     # Read transcript text
-    transcript_text = Path(job.transcript_path).read_text(encoding="utf-8")
+    transcript_text = transcript_path.read_text(encoding="utf-8")
 
     # Load segments if available (for formats that need them)
     segments = []
     if format in ["srt", "vtt", "json", "docx", "md"]:
         # Try to load segments from a JSON file (if Whisper saved them)
-        segments_path = Path(job.transcript_path).with_suffix(".json")
+        segments_path = transcript_path.with_suffix(".json")
         if segments_path.exists():
             try:
                 transcript_data = json.loads(segments_path.read_text(encoding="utf-8"))

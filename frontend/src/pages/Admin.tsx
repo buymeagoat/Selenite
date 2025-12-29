@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Shield,
   RefreshCw,
@@ -9,6 +9,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   X,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from 'lucide-react';
 
 import { useToast } from '../context/ToastContext';
@@ -21,7 +24,6 @@ import {
   fetchCapabilities,
   restartServer,
   shutdownServer,
-  fullRestartServer,
   type SystemProbe,
   type DiskUsage,
   type CapabilityResponse,
@@ -38,6 +40,9 @@ import {
   type ModelSetWithWeights,
   type ProviderType,
 } from '../services/modelRegistry';
+import { TagList } from '../components/tags/TagList';
+import { TAG_COLOR_PALETTE, pickTagColor } from '../components/tags/tagColors';
+import { createTag, deleteTag, fetchTags, updateTag, type Tag } from '../services/tags';
 import { browseFiles, type FileEntry } from '../services/fileBrowser';
 import { devError, devInfo } from '../lib/debug';
 import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
@@ -164,8 +169,18 @@ export const Admin: React.FC = () => {
   const [fileBrowserLoading, setFileBrowserLoading] = useState(false);
   const [fileBrowserError, setFileBrowserError] = useState<string | null>(null);
   const [fileBrowserSelected, setFileBrowserSelected] = useState<string>('');
+  const [adminTags, setAdminTags] = useState<Tag[]>([]);
+  const [adminTagsLoaded, setAdminTagsLoaded] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string>(TAG_COLOR_PALETTE[0]);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editingTagName, setEditingTagName] = useState('');
+  const [editingTagColor, setEditingTagColor] = useState<string>(TAG_COLOR_PALETTE[0]);
+  const [isSavingTagEdit, setIsSavingTagEdit] = useState(false);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [isRefreshingTags, setIsRefreshingTags] = useState(false);
 
-  const toRelativeAppPath = (pathValue: string) => {
+  const toRelativeAppPath = useCallback((pathValue: string) => {
     const normalized = normalizePath(pathValue);
     if (!normalized) return normalized;
     const projectRoot = systemInfo?.storage?.project?.path
@@ -189,7 +204,7 @@ export const Admin: React.FC = () => {
       return normalized.slice(storageIdx);
     }
     return normalized.startsWith('/') ? normalized : `/${normalized}`;
-  };
+  }, [systemInfo]);
 
   const broadcastSettingsUpdated = () => {
     window.dispatchEvent(new CustomEvent('selenite:settings-updated'));
@@ -199,12 +214,83 @@ export const Admin: React.FC = () => {
     () => registrySets.filter((set) => set.type === registryTab),
     [registrySets, registryTab]
   );
+  const [registrySort, setRegistrySort] = useState<{
+    key: 'name' | 'path' | 'status' | 'weights' | null;
+    direction: 'asc' | 'desc';
+  }>({ key: null, direction: 'asc' });
   const activeSet = filteredSets.find((set) => set.id === selectedSetId) ?? filteredSets[0];
   const activeWeights = activeSet?.weights ?? [];
   const activeSetHasWeightFiles = activeWeights.some(
     (weight) => (weight.has_weights ?? false) || enableEmptyWeights
   );
   const enableSetBlocked = !setForm.enabled && !activeSetHasWeightFiles;
+
+  const getRegistrySetStatus = (set: ModelSetWithWeights) => {
+    const enabledWeights = set.weights.filter((weight: ModelWeight) => weight.enabled);
+    const availableWeights = enabledWeights.filter(
+      (weight: ModelWeight) => (weight.has_weights ?? false) || enableEmptyWeights
+    );
+    const statusLabel =
+      set.enabled && availableWeights.length
+        ? 'Available'
+        : set.enabled
+        ? 'Pending files'
+        : 'Unavailable';
+    const statusRank = set.enabled && availableWeights.length ? 2 : set.enabled ? 1 : 0;
+    const weightNames = enabledWeights.length
+      ? enabledWeights.map((weight: ModelWeight) => weight.name).join(', ')
+      : 'None';
+    return { enabledWeights, availableWeights, statusLabel, statusRank, weightNames };
+  };
+
+  const sortedRegistrySets = useMemo(() => {
+    if (!registrySort.key) return filteredSets;
+    const direction = registrySort.direction === 'asc' ? 1 : -1;
+    const sorted = [...filteredSets];
+    sorted.sort((a, b) => {
+      let comparison = 0;
+      if (registrySort.key === 'name') {
+        comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      } else if (registrySort.key === 'path') {
+        const aPath = toRelativeAppPath(a.abs_path);
+        const bPath = toRelativeAppPath(b.abs_path);
+        comparison = aPath.localeCompare(bPath, undefined, { sensitivity: 'base' });
+      } else if (registrySort.key === 'status') {
+        comparison = getRegistrySetStatus(a).statusRank - getRegistrySetStatus(b).statusRank;
+      } else {
+        comparison = getRegistrySetStatus(a).enabledWeights.length - getRegistrySetStatus(b).enabledWeights.length;
+      }
+      if (comparison === 0) {
+        comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      }
+      return comparison * direction;
+    });
+    return sorted;
+  }, [filteredSets, registrySort, enableEmptyWeights, toRelativeAppPath]);
+  const toggleRegistrySort = (key: 'name' | 'path' | 'status' | 'weights') => {
+    setRegistrySort((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+  const registryAriaSort = (key: 'name' | 'path' | 'status' | 'weights') => {
+    if (registrySort.key !== key) return 'none';
+    return registrySort.direction === 'asc' ? 'ascending' : 'descending';
+  };
+  const registrySortIcon = (key: 'name' | 'path' | 'status' | 'weights') => {
+    if (registrySort.key !== key) {
+      return <ArrowUpDown className="w-3 h-3 text-pine-mid" />;
+    }
+    return registrySort.direction === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-pine-mid" />
+      : <ArrowDown className="w-3 h-3 text-pine-mid" />;
+  };
+  const registrySortAriaLabel = (key: 'name' | 'path' | 'status' | 'weights', label: string) => {
+    const status = registrySort.key === key ? registrySort.direction : 'none';
+    return `Sort by ${label} (${status})`;
+  };
 
   const registryAsrSets = useMemo(
     () => registrySets.filter((set) => set.type === 'asr'),
@@ -239,6 +325,28 @@ export const Admin: React.FC = () => {
     [capabilities]
   );
 
+  const loadAdminTags = async () => {
+    setIsRefreshingTags(true);
+    try {
+      const tagResponse = await fetchTags();
+      setAdminTags(tagResponse.items);
+      if (!newTagName.trim()) {
+        setNewTagColor(pickTagColor(tagResponse.items));
+      }
+      setAdminTagsLoaded(true);
+    } catch (error) {
+      devError('Failed to load admin tags:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to load tags: ${error.message}`);
+      } else {
+        showError('Failed to load tags. Please refresh the page.');
+      }
+    } finally {
+      setIsRefreshingTags(false);
+      setAdminTagsLoaded(true);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin) {
       setIsLoadingSettings(false);
@@ -251,11 +359,12 @@ export const Admin: React.FC = () => {
     let cancelled = false;
     const loadData = async () => {
       try {
-        const [settingsData, systemData, capabilityData, registry] = await Promise.all([
+        const [settingsData, systemData, capabilityData, registry, tagResponse] = await Promise.all([
           fetchSettings(),
           fetchSystemInfo(),
           fetchCapabilities(),
           listModelSets(),
+          fetchTags(),
         ]);
         if (cancelled) return;
         setDefaultAsrProvider(settingsData.default_asr_provider ?? '');
@@ -277,6 +386,8 @@ export const Admin: React.FC = () => {
         setAvailabilityNotes(collectAvailabilityNotes(capabilityData));
         setSavedLastAsrSet(settingsData.last_selected_asr_set ?? '');
         setSavedLastDiarizerSet(settingsData.last_selected_diarizer_set ?? '');
+        setAdminTags(tagResponse.items);
+        setAdminTagsLoaded(true);
         debugSelection('loaded-settings', 'asr', {
           last_asr: settingsData.last_selected_asr_set,
           last_diar: settingsData.last_selected_diarizer_set,
@@ -312,6 +423,7 @@ export const Admin: React.FC = () => {
           setIsSystemLoading(false);
           setIsLoadingCapabilities(false);
           setRegistryLoading(false);
+          setAdminTagsLoaded(true);
         }
       }
     };
@@ -926,6 +1038,103 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const handleRefreshTags = async () => {
+    await loadAdminTags();
+  };
+
+  const handleCreateTag = async () => {
+    const trimmed = newTagName.trim();
+    if (!trimmed) {
+      showError('Enter a tag name before creating.');
+      return;
+    }
+    if (adminTags.some((tag) => tag.name.toLowerCase() === trimmed.toLowerCase())) {
+      showError('A tag with that name already exists.');
+      return;
+    }
+    setIsCreatingTag(true);
+    try {
+      const created = await createTag({ name: trimmed, color: newTagColor || pickTagColor(adminTags) });
+      const next = [...adminTags, created].sort((a, b) => a.name.localeCompare(b.name));
+      setAdminTags(next);
+      setNewTagName('');
+      setNewTagColor(pickTagColor(next));
+      showSuccess('Tag created');
+    } catch (error) {
+      devError('Failed to create tag:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to create tag: ${error.message}`);
+      } else {
+        showError('Failed to create tag. Please try again.');
+      }
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const handleEditTag = (tagId: number) => {
+    const tag = adminTags.find((item) => item.id === tagId);
+    if (!tag) {
+      showError('Tag not found.');
+      return;
+    }
+    setEditingTag(tag);
+    setEditingTagName(tag.name);
+    setEditingTagColor(tag.color || TAG_COLOR_PALETTE[0]);
+  };
+
+  const handleDeleteTag = async (tagId: number) => {
+    const tag = adminTags.find((item) => item.id === tagId);
+    if (!confirm(`Delete "${tag?.name ?? 'this tag'}"? It will be removed from all jobs.`)) {
+      return;
+    }
+    try {
+      const result = await deleteTag(tagId);
+      setAdminTags(adminTags.filter((item) => item.id !== tagId));
+      showSuccess(`Tag deleted (removed from ${result.jobs_affected} jobs)`);
+    } catch (error) {
+      devError('Failed to delete tag:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to delete tag: ${error.message}`);
+      } else {
+        showError('Failed to delete tag. Please try again.');
+      }
+    }
+  };
+
+  const handleSaveTagEdit = async () => {
+    if (!editingTag) return;
+    const trimmedName = editingTagName.trim();
+    if (!trimmedName) {
+      showError('Tag name is required.');
+      return;
+    }
+    const duplicate = adminTags.some(
+      (tag) => tag.id !== editingTag.id && tag.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      showError('A tag with that name already exists.');
+      return;
+    }
+    setIsSavingTagEdit(true);
+    try {
+      const updated = await updateTag(editingTag.id, { name: trimmedName, color: editingTagColor });
+      setAdminTags(adminTags.map((tag) => (tag.id === updated.id ? updated : tag)));
+      setEditingTag(null);
+      setEditingTagName('');
+      showSuccess('Tag updated');
+    } catch (error) {
+      devError('Failed to update tag:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to update tag: ${error.message}`);
+      } else {
+        showError('Failed to update tag. Please try again.');
+      }
+    } finally {
+      setIsSavingTagEdit(false);
+    }
+  };
+
   const handleSaveTimeZones = async () => {
     try {
       await updateSettings({
@@ -983,29 +1192,6 @@ export const Admin: React.FC = () => {
         showError(`Failed to shutdown server: ${error.message}`);
       } else {
         showError('Failed to shutdown server. Please try again.');
-      }
-    }
-  };
-
-  const handleFullRestartServer = async () => {
-    if (!confirm('Full orchestrated restart will recycle ALL components. Continue?')) {
-      return;
-    }
-    if (!confirm('Confirm again: jobs in progress will be interrupted. Proceed with full restart?')) {
-      return;
-    }
-    try {
-      const response = await fullRestartServer();
-      showSuccess(response.message);
-      setTimeout(() => {
-        showSuccess('If watchdog is running, services should come back shortly.');
-      }, 2000);
-    } catch (error) {
-      devError('Failed to request full restart:', error);
-      if (error instanceof ApiError) {
-        showError(`Failed to request full restart: ${error.message}`);
-      } else {
-        showError('Failed to request full restart.');
       }
     }
   };
@@ -1111,18 +1297,22 @@ export const Admin: React.FC = () => {
       const weights = set.weights.map((weight) => {
         const weightHasFiles = (weight.has_weights ?? false) || enableEmptyWeights;
         const capability = diarizerOptionMap.get(weight.name);
-        const available =
-          Boolean(set.enabled && weight.enabled && weightHasFiles) &&
-          (capability ? capability.available : true);
+        const capabilityAvailable = capability ? capability.available : true;
+        const disabled = !set.enabled || !weight.enabled;
+        const unavailable = !disabled && (!weightHasFiles || !capabilityAvailable);
+        const available = !disabled && !unavailable;
         return {
           key: weight.name,
           display_name: capability?.display_name ?? weight.name,
           available,
+          disabled,
+          unavailable,
           notes: capability?.notes ?? [],
         };
       });
       return {
         name: set.name,
+        enabled: set.enabled,
         available: weights.some((weight) => weight.available),
         weights,
       };
@@ -1137,8 +1327,6 @@ export const Admin: React.FC = () => {
   }, [defaultDiarizerProvider, diarizerProviders]);
   const selectedWeightMeta = activeSet?.weights.find((weight) => weight.id === weightForm.id);
   const selectedWeightHasFiles = Boolean(selectedWeightMeta?.has_weights);
-  const selectedDiarizer = diarizerOptionMap.get(defaultDiarizer) ?? null;
-
   useEffect(() => {
     if (!diarizerProviders.length) {
       setDefaultDiarizerProvider('');
@@ -1273,6 +1461,58 @@ export const Admin: React.FC = () => {
                 disabled={!fileBrowserSelected && !fileBrowserCwd}
               >
                 Select path
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editingTag && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6" role="dialog" aria-modal="true">
+            <h3 className="text-lg font-semibold text-pine-deep mb-2">Edit tag</h3>
+            <label className="text-sm text-pine-deep mb-2 block" htmlFor="edit-tag-name">
+              Tag name
+            </label>
+            <input
+              id="edit-tag-name"
+              className="w-full px-3 py-2 border border-sage-mid rounded focus:outline-none focus:ring-2 focus:ring-forest-green mb-4"
+              value={editingTagName}
+              onChange={(e) => setEditingTagName(e.target.value)}
+              placeholder="Enter a tag name"
+            />
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              {TAG_COLOR_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Select ${color}`}
+                  onClick={() => setEditingTagColor(color)}
+                  className={`w-7 h-7 rounded-full border ${
+                    editingTagColor === color ? 'border-forest-green ring-2 ring-forest-green/40' : 'border-sage-mid'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded border border-sage-mid text-pine-deep"
+                onClick={() => {
+                  setEditingTag(null);
+                  setEditingTagName('');
+                }}
+                disabled={isSavingTagEdit}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded bg-forest-green text-white disabled:opacity-50"
+                onClick={handleSaveTagEdit}
+                disabled={isSavingTagEdit}
+              >
+                {isSavingTagEdit ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
@@ -1665,25 +1905,55 @@ export const Admin: React.FC = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-sage-light text-pine-mid">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium">Model set</th>
-                      <th className="text-left px-3 py-2 font-medium">Path</th>
-                      <th className="text-left px-3 py-2 font-medium">Status</th>
-                      <th className="text-left px-3 py-2 font-medium">Enabled weights</th>
+                      <th className="text-left px-3 py-2 font-medium" aria-sort={registryAriaSort('name')}>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 cursor-pointer"
+                          onClick={() => toggleRegistrySort('name')}
+                          aria-label={registrySortAriaLabel('name', 'model set')}
+                        >
+                          Model set
+                          {registrySortIcon('name')}
+                        </button>
+                      </th>
+                      <th className="text-left px-3 py-2 font-medium" aria-sort={registryAriaSort('path')}>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 cursor-pointer"
+                          onClick={() => toggleRegistrySort('path')}
+                          aria-label={registrySortAriaLabel('path', 'path')}
+                        >
+                          Path
+                          {registrySortIcon('path')}
+                        </button>
+                      </th>
+                      <th className="text-left px-3 py-2 font-medium" aria-sort={registryAriaSort('status')}>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 cursor-pointer"
+                          onClick={() => toggleRegistrySort('status')}
+                          aria-label={registrySortAriaLabel('status', 'status')}
+                        >
+                          Status
+                          {registrySortIcon('status')}
+                        </button>
+                      </th>
+                      <th className="text-left px-3 py-2 font-medium" aria-sort={registryAriaSort('weights')}>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 cursor-pointer"
+                          onClick={() => toggleRegistrySort('weights')}
+                          aria-label={registrySortAriaLabel('weights', 'enabled weights')}
+                        >
+                          Enabled weights
+                          {registrySortIcon('weights')}
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSets.map((set) => {
-                      const enabledWeights = set.weights.filter((w) => w.enabled);
-                      const availableWeights = enabledWeights.filter(
-                        (w) => (w.has_weights ?? false) || enableEmptyWeights
-                      );
-                      const showNames = enabledWeights.length ? enabledWeights.map((w) => w.name).join(', ') : 'None';
-                      const statusLabel =
-                        set.enabled && availableWeights.length
-                          ? 'Available'
-                          : set.enabled
-                          ? 'Pending files'
-                          : 'Unavailable';
+                    {sortedRegistrySets.map((set) => {
+                      const { enabledWeights, availableWeights, statusLabel, weightNames } = getRegistrySetStatus(set);
                       const statusClass =
                         set.enabled && availableWeights.length
                           ? 'bg-forest-green/10 text-forest-green'
@@ -1701,7 +1971,7 @@ export const Admin: React.FC = () => {
                           <td className="px-3 py-2">
                             <span className={`text-xs px-2 py-0.5 rounded ${statusClass}`}>{statusLabel}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-pine-deep">{showNames}</td>
+                          <td className="px-3 py-2 text-xs text-pine-deep">{weightNames}</td>
                         </tr>
                       );
                     })}
@@ -1847,7 +2117,11 @@ export const Admin: React.FC = () => {
                   {!diarizerProviders.length && <option value="">No diarizers registered</option>}
                   {diarizerProviders.map((provider) => (
                     <option key={provider.name} value={provider.name}>
-                      {provider.available ? provider.name : `${provider.name} (unavailable)`}
+                      {provider.enabled
+                        ? provider.available
+                          ? provider.name
+                          : `${provider.name} (unavailable)`
+                        : `${provider.name} (disabled)`}
                     </option>
                   ))}
                 </select>
@@ -1875,19 +2149,10 @@ export const Admin: React.FC = () => {
                   {weightsForSelectedProvider.map((option) => (
                     <option key={option.key} value={option.key}>
                       {option.display_name}
-                      {!option.available
-                        ? option.notes.length
-                          ? ` (${option.notes.join(', ')})`
-                          : ' (unavailable)'
-                        : ''}
+                      {option.disabled ? ' (disabled)' : option.unavailable ? ' (unavailable)' : ''}
                     </option>
                   ))}
                 </select>
-                {selectedDiarizer && !selectedDiarizer.available && (
-                  <p className="text-xs text-terracotta mt-1">
-                    {selectedDiarizer.notes.join(', ') || 'Not available on this system'}
-                  </p>
-                )}
               </div>
             </div>
             <div className="flex justify-end mt-4" />
@@ -1957,7 +2222,6 @@ export const Admin: React.FC = () => {
           <div className="border border-sage-mid rounded-lg p-4" data-testid="admin-throughput-card">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-md font-semibold text-pine-deep">Throughput & Storage</h3>
-              <span className="text-xs text-pine-mid">Admin only</span>
             </div>
             <div>
               <label
@@ -1999,28 +2263,65 @@ export const Admin: React.FC = () => {
               <p className="text-xs text-pine-mid mt-2">Applies globally; job queue restarts when this value changes.</p>
             </div>
 
-              <div className="mt-4 p-3 border border-sage-light rounded bg-sage-light/40" data-testid="admin-storage-summary">
-                <div className="flex items-center justify-between text-sm text-pine-deep">
-                  <span className="font-semibold">Storage Used</span>
-                  <span>
-                    {storageProject && storageProject.total_gb
-                    ? `${formatGb(storageProject.used_gb)} / ${formatGb(storageProject.total_gb)}`
-                    : 'Detect system info'}
-                </span>
-              </div>
-              <div className="w-full bg-sage-mid rounded-full h-2 mt-2">
-                <div
-                  className="bg-forest-green h-2 rounded-full transition-all"
-                  style={{ width: `${storagePercent ?? 0}%` }}
-                ></div>
-              </div>
-              <div className="flex items-center justify-between text-xs text-pine-mid mt-2">
-                <span>Location</span>
-                <span className="font-mono text-[11px]">
-                  {storageProject?.path ? toRelativeAppPath(storageProject.path) : 'Run Detect to load path'}
-                </span>
-              </div>
+          </div>
+
+          <div className="border border-sage-mid rounded-lg p-4 lg:col-span-2" data-testid="admin-tags-card">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-md font-semibold text-pine-deep">Tags</h3>
+              <button
+                type="button"
+                className="text-xs text-pine-mid underline flex items-center gap-1"
+                onClick={handleRefreshTags}
+                disabled={isRefreshingTags}
+                data-testid="admin-tags-refresh"
+              >
+                <RefreshCw className="w-3 h-3" /> {isRefreshingTags ? 'Refreshing' : 'Refresh'}
+              </button>
             </div>
+            <p className="text-xs text-pine-mid mb-3">
+              Create or delete system-wide tags available in job filters and tag pickers.
+            </p>
+            <div className="flex flex-col md:flex-row gap-2 mb-4">
+              <input
+                type="text"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                placeholder="New tag name"
+                className="flex-1 px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+                data-testid="admin-tag-name"
+              />
+              <button
+                type="button"
+                onClick={handleCreateTag}
+                disabled={isCreatingTag || newTagName.trim().length === 0}
+                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+                data-testid="admin-tag-create"
+              >
+                {isCreatingTag ? 'Creating...' : 'Create tag'}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="text-xs text-pine-mid">Tag color</span>
+              {TAG_COLOR_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Select ${color}`}
+                  onClick={() => setNewTagColor(color)}
+                  className={`w-6 h-6 rounded-full border ${
+                    newTagColor === color ? 'border-forest-green ring-2 ring-forest-green/40' : 'border-sage-mid'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            {!adminTagsLoaded ? (
+              <div className="text-sm text-pine-mid" data-testid="admin-tags-loading">
+                Loading tags...
+              </div>
+            ) : (
+              <TagList tags={adminTags} onEdit={handleEditTag} onDelete={handleDeleteTag} />
+            )}
           </div>
 
           <div className="border border-sage-mid rounded-lg p-4" data-testid="audio-handling-card">
@@ -2260,19 +2561,11 @@ export const Admin: React.FC = () => {
             >
               Shutdown Server
             </button>
-            <button
-              onClick={handleFullRestartServer}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-            >
-              Full Restart (Sentinel)
-            </button>
           </div>
           <p className="text-xs text-pine-mid">
             Warning: System operations require administrator password and may interrupt ongoing transcriptions.
           </p>
-          <p className="text-xs text-pine-mid">
-            Full restart requires watchdog script <code>scripts/watch-restart.ps1</code> running.
-          </p>
+          <p className="text-xs text-pine-mid">Restart runs the stop/start scripts on the host.</p>
         </div>
       </section>
     </div>

@@ -9,7 +9,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api';
 export interface Tag {
   id: number;
   name: string;
-  color: string;
+  color: string | null;
   job_count: number;
   created_at: string;
 }

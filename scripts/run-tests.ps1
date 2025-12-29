@@ -72,16 +72,6 @@ $MemorialRoot = Join-Path $RepoRoot "docs/memorialization/test-runs"
 if (-not (Test-Path $MemorialRoot)) {
     New-Item -ItemType Directory -Force -Path $MemorialRoot | Out-Null
 }
-$MaxRunHistory = 50
-$existingRuns = Get-ChildItem -Path $MemorialRoot -Directory -ErrorAction SilentlyContinue | Sort-Object CreationTime
-if ($existingRuns.Count -ge $MaxRunHistory) {
-    $removeCount = $existingRuns.Count - $MaxRunHistory + 1
-    $toRemove = $existingRuns | Select-Object -First $removeCount
-    foreach ($run in $toRemove) {
-        Write-Host "Pruning old test run archive: $($run.Name)" -ForegroundColor DarkGray
-        Remove-Item -LiteralPath $run.FullName -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
 $runParts = @()
 if (-not $SkipBackend) { $runParts += "backend" }
 if (-not $SkipFrontend) { $runParts += "frontend" }

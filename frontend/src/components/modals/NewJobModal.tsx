@@ -9,6 +9,8 @@ type DiarizerWeightOption = {
   key: string;
   display_name: string;
   available: boolean;
+  disabled: boolean;
+  unavailable: boolean;
   notes: string[];
 };
 
@@ -18,6 +20,9 @@ type DiarizerProviderGroup = {
   weights: DiarizerWeightOption[];
 };
 
+const stripExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
+const LANGUAGE_OPTIONS = ['auto', 'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko'];
+
 interface NewJobModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,12 +31,26 @@ interface NewJobModalProps {
     provider?: string;
     model?: string;
     language?: string;
+    jobName?: string;
     enableTimestamps: boolean;
     enableSpeakerDetection: boolean;
     diarizer?: string | null;
     speakerCount?: number | null;
     extraFlags?: string;
   }) => Promise<void>;
+  prefill?: {
+    file: File;
+    jobName?: string;
+    provider?: string | null;
+    model?: string | null;
+    language?: string | null;
+    enableTimestamps?: boolean;
+    enableSpeakerDetection?: boolean;
+    diarizer?: string | null;
+    diarizerProvider?: string | null;
+    speakerCount?: number | null;
+    extraFlags?: string;
+  };
   defaultModel?: string;
   defaultLanguage?: string;
   defaultDiarizer?: string;
@@ -42,6 +61,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  prefill,
   defaultModel,
   defaultLanguage,
   defaultDiarizer,
@@ -54,6 +74,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const adminAllowsDiarization = adminSettings?.diarization_enabled ?? true;
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [jobName, setJobName] = useState('');
   const resolvedDefaults = useMemo(
     () => ({
       provider: adminSettings?.default_asr_provider ?? '',
@@ -65,17 +86,41 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     }),
     [adminSettings, defaultModel, defaultLanguage, defaultDiarizer, defaultDiarizerProvider]
   );
-  const resolvedDefaultsKey = useMemo(
+  const selectionDefaults = useMemo(
+    () => ({
+      provider: prefill?.provider ?? resolvedDefaults.provider,
+      model: prefill?.model ?? resolvedDefaults.model,
+      language: prefill?.language ?? resolvedDefaults.language,
+      diarizerProvider: prefill?.diarizerProvider ?? resolvedDefaults.diarizerProvider,
+      diarizer: prefill?.diarizer ?? resolvedDefaults.diarizer,
+      timestamps: prefill?.enableTimestamps ?? resolvedDefaults.timestamps,
+      enableSpeakerDetection: prefill?.enableSpeakerDetection,
+      speakerCount: prefill?.speakerCount ?? null,
+    }),
+    [prefill, resolvedDefaults]
+  );
+  const selectionDefaultsKey = useMemo(
     () =>
       [
-        resolvedDefaults.provider,
-        resolvedDefaults.model,
-        resolvedDefaults.language,
-        resolvedDefaults.diarizerProvider,
-        resolvedDefaults.diarizer,
+        selectionDefaults.provider,
+        selectionDefaults.model,
+        selectionDefaults.language,
+        selectionDefaults.diarizerProvider,
+        selectionDefaults.diarizer,
+        selectionDefaults.timestamps ? '1' : '0',
+        selectionDefaults.enableSpeakerDetection === undefined
+          ? 'auto'
+          : selectionDefaults.enableSpeakerDetection
+          ? '1'
+          : '0',
+        selectionDefaults.speakerCount ?? 'auto',
       ].join('|'),
-    [resolvedDefaults]
+    [selectionDefaults]
   );
+  const prefillFileKey = useMemo(() => {
+    if (!prefill) return null;
+    return `${prefill.file.name}:${prefill.file.size}:${prefill.jobName ?? ''}`;
+  }, [prefill]);
 
   const [model, setModel] = useState(resolvedDefaults.model);
   const [language, setLanguage] = useState(resolvedDefaults.language);
@@ -97,6 +142,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
   const [initializedDefaultsKey, setInitializedDefaultsKey] = useState<string | null>(null);
+  const [prefillAppliedKey, setPrefillAppliedKey] = useState<string | null>(null);
   const [hasUserChanges, setHasUserChanges] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -156,13 +202,16 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       const weights = set.weights.map((weight) => {
         const capability = diarizerCapabilityMap.get(weight.name);
         const hasWeights = (weight.has_weights ?? false) || allowEmptyWeights;
-        const available =
-          Boolean(set.enabled && weight.enabled && hasWeights) &&
-          (capability ? capability.available : true);
+        const capabilityAvailable = capability ? capability.available : true;
+        const disabled = !set.enabled || !weight.enabled;
+        const unavailable = !disabled && (!hasWeights || !capabilityAvailable);
+        const available = !disabled && !unavailable;
         return {
           key: weight.name,
           display_name: capability?.display_name ?? weight.name,
           available,
+          disabled,
+          unavailable,
           notes: capability?.notes ?? [],
         } as DiarizerWeightOption;
       });
@@ -258,8 +307,26 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      setPrefillAppliedKey(null);
+      return;
+    }
+    if (!prefill || !prefillFileKey) {
+      return;
+    }
+    if (prefillAppliedKey === prefillFileKey) {
+      return;
+    }
+    setSelectedFile(prefill.file);
+    setJobName(prefill.jobName ?? stripExtension(prefill.file.name));
+    setExtraFlags(prefill.extraFlags ?? '');
+    setPrefillAppliedKey(prefillFileKey);
+  }, [isOpen, prefill, prefillFileKey, prefillAppliedKey]);
+
+  useEffect(() => {
+    if (!isOpen) {
       setIsInitialized(false);
       setInitializedDefaultsKey(null);
+      setPrefillAppliedKey(null);
       setHasUserChanges(false);
       setIsAdvancedOpen(false);
       return;
@@ -272,16 +339,16 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       setModel('');
       return;
     }
-    if (isInitialized && (hasUserChanges || initializedDefaultsKey === resolvedDefaultsKey)) {
+    if (isInitialized && (hasUserChanges || initializedDefaultsKey === selectionDefaultsKey)) {
       return;
     }
 
-    const providerFromSettings = resolvedDefaults.provider
-      ? providerOptions.find((p) => p.value === resolvedDefaults.provider && p.isUsable)?.value
+    const providerFromSettings = selectionDefaults.provider
+      ? providerOptions.find((p) => p.value === selectionDefaults.provider && p.isUsable)?.value
       : '';
-    const providerFromModel = resolvedDefaults.model
+    const providerFromModel = selectionDefaults.model
       ? providerOptions.find(
-          (p) => p.isUsable && p.weights.some((weight) => weight.name === resolvedDefaults.model)
+          (p) => p.isUsable && p.weights.some((weight) => weight.name === selectionDefaults.model)
         )?.value
       : '';
     const fallbackProvider =
@@ -291,10 +358,10 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
     const weightsForProvider =
       providerOptions.find((p) => p.value === nextProvider)?.weights ?? [];
-    const preferredWeight = resolvedDefaults.model
+    const preferredWeight = selectionDefaults.model
       ? weightsForProvider.find(
           (weight) =>
-            weight.name === resolvedDefaults.model &&
+            weight.name === selectionDefaults.model &&
             weight.enabled &&
             ((weight.has_weights ?? false) || allowEmptyWeights)
         )
@@ -308,11 +375,15 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       ) || weightsForProvider[0];
     const resolvedModelName = preferredWeight?.name || firstEnabledWeight?.name || fallbackWeight?.name || '';
     setModel(resolvedModelName || '');
-    setLanguage(resolvedDefaults.language);
-    setEnableTimestamps(resolvedDefaults.timestamps);
+    const normalizedLanguage =
+      selectionDefaults.language && LANGUAGE_OPTIONS.includes(selectionDefaults.language)
+        ? selectionDefaults.language
+        : resolvedDefaults.language;
+    setLanguage(normalizedLanguage);
+    setEnableTimestamps(selectionDefaults.timestamps);
     let inferredDiarizerProvider = '';
-    if (resolvedDefaults.diarizerProvider) {
-      const match = diarizerProviderGroups.find((group) => group.name === resolvedDefaults.diarizerProvider);
+    if (selectionDefaults.diarizerProvider) {
+      const match = diarizerProviderGroups.find((group) => group.name === selectionDefaults.diarizerProvider);
       if (match) {
         inferredDiarizerProvider = match.name;
       }
@@ -323,23 +394,26 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setDiarizerProvider(inferredDiarizerProvider);
     const weightsForSelectedProvider =
       diarizerProviderGroups.find((group) => group.name === inferredDiarizerProvider)?.weights ?? [];
-    const preferredDiarizerWeight = resolvedDefaults.diarizer
-      ? weightsForSelectedProvider.find((weight) => weight.key === resolvedDefaults.diarizer)
+    const preferredDiarizerWeight = selectionDefaults.diarizer
+      ? weightsForSelectedProvider.find((weight) => weight.key === selectionDefaults.diarizer)
       : undefined;
     const fallbackDiarizerWeight =
       weightsForSelectedProvider.find((weight) => weight.available) || weightsForSelectedProvider[0];
     setDiarizer(preferredDiarizerWeight?.key ?? fallbackDiarizerWeight?.key ?? '');
-    setEnableSpeakerDetection(supportsDiarization);
-    setSpeakerCount('auto');
+    const diarizationDefault = selectionDefaults.enableSpeakerDetection ?? supportsDiarization;
+    setEnableSpeakerDetection(diarizationDefault && supportsDiarization);
+    const speakerDefault = selectionDefaults.speakerCount ?? 'auto';
+    setSpeakerCount(speakerDefault);
     setIsInitialized(true);
-    setInitializedDefaultsKey(resolvedDefaultsKey);
+    setInitializedDefaultsKey(selectionDefaultsKey);
     setHasUserChanges(false);
   }, [
     isOpen,
     adminStatus,
     adminSettings,
     resolvedDefaults,
-    resolvedDefaultsKey,
+    selectionDefaults,
+    selectionDefaultsKey,
     diarizerProviderGroups,
     supportsDiarization,
     providerOptions,
@@ -392,6 +466,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     setSelectedFile(file);
     setFileError('');
     setError('');
+    if (file) {
+      setJobName(stripExtension(file.name));
+    } else {
+      setJobName('');
+    }
   };
 
   const handleProviderChange = (value: string) => {
@@ -481,6 +560,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     try {
       await onSubmit({
         file: selectedFile,
+        jobName: jobName.trim() || undefined,
         provider: selectedProvider,
         model: modelSelection,
         language: languageSelection,
@@ -492,6 +572,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
       });
 
       setSelectedFile(null);
+      setJobName('');
       setModel(resolvedDefaults.model);
       setLanguage(resolvedDefaults.language);
       setEnableTimestamps(resolvedDefaults.timestamps);
@@ -513,6 +594,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const handleClose = () => {
     if (!isSubmitting) {
       setSelectedFile(null);
+      setJobName('');
       setError('');
       setFileError('');
       setEnableSpeakerDetection(supportsDiarization);
@@ -567,6 +649,19 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               selectedFile={selectedFile}
               error={fileError}
             />
+          </div>
+          <div className="mb-6" data-testid="job-name-section">
+            <label className="block text-sm font-medium text-pine-deep mb-2" htmlFor="job-name-input">
+              Job name
+            </label>
+            <input
+              id="job-name-input"
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-forest-green"
+              value={jobName}
+              onChange={(event) => setJobName(event.target.value)}
+              placeholder={selectedFile ? stripExtension(selectedFile.name) : 'Enter a name'}
+            />
+            <p className="text-xs text-pine-mid mt-2">File extension stays the same.</p>
           </div>
 
           <div
@@ -811,11 +906,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
                               {diarizerWeightsForProvider.map((option) => (
                                 <option key={option.key} value={option.key} disabled={!option.available}>
                                   {option.display_name}
-                                  {!option.available && option.notes.length
-                                    ? ` (${option.notes.join(', ')})`
-                                    : !option.available
-                                      ? ' (unavailable)'
-                                      : ''}
+                                  {option.disabled ? ' (disabled)' : option.unavailable ? ' (unavailable)' : ''}
                                 </option>
                               ))}
                             </select>

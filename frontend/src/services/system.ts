@@ -111,10 +111,3 @@ export async function restartServer(): Promise<ServerActionResponse> {
 export async function shutdownServer(): Promise<ServerActionResponse> {
   return apiPost<ServerActionResponse>('/system/shutdown');
 }
-
-/**
- * Request a full orchestrated restart via sentinel file.
- */
-export async function fullRestartServer(): Promise<ServerActionResponse> {
-  return apiPost<ServerActionResponse>('/system/full-restart');
-}

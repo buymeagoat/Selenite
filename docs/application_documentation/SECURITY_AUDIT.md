@@ -18,7 +18,7 @@
 3. **CVE-2024-6345** (Remote Code Execution) - Fixed in 70.0.0
 
 **Risk**: HIGH - Path traversal and RCE vulnerabilities  
-**Status**: ⚠️ Needs update  
+**Status**: [WARN] Needs update  
 **Recommendation**: Upgrade to setuptools >= 78.1.1
 
 #### 2. ecdsa (v0.19.1)
@@ -28,7 +28,7 @@
 1. **CVE-2024-23342** (Minerva Timing Attack on P-256)
 
 **Risk**: LOW - Side-channel attack on P-256 curve  
-**Status**: ⚠️ Known issue, no fix planned by maintainers  
+**Status**: [WARN] Known issue, no fix planned by maintainers  
 **Mitigation**: Used only by python-jose for JWT signing (HS256 algorithm), not directly using ECDSA P-256 signatures  
 **Recommendation**: Monitor for updates, consider alternative JWT libraries in future
 
@@ -36,7 +36,7 @@
 
 ## SQL Injection Review
 
-**Status**: ✅ PASS
+**Status**: [OK] PASS
 
 All database queries use SQLAlchemy's parameterized queries:
 - `select(Model).where(Model.field == value)` - bound parameters
@@ -55,17 +55,17 @@ result = await db.execute(select(Job).where(Job.id == job_id))
 
 ## Path Traversal Review
 
-**Status**: ✅ PASS with existing protections
+**Status**: [OK] PASS with existing protections
 
 ### File Upload Protection
-- ✅ File validation checks for `../`, `..\`, `\0`, `/` in filenames
-- ✅ `Path(filename).name` strips directory components
-- ✅ UUID-based filenames in storage (`save_uploaded_file`)
+- [OK] File validation checks for `../`, `..\`, `\0`, `/` in filenames
+- [OK] `Path(filename).name` strips directory components
+- [OK] UUID-based filenames in storage (`save_uploaded_file`)
 
 ### File Export Protection
-- ✅ Job ownership validation before file access
-- ✅ Transcript paths constructed from controlled storage paths
-- ✅ No user input in file path construction
+- [OK] Job ownership validation before file access
+- [OK] Transcript paths constructed from controlled storage paths
+- [OK] No user input in file path construction
 
 **Locations Reviewed**:
 - `app/utils/file_validation.py` - Upload validation
@@ -79,7 +79,7 @@ result = await db.execute(select(Job).where(Job.id == job_id))
 
 ## XSS Prevention Review
 
-**Status**: ✅ PASS
+**Status**: [OK] PASS
 
 ### Backend API
 - Returns JSON responses (Content-Type: application/json)
@@ -102,7 +102,7 @@ result = await db.execute(select(Job).where(Job.id == job_id))
 
 ## Security Headers
 
-**Status**: ✅ IMPLEMENTED
+**Status**: [OK] IMPLEMENTED
 
 All security headers active via middleware:
 - Content-Security-Policy (strict)
@@ -116,7 +116,7 @@ All security headers active via middleware:
 
 ## Rate Limiting
 
-**Status**: ✅ IMPLEMENTED
+**Status**: [OK] IMPLEMENTED
 
 Token bucket algorithm active with per-endpoint limits:
 - Login: 5 attempts per 10 seconds
@@ -163,11 +163,11 @@ Token bucket algorithm active with per-endpoint limits:
 **Overall Security Posture**: STRONG
 
 The application demonstrates good security practices:
-- ✅ SQL injection protection (parameterized queries)
-- ✅ Path traversal prevention (validation + controlled paths)
-- ✅ Rate limiting active
-- ✅ Security headers configured
-- ✅ File upload validation
-- ⚠️ 2 dependency updates needed
+- [OK] SQL injection protection (parameterized queries)
+- [OK] Path traversal prevention (validation + controlled paths)
+- [OK] Rate limiting active
+- [OK] Security headers configured
+- [OK] File upload validation
+- [WARN] 2 dependency updates needed
 
 **Production Ready**: YES (after setuptools update)

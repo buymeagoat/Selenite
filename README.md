@@ -1,504 +1,116 @@
-# Selenite 🌙
+# Selenite
 
-> Personal audio/video transcription application powered by OpenAI Whisper
+Personal audio/video transcription application powered by OpenAI Whisper.
 
-Selenite is a self-hosted, privacy-focused transcription service that runs entirely on your local machine. Convert speech to text using state-of-the-art AI models without sending your files to external services.
+Selenite is a self-hosted, privacy-focused transcription service that runs entirely on your local machine. Convert speech to text without sending files to external services.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![React](https://img.shields.io/badge/react-18.2-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green.svg)
+## Features
 
-## ✨ Features
+- Local processing (no cloud upload).
+- Admin-managed ASR/diarizer registry with explicit enable/disable.
+- Speaker diarization and timestamps.
+- Tag-based organization with colored tags.
+- Search and filter by status, date, or tags.
+- Responsive UI for desktop, tablet, and mobile.
+- Export formats: txt, srt, vtt, json, docx, md.
 
-- **🔒 Local Processing**: All transcription happens on your device - complete privacy
-- **🧭 Admin-Managed Models**: Curated ASR/diarizer providers ship pre-registered (folders created under `backend/models/<provider>/<weight>/...`) but with **no weights included**. Admins drop checkpoints into those folders, enable weights, and select defaults—no hidden fallbacks.
-- **🌍 90+ Languages**: Supports automatic language detection and translation (when the registered ASR model supports it)
-- **👥 Speaker Diarization**: Identify different speakers in conversations using registered diarizer weights
-- **⏱️ Timestamps**: Add precise timestamps to transcripts
-- **🏷️ Tag Organization**: Organize jobs with custom colored tags
-- **🔍 Search & Filter**: Quickly find jobs by name, status, date, or tags
-- **📊 Real-time Progress**: Watch transcription progress update live
-- **📱 Responsive Design**: Works seamlessly on desktop, tablet, and mobile
-- **🎨 Modern UI**: Clean, intuitive interface with dark mode support
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- **Python 3.10+** and **Node.js 18+**
-- **FFmpeg** for audio processing
-- **8GB+ RAM** (16GB recommended for larger models)
-- **10GB+ storage** for application and models
+- Python 3.10+ and Node.js 18+
+- FFmpeg for audio processing
+- 8GB+ RAM (16GB recommended for larger models)
+- 10GB+ storage for application and models
 
-> Storage is canonicalized to `./storage` (with `storage/media` and `storage/transcripts`). Any legacy `backend/storage` paths are deprecated; keep all media and transcript files under the project-root `storage` directory.
+> Storage is canonicalized to `./storage` (with `storage/media` and `storage/transcripts`). Any legacy `backend/storage` paths are deprecated.
 
 ### Installation
 
-1. **Clone the repository**:
+1) Clone the repository:
+
 ```bash
-git clone https://github.com/yourusername/Selenite.git
+git clone https://github.com/buymeagoat/Selenite.git
 cd Selenite
 ```
 
-2. **Backend setup**:
+2) Backend setup:
+
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
-3. **Install ASR/diarizer providers + place models (manual, admin-only)**:
-   - Inside the virtualenv run `pip install -r requirements.txt`. This installs the entire curated provider stack (CPU wheels by default; swap to CUDA wheels if desired).
-   - We create registry rows and folders for these providers (all disabled until you add weights):  
-     **ASR**: whisper, faster-whisper, wav2vec2 (base/lv60), nemo conformer-CTC (en), vosk (small/large en-US), coqui-stt (en-US), transformers (XLS-R/WavLM).  
-     **Diarizer**: pyannote pipeline (diarization-3.1, segmentation-3.0, wespeaker-voxceleb), nemo-diarizer, speechbrain (ecapa embedding pipeline), resemblyzer (encoder + clustering).
-   - Download each model checkpoint manually into `backend/models/<provider>/<weight>/...`. No weights are shipped or auto-downloaded.
-   - In Admin UI (or REST), enable the weights you populated and choose defaults. If the registry is empty or all weights are disabled, job creation is blocked with "Contact admin to register a model weight."
+3) Frontend setup:
 
-4. **Frontend setup**:
 ```bash
 cd ../frontend
 npm install
 ```
 
-5. **Start the application (production stack only)**:
-
-The fastest way is to run the automated bootstrap script from the repository root:
+4) Start the application (Windows recommended):
 
 ```powershell
-# PowerShell (Windows)
 cd Selenite
 .\scripts\bootstrap.ps1
 ```
 
-This script:
-- Kills stray python/node processes and unlocks log files.
-- Installs backend + frontend dependencies.
-- Starts the FastAPI server with `ENVIRONMENT=production`, `ALLOW_LOCALHOST_CORS=1`, and file logging disabled (to avoid Windows log-lock issues).
-- Builds the frontend and serves it via `npm run start:prod` (Vite preview) on `http://127.0.0.1:5173`.
-
-If you need to run the commands manually (Linux/macOS):
-
-```bash
-# Terminal 1 - Backend API
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m alembic upgrade head
-python -m app.seed
-export DISABLE_FILE_LOGS=1
-export ENVIRONMENT=production
-export ALLOW_LOCALHOST_CORS=1
-uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
-
-# Terminal 2 – Frontend (production preview)
-cd frontend
-npm install
-npm run start:prod -- --host 127.0.0.1 --port 5173
-
-# Terminal 3 – Backend smoke test (sanity check)
-cd ..
-python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
-```
-
-> We no longer maintain a separate "dev server." Everything runs with production settings to mirror the actual deployment.
-> ASR/diarizer providers and model files are never downloaded automatically—install them in the backend venv, place checkpoints under `backend/models/<set>/<weight>/...`, and register + enable them via the Admin UI before running real jobs.
-
-6. **Open in browser**: Navigate to `http://localhost:5173`
-
-Default credentials: `admin` / (your configured password)
-
-> Remote/LAN access: CORS is enforced by FastAPI. To use the UI over Tailscale or your LAN (e.g., `http://100.85.28.75:5173` or `http://192.168.1.52:5173`), set `CORS_ORIGINS` in your `.env` to include those origins, or rely on the private-network regex default (`CORS_ORIGIN_REGEX`) which already allows RFC1918 + `100.x.x.x` addresses. Restart the backend after changing CORS values.
+If you run manually, mirror the production settings from `scripts/bootstrap.ps1` and keep `ENVIRONMENT=production`.
 
 ### Model Registry Workflow (Admins)
 
-- No models ship with the app. Providers must be installed manually in the backend virtualenv, and model files must live under `backend/models/<model_set>/<model_weight>/...` (anything outside this tree is rejected).
-- Use the Admin tab (or `/model-registry` API) to create model sets (ASR or diarizer) and model weights (specific checkpoints). Each weight stores the absolute path you downloaded.
-- Enable or disable sets/weights at any time; disabled weights require a reason. `/system/availability` reports only enabled, registered items.
-- Before users can create jobs, pick the default ASR provider/model and (if used) diarizer provider/model from the registered, enabled weights.
-- Manual verification checkpoints (UI-only for operators):
-  1) After registering sets/weights, click **Rescan availability** in Admin → Model Registry and confirm the expected weights appear.
-  2) In Admin → Advanced ASR & Diarization, choose defaults from the enabled registry weights.
-  3) Open New Job; if no ASR weights are enabled, the submit button is disabled with “Contact admin to register a model.”
+- Providers and weights are never auto-downloaded.
+- Place model checkpoints under `backend/models/<set>/<weight>/...`.
+- Enable weights and set defaults in the Admin UI before creating jobs.
+- If no enabled weights exist, job creation is blocked with a clear admin message.
 
-### Automated Test Runner
+## Automated Tests
 
-Once the stack is bootstrapped (or anytime you need to verify a change), run the entire automated test battery from the repo root with:
+Run the full suite from the repo root:
 
 ```powershell
 .\scripts\run-tests.ps1
 ```
 
-This script installs backend/frontend dependencies if needed, executes `pytest --cov=app`, runs `npm run test:coverage` + `npm run coverage:summary`, and finishes with the Playwright suite (`npm run e2e:full`). Common switches:
+Common switches: `-SkipBackend`, `-SkipFrontend`, `-SkipE2E`, `-ForceBackendInstall`, `-ForceFrontendInstall`.
 
-- `-SkipBackend`, `-SkipFrontend`, `-SkipE2E` – Skip portions of the suite.
-- `-ForceBackendInstall`, `-ForceFrontendInstall` – Reinstall dependencies even if `.venv` / `node_modules` already exist.
+## Documentation
 
-Every invocation writes a timestamped log and copies coverage/Playwright artifacts into `docs/memorialization/test-runs/<run-id>` (gitignored). If you run tests manually (e.g., `npm run e2e:full`), copy the outputs into that folder so the historical record stays complete.
+- User guide: `docs/application_documentation/USER_GUIDE.md`
+- Deployment guide: `docs/application_documentation/DEPLOYMENT.md`
+- API contracts: `docs/API_CONTRACTS.md`
+- Component specs: `docs/COMPONENT_SPECS.md`
+- Development plan: `docs/build/DEVELOPMENT_PLAN.md`
 
-On Linux/macOS use PowerShell Core: `pwsh ./scripts/run-tests.ps1 [-SkipE2E ...]`.
-
-> **Test data isolation:** `scripts/run-tests.ps1` automatically switches the backend to `ENVIRONMENT=testing`, uses a dedicated SQLite file in `scratch/tests/selenite.test.db`, and writes media/transcripts into `scratch/tests/media` + `scratch/tests/transcripts`. Those folders (and the DB) are purged before the suites start and deleted again when the script finishes, so real production data stays untouched. If you execute suites manually, export the same environment variables first and remove the temporary DB/storage after the run.
-
-> **Composite output:** When the script finishes (even on failure) it prints a concise table showing the status of the backend, frontend, and E2E suites plus paths to the saved transcript/artifacts so you can review the results quickly.
-
-> **Port hygiene:** Before launching the Playwright harness, the script automatically kills any processes listening on ports `8100` or `5173` (the production backend/frontend ports). This mirrors the manual "kill stray python/node" instructions in `BOOTSTRAP.md` so repeated runs never collide with a stale dev server. If you manage the servers yourself, stop them before invoking `scripts/run-tests.ps1`.
-
-> **Environment reset:** Any environment variables the runner overrides (`ENVIRONMENT`, `DATABASE_URL`, etc.) are restored at the end, so your shell goes back to production defaults. You no longer get “testing-mode” backends after running the suite.
-
-> **Repository hygiene:** The final step runs `python scripts/check_repo_hygiene.py`, which loads `repo-hygiene-policy.json` (v1.0.0) and fails if stray databases, storage folders, or Playwright artifacts remain. Keeping the repo clean is enforced automatically; bump the policy version whenever new directories or generated files are introduced.
-
-> **Alignment drift enforcement:** Immediately after backend pytest completes, the runner calls `python scripts/check_alignment.py`. This tool inspects the DB and filesystem to ensure every registry path still lives under `backend/models/<set>/<weight>`, that no legacy `/models` or `/backend/storage` folders were recreated, and that canonical `storage/media` + `storage/transcripts` remain in place. The suite fails fast if drift is detected so issues never sneak into later stages. You can run it manually at any time with `python scripts/check_alignment.py` (optional `--json` output) when triaging path/storage questions.
-
-## 📖 Documentation
-
-- **[User Guide](docs/USER_GUIDE.md)**: Complete guide for end users
-- **[Deployment Guide](docs/DEPLOYMENT.md)**: Production deployment instructions
-- **[API Contracts](docs/API_CONTRACTS.md)**: REST API reference
-- **[Component Specs](docs/COMPONENT_SPECS.md)**: Frontend component specifications
-- **[Development Plan](DEVELOPMENT_PLAN.md)**: Project roadmap and architecture
-
-## 🏗️ Architecture
-
-### Tech Stack
-
-**Backend**:
-- **FastAPI** - Modern Python web framework
-- **SQLAlchemy** - Database ORM
-- **OpenAI Whisper** - Speech recognition models
-- **Pydantic** - Data validation
-- **SQLite** - Default database (PostgreSQL supported)
-
-**Frontend**:
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **Vitest** - Testing framework
-- **lucide-react** - Icon library
-
-### Project Structure
+## Project Structure
 
 ```
 Selenite/
-├── backend/
-│   ├── app/
-│   │   ├── routes/          # API endpoints
-│   │   ├── services/        # Business logic
-│   │   ├── models/          # Database models
-│   │   ├── schemas/         # Pydantic schemas
-│   │   └── tests/           # Backend tests (129 tests)
-│   ├── storage/             # Media and transcript storage
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── pages/           # Page components
-│   │   ├── hooks/           # Custom hooks
-│   │   ├── types/           # TypeScript types
-│   │   └── tests/           # Frontend tests (104 tests)
-│   ├── Dockerfile
-│   └── package.json
-├── models/                  # Whisper model files
-├── docs/                    # Documentation
-├── docker-compose.yml
-└── README.md
+  backend/
+    app/
+    tests/
+    models/
+  frontend/
+    src/
+      components/
+      pages/
+      hooks/
+      tests/
+  storage/
+  docs/
+  scripts/
+  docker-compose.yml
+  README.md
 ```
 
-## 🎯 Usage
+## Roadmap
 
-### Creating a Transcription Job
+Future enhancements are tracked in `docs/build/PRODUCTION_TASKS.md` under "Future Enhancements (Post-MVP)".
 
-1. Click the **+** button on the dashboard
-2. Upload your audio/video file (drag & drop or browse)
-3. Choose a Whisper model:
-   - **tiny**: Fastest, lowest quality (~1GB RAM)
-   - **small**: Good balance (~2GB RAM)
-   - **medium**: Best for most use cases (~5GB RAM) [Default]
-   - **large-v3**: Highest accuracy (~10GB RAM)
-4. Select language (or auto-detect)
-5. Enable options: speaker detection, timestamps, translation
-6. Add tags for organization (optional)
-7. Click **Start Transcription**
+## Support
 
-### Managing Jobs
+- Issues: https://github.com/buymeagoat/Selenite/issues
 
-- **View Jobs**: All jobs appear on the dashboard
-- **Search**: Type filename to filter results
-- **Filter**: By status, date range, or tags
-- **View Details**: Click any job card to see full transcript
-- **Download**: Export as SRT, VTT, or TXT
-- **Restart**: Re-run failed jobs
-- **Delete**: Remove jobs and files
-
-### Settings
-
-Access via the gear icon (⚙️):
-- **Account**: Change password
-- **Transcription Options**: Set default model, language, and options
-- **Performance**: Adjust concurrent jobs (1-5)
-- **Storage**: View disk usage
-- **Tags**: Create, edit, delete tags
-- **System**: Restart or shutdown application
-
-## 🧪 Testing
-
-### Backend Tests
-```bash
-cd backend
-source venv/bin/activate
-pytest
-# 129 tests covering auth, jobs, transcripts, tags, search, settings
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm test
-# 104 tests covering components, pages, hooks
-```
-
-### Test Coverage
-- Backend: 129 tests, ~85% coverage
-- Frontend: 104 tests across 17 files
-
-## 🐳 Docker Deployment
-
-### Using Docker Compose (Recommended)
-
-```bash
-# Build and start
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
-```
-
-### Environment Variables
-
-Create `backend/.env` from `.env.example`:
-
-```bash
-# Security
-SECRET_KEY=your-secret-key-here
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# Database
-DATABASE_URL=sqlite+aiosqlite:///./selenite.db
-
-# Storage
-MEDIA_STORAGE_PATH=./storage/media
-TRANSCRIPT_STORAGE_PATH=./storage/transcripts
-MODEL_STORAGE_PATH=./backend/models  # registry weights must live under backend/models/<model_set>/<model_weight>/...
-
-# Transcription
-MAX_CONCURRENT_JOBS=3
-DEFAULT_LANGUAGE=auto
-# Defaults must reference enabled registry items; set after registering:
-# DEFAULT_ASR_PROVIDER=your-set-name
-# DEFAULT_ASR_MODEL=your-weight-name
-# DEFAULT_DIARIZER_PROVIDER=your-diarizer-set
-# DEFAULT_DIARIZER_MODEL=your-diarizer-weight
-
-# Server
-HOST=0.0.0.0
-PORT=8000
-CORS_ORIGINS=http://localhost:5173
-
-# Logging
-Selenite writes structured logs to the `logs/` directory. Every backend start creates fresh files named `selenite-YYYYMMDD-HHMMSS.log` and `error-YYYYMMDD-HHMMSS.log`, so historical runs remain available for troubleshooting. Log rotation (10 MB, 5 backups per file) still applies, but files are never overwritten—do not delete them unless you are explicitly archiving old runs.
-
-- Backend/API log files live at `logs/`.
-- Frontend/Vitest artifacts live at `logs/frontend/` (e.g., `logs/frontend/src_tests_*.log`). Do **not** recreate the legacy `vitest-logs/` directory at the repo root; the hygiene checks will fail if it reappears.
-
-```bash
-LOG_LEVEL=INFO
-```
-
-To disable file logging temporarily (e.g., when running locally on Windows), set `DISABLE_FILE_LOGS=1` before launching the backend; otherwise leave it unset so logs are retained.
-
-## 🛠️ Development
-### Backend Development
-
-```bash
-cd backend
-source .venv/bin/activate
-
-# Run the production-configured API locally
-ENVIRONMENT=production \
-ALLOW_LOCALHOST_CORS=1 \
-DISABLE_FILE_LOGS=1 \
-uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
-
-# Run tests
-pytest
-
-# Type checking
-mypy app/
-
-# Linting
-ruff check app/
-
-# Format code
-black app/
-```
-
-### Frontend Tasks
-
-```bash
-cd frontend
-
-# Production preview (build + serve on 127.0.0.1:5173)
-npm run start:prod
-
-# Run tests
-npm test
-
-# Type checking
-npm run type-check
-
-# Linting
-npm run lint
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-```
-
-### API Documentation
-
-Start the backend and navigate to:
-- **Swagger UI**: `http://localhost:8100/docs`
-- **ReDoc**: `http://localhost:8100/redoc`
-
-## 📊 Performance
-
-### Whisper Model Benchmarks
-
-If you register Whisper checkpoints (e.g., via `faster-whisper`), expect roughly:
-
-| Model | Speed | Accuracy | RAM | Disk | Use Case |
-|-------|-------|----------|-----|------|----------|
-| tiny | ⚡⚡⚡⚡⚡ | ⭐⭐ | ~1GB | 75MB | Quick drafts, testing |
-| small | ⚡⚡⚡⚡ | ⭐⭐⭐ | ~2GB | 244MB | Personal use, good quality |
-| medium | ⚡⚡⚡ | ⭐⭐⭐⭐ | ~5GB | 769MB | **Recommended** - best balance |
-| large-v2 | ⚡⚡ | ⭐⭐⭐⭐⭐ | ~10GB | 1.5GB | Professional work |
-| large-v3 | ⚡ | ⭐⭐⭐⭐⭐ | ~10GB | 1.5GB | Critical accuracy needs |
-
-### Transcription Times (1-hour audio)
-
-- **tiny**: ~5 minutes
-- **small**: ~10 minutes
-- **medium**: ~25 minutes
-- **large-v3**: ~60+ minutes
-
-*Times vary based on CPU performance and system load.*
-
-## 🔒 Security
-
-- **Local Processing**: Files never leave your device
-- **Password Protection**: Login required for all operations
-- **JWT Authentication**: Secure token-based auth
-- **No Telemetry**: No usage data collection
-- **Open Source**: Audit the code yourself
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Write/update tests
-5. Commit: `git commit -m 'Add amazing feature'`
-6. Push: `git push origin feature/amazing-feature`
-7. Open a Pull Request
-
-### Development Guidelines
-
-- Follow existing code style (Black for Python, Prettier for TypeScript)
-- Write tests for new features
-- Update documentation as needed
-- Keep commits focused and descriptive
-- Keep any temporary diagnostics (HTML/PS1, scripts, captured responses) inside the gitignored repo-root `scratch/` directory (the only allowed scratch location) and keep them out of builds—never commit files with hardcoded credentials/IPs or helper pages meant only for troubleshooting.
-
-### Pre-flight Guardrails
-
-Before opening a PR (or handing work back to the admin):
-
-1. Run `./scripts/pre-flight-check.ps1` and fix any failures (missing auth guards, hardcoded credentials/IPs, stray debug logging).
-2. Run `./scripts/run-tests.ps1 -SkipE2E` (or the full suite) so `.last_tests_run` is refreshed and cite the outcome in your summary.
-3. Update `docs/build/PRODUCTION_TASKS.md` and any manual verification docs for every code/doc/test change.
-4. Keep temporary diagnostics under the single gitignored `scratch/` directory at the repo root—never ship IPs/credentials or debug HTML/PS1 files in the build.
-
-### Work Tracking Policy
-
-All engineering work (code, docs, tests, automation) **must** originate from `docs/build/PRODUCTION_TASKS.md`. Before starting something new, add/confirm a task entry there; after finishing, update the status with a short summary. Nothing ships unless it’s tracked in that backlog.
-
-## 📝 Roadmap
-
-### Completed ✅
-- [x] Backend API (auth, jobs, transcripts, tags, search, settings)
-- [x] Frontend UI (dashboard, modals, search, filters, tags, settings)
-- [x] Real-time progress updates
-- [x] Tag management system
-- [x] Mobile responsive design
-- [x] Docker deployment
-- [x] Health check endpoint
-- [x] Comprehensive documentation
-
-### Planned 🚧
-- [ ] E2E testing with Playwright
-- [ ] PostgreSQL support for production
-- [ ] GPU acceleration for faster transcription
-- [ ] Batch upload (multiple files at once)
-- [ ] Advanced speaker diarization UI
-- [ ] Transcript editing interface
-- [ ] Export to more formats (PDF, DOCX)
-- [ ] API rate limiting
-- [ ] Multi-user support with permissions
-- [ ] Cloud storage integration (S3, Google Drive)
-
-## 🐛 Known Issues
-
-- Transcription times can be lengthy for large files with big models
-- Speaker diarization accuracy depends on audio quality
-- Mobile UI testing still in progress
-
-See [GitHub Issues](https://github.com/yourusername/Selenite/issues) for full list.
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **OpenAI Whisper** - Speech recognition models
-- **FastAPI** - Web framework
-- **React** - UI library
-- **Tailwind CSS** - Styling framework
-- Contributors and testers who helped improve Selenite
-
-## 📞 Support
-
-- **Documentation**: See `docs/` directory
-- **Bug Reports**: [GitHub Issues](https://github.com/yourusername/Selenite/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/Selenite/discussions)
-- **Email**: your-email@example.com
-
----
-
-**Built with ❤️ for privacy-conscious transcription**
-
-Made by [Your Name](https://github.com/yourusername) | [Website](https://your-website.com)

@@ -21,7 +21,7 @@ Selenite is a personal transcription application that runs entirely on your comp
 **Key Features**:
 - **Local Processing**: All transcription happens on your device
 - **Multiple Formats**: Supports MP3, WAV, MP4, AVI, MOV, and more
-- **Real-time Progress**: Watch transcription progress in real-time
+- **Progress Status Updates**: Watch transcription progress update during processing (polling-based)
 - **Tag Organization**: Organize jobs with custom tags
 - **Search & Filter**: Quickly find jobs by name, status, date, or tags
 - **Multiple Models**: Choose speed vs. accuracy with different Whisper models
@@ -34,7 +34,7 @@ Selenite is a personal transcription application that runs entirely on your comp
    - **Password**: Your configured password (change default on first login!)
 3. Click **Sign In**
 
-**First-time setup**: Navigate to Settings (⚙️) and change the default admin password immediately.
+**First-time setup**: Navigate to Settings and change the default admin password immediately.
 
 ## Dashboard Overview
 
@@ -42,8 +42,8 @@ The dashboard is your main workspace. Here's what you'll see:
 
 ### Header
 - **User Avatar**: Click to log out
-- **Settings Icon** (⚙️): Access application settings
-- **Mobile Menu** (☰): On small screens, access navigation
+- **Settings icon**: Access application settings
+- **Mobile menu**: On small screens, access navigation
 
 ### Search & Filters Section
 - **Search Bar**: Search jobs by filename
@@ -83,9 +83,9 @@ Click the **+** button to open the New Job modal:
    - Or choose from 90+ supported languages
 
 4. **Transcription Options** (checkboxes):
-   - ☑ **Detect speakers**: Enable speaker diarization (who said what)
-   - ☑ **Add timestamps**: Include timestamps in transcript
-   - ☑ **Translate to English**: Translate non-English audio to English
+   - [x] **Detect speakers**: Enable speaker diarization (who said what)
+   - [x] **Add timestamps**: Include timestamps in transcript
+   - [x] **Translate to English**: Translate non-English audio to English
 
 5. **Add Tags** (optional):
    - Type to search existing tags or create new ones
@@ -98,7 +98,7 @@ Click the **+** button to open the New Job modal:
 
 After submission:
 - Job card appears on dashboard with "In Progress" status
-- Progress bar updates automatically every 2 seconds
+- Progress status updates automatically while the job is running
 - Estimated time remaining counts down
 
 ### 3. View Results
@@ -127,10 +127,10 @@ Click any job card to open the detail modal:
 
 ### Job Statuses
 
-- **⏳ Queued**: Waiting for worker to become available
-- **🔄 In Progress**: Currently transcribing (progress bar visible)
-- **✅ Completed**: Transcription finished successfully
-- **❌ Failed**: Error occurred (hover for details)
+- **Queued**: Waiting for worker to become available
+- **In Progress**: Currently transcribing (progress bar visible)
+- **[OK] Completed**: Transcription finished successfully
+- **[FAIL] Failed**: Error occurred (hover for details)
 
 ## Searching and Filtering
 
@@ -184,7 +184,7 @@ Tags help organize your transcription jobs into categories.
 3. Choose a color (optional - auto-assigned if not specified)
 
 **From Settings Page**:
-1. Navigate to Settings (⚙️) → Tags section
+1. Navigate to Settings -> Tags section
 2. Click **Expand** to view tag manager
 3. Use the tag input to create new tags
 
@@ -197,15 +197,15 @@ In the Tags section of Settings:
 
 ### Editing Tags
 
-1. Find the tag in Settings → Tags
-2. Click the **Edit** icon (✏️)
+1. Find the tag in Settings -> Tags
+2. Click **Edit**
 3. Modify name or color
 4. Save changes
 
 ### Deleting Tags
 
-1. Find the tag in Settings → Tags
-2. Click the **Delete** icon (🗑️)
+1. Find the tag in Settings -> Tags
+2. Click **Delete**
 3. Confirm deletion
 4. Tag is removed from all associated jobs
 
@@ -213,7 +213,7 @@ In the Tags section of Settings:
 
 ## Settings
 
-Access Settings via the gear icon (⚙️) in the navbar.
+Access Settings via the Settings icon in the navbar.
 
 ### Account Settings
 - **Change Password**: Update your login password
@@ -252,12 +252,12 @@ Configure default settings for new jobs:
 
 ### Choosing the Right Model
 
-| Model | Speed | Accuracy | RAM | Best For |
+| Model | Speed (1-5) | Accuracy (1-5) | RAM | Best For |
 |-------|-------|----------|-----|----------|
-| tiny | ⚡⚡⚡⚡⚡ | ⭐⭐ | ~1GB | Quick drafts, low-resource systems |
-| small | ⚡⚡⚡⚡ | ⭐⭐⭐ | ~2GB | Good balance for most users |
-| medium | ⚡⚡⚡ | ⭐⭐⭐⭐ | ~5GB | **Recommended** - best quality/speed |
-| large-v3 | ⚡ | ⭐⭐⭐⭐⭐ | ~10GB | Critical accuracy, professional work |
+| tiny | 5 | 2 | ~1GB | Quick drafts, low-resource systems |
+| small | 4 | 3 | ~2GB | Good balance for most users |
+| medium | 3 | 4 | ~5GB | **Recommended** - best quality/speed |
+| large-v3 | 1 | 5 | ~10GB | Critical accuracy, professional work |
 
 ### Audio Quality Tips
 
@@ -353,7 +353,7 @@ For best transcription results:
 | "File too large" | Exceeds size limit | Split file or compress |
 | "Unsupported format" | File type not recognized | Convert to MP3/WAV/MP4 |
 | "Insufficient storage" | Disk full | Delete old jobs or free up space |
-| "Model not found" | Whisper model missing | Download model in Settings |
+| "Model not found" | Whisper model missing | Ask an admin to stage the model on disk and enable it in Admin -> Model Registry |
 
 ### Getting Help
 
@@ -361,7 +361,7 @@ If you encounter issues not covered here:
 
 1. **Check Logs**:
    - Backend: `backend/logs/selenite.log`
-   - Browser console: F12 → Console tab
+   - Browser console: F12 -> Console tab
 
 2. **GitHub Issues**:
    - Report bugs: https://github.com/yourusername/Selenite/issues
@@ -372,7 +372,7 @@ If you encounter issues not covered here:
 
 4. **Documentation**:
    - `docs/API_CONTRACTS.md`: API reference
-   - `docs/DEPLOYMENT.md`: Deployment guide
+   - `docs/application_documentation/DEPLOYMENT.md`: Deployment guide
    - `docs/COMPONENT_SPECS.md`: Technical specs
 
 ## Keyboard Shortcuts
@@ -434,9 +434,9 @@ To free up disk space:
 
 ---
 
-**Enjoy using Selenite!** 🌙✨
+**Enjoy using Selenite!** 
 
 For technical documentation, see:
-- `DEPLOYMENT.md` - Production deployment guide
-- `API_CONTRACTS.md` - API reference
-- `COMPONENT_SPECS.md` - Component specifications
+- `docs/application_documentation/DEPLOYMENT.md` - Production deployment guide
+- `docs/API_CONTRACTS.md` - API reference
+- `docs/COMPONENT_SPECS.md` - Component specifications

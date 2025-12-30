@@ -8,6 +8,8 @@
 - [ ] Updated `docs/build/PRODUCTION_TASKS.md` and any manual verification docs.
 - [ ] Confirmed no hardcoded IPs/credentials or debug instrumentation remain.
 - [ ] Added/updated automated tests (or explained why not applicable).
+- [ ] If merging to `main`: ran `./scripts/backup-verify.ps1` on the host and recorded the backup path in the PR.
+- [ ] If data/storage changes: included a migration plan and rollback steps in the PR description.
 
 ## Manual Verification (if required)
 - Steps taken:

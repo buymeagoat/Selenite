@@ -42,11 +42,11 @@ snapshot_download(
 Keep existing subfolders (e.g., `segmentation-3.0`, `wespeaker-voxceleb-resnet34-LM`); do not delete anything under `/backend/models`.
 
 ## 3) Registry configuration
-- In Admin → Model Registry, ensure the diarizer entry points to `backend/models/huggingface/pyannote` and is enabled.
+- In Admin -> Model Registry, ensure the diarizer entry points to `backend/models/huggingface/pyannote` and is enabled.
 
 ## 4) Restart and test
 - Restart: `.\scripts\restart-selenite.ps1`.
-- Run a job with diarization enabled and select `pyannote`. The modal should show `pyannote` (no “failed”) and a detected speaker count >1 when present.
+- Run a job with diarization enabled and select `pyannote`. The modal should show `pyannote` (no "failed") and a detected speaker count >1 when present.
 
 ## 5) Troubleshooting
 - Import fails: reinstall torchaudio to match torch; ensure `pyannote.audio` is in the backend venv.

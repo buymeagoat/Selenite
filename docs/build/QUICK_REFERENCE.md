@@ -97,10 +97,10 @@ Before starting any build increment:
 **Test command**: `npm test`
 **Commit**: `[Frontend/Settings] Add settings page with password change and defaults`
 
-### Increment 17: Real-time Progress Updates
+### Increment 17: Progress Updates (Polling)
 **Files to create**: `frontend/src/hooks/usePolling.js`
 **Test command**: `npm test`
-**Commit**: `[Frontend/Progress] Add real-time job progress updates via polling`
+**Commit**: `[Frontend/Progress] Add job progress updates via polling`
 
 ### Increment 18: Polish & Responsive Design
 **Files to modify**: Multiple components for mobile optimization
@@ -108,14 +108,14 @@ Before starting any build increment:
 **Commit**: `[Frontend/Polish] Add mobile responsive design and UI polish`
 
 ### Increment 19: End-to-End Testing
-**Status**: In progress – Playwright configured (multi-browser); smoke tests (login, new job modal, tags placeholder) passing; CI workflow active
+**Status**: In progress - Playwright configured (multi-browser); smoke tests (login, new job modal, tags placeholder) passing; CI workflow active
 **Files**: `playwright.config.ts`, `e2e/fixtures/auth.ts`, `e2e/login.spec.ts`, `e2e/new-job.spec.ts`, `e2e/tags.spec.ts`
 **Next**: Add specs for transcription lifecycle; job detail actions; tag assign/filter; search; settings password change; cancel & restart job
 **Test command**: `npm run e2e` (CI: `npm run e2e:ci`)
 **Commit**: `[Testing] Extend E2E <feature>`
 
 ### Increment 20: Production Readiness
-**Files to create**: `Dockerfile`, `docker-compose.yml`, `docs/DEPLOYMENT.md`
+**Files to create**: `Dockerfile`, `docker-compose.yml`, `docs/application_documentation/DEPLOYMENT.md`
 **Test command**: Build production artifacts, deploy to test environment
 **Commit**: `[Deploy] Add production configuration and deployment documentation`
 
@@ -157,10 +157,10 @@ npm run build
 ```
 
 ### Manual Smoke Test
-See `./testing/SMOKE_TEST.md` for the canonical step-by-step procedure.
+See `docs/build/testing/SMOKE_TEST.md` for the canonical step-by-step procedure.
 
 ### E2E Results
-See `./testing/E2E_TEST_REPORT.md` for the latest automated run results.
+See `docs/build/testing/E2E_TEST_REPORT.md` for the latest automated run results.
 
 ---
 
@@ -189,12 +189,12 @@ git push origin develop
 
 ### Commit Message Examples
 ```
-✅ Good:
+[OK] Good:
 [Backend/Auth] Implement JWT token generation and validation with tests
 [Frontend/Login] Add login form with validation and error handling
 [Database] Create initial schema migration for users and jobs tables
 
-❌ Bad:
+[FAIL] Bad:
 Fixed bug
 Updated files
 WIP
@@ -361,7 +361,7 @@ Use this to track overall progress:
 - [x] Increment 16: Settings Page
 - [x] Increment 17: Progress Updates
 - [x] Increment 18: Polish
-- [ ] Increment 19: E2E Tests (in progress – smoke passing)
+- [ ] Increment 19: E2E Tests (in progress - smoke passing)
 - [ ] Increment 20: Production
 
 ---
@@ -400,7 +400,7 @@ Use this to track overall progress:
 - Tags placeholder modal accessible
 
 ### Coverage Roadmap
-1. Transcription workflow (queue→processing→completed)
+1. Transcription workflow (queue->processing->completed)
 2. Job detail actions (transcript view & export menu presence)
 3. Tag create, assign, filter
 4. Search (filename + transcript highlight validation)
@@ -567,7 +567,7 @@ The pre-commit hook runs automatically on `git commit` and performs four stages:
 
 ### Bypass Mechanism (Emergency Only)
 
-**⚠️ WARNING**: Bypassing QA checks should be rare and documented.
+**[WARN] WARNING**: Bypassing QA checks should be rare and documented.
 
 #### Local Bypass (Pre-commit Hook)
 ```powershell

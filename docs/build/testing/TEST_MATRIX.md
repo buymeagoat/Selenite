@@ -23,6 +23,6 @@
 | Services: Whisper wrapper | `backend/app/services/whisper_service.py` | `backend/tests/test_whisper_service.py`, `backend/tests/test_transcription.py` |
 | Services: Export formats | `backend/app/services/export_service.py` | `backend/tests/test_export_service_unit.py`, `backend/tests/test_exports.py` |
 | Middleware: Rate limiting, security headers | `backend/app/middleware/*` | `backend/tests/test_rate_limit.py`, `backend/tests/test_security_headers.py` |
-| E2E: Upload → transcribe → export | Full stack via Playwright | `frontend/e2e/tests/jobs.spec.ts`, `frontend/e2e/tests/transcript.spec.ts` |
+| E2E: Upload -> transcribe -> export | Full stack via Playwright | `frontend/e2e/tests/jobs.spec.ts`, `frontend/e2e/tests/transcript.spec.ts` |
 | Smoke/health checks | `scripts/smoke_test.py`, `/health` route | `scripts/smoke_test.py` (manual + CI), `backend/tests/test_startup_checks.py` |
 ```

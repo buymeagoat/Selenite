@@ -51,4 +51,4 @@ Task: `[SETTINGS-STORE] Shared settings provider & cache`
 
 ### Open Questions / Follow-ups
 - Need to decide whether end-user (non-admin) settings will live in same provider or separate slice (likely same context with role-based selectors).
-- Consider batching `fetchSettings` with other bootstrap data (jobs/tags) to reduce round trips—out of scope for this task but note for `[SETTINGS-STORE]` follow-ups.
+- Consider batching `fetchSettings` with other bootstrap data (jobs/tags) to reduce round trips-out of scope for this task but note for `[SETTINGS-STORE]` follow-ups.

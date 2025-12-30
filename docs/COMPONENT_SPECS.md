@@ -4,7 +4,7 @@ Complete specifications for all React components in Selenite. These define props
 
 ---
 ## Implementation Status (Nov 17 2025)
-Implemented (Increments 10–18): Navbar, Sidebar, MobileNav, NewJobModal, JobDetailModal, ConfirmDialog, JobCard, JobList, JobFilters, ProgressBar, StatusBadge, FileDropzone, UploadOptions, TagInput, TagList, TagBadge, Button, Input, SearchBar, AudioPlayer (baseline), Login, Dashboard, Settings, responsive polish, progress polling integration.
+Implemented (Increments 10-18): Navbar, Sidebar, MobileNav, NewJobModal, JobDetailModal, ConfirmDialog, JobCard, JobList, JobFilters, ProgressBar, StatusBadge, FileDropzone, UploadOptions, TagInput, TagList, TagBadge, Button, Input, SearchBar, AudioPlayer (baseline), Login, Dashboard, Settings, responsive polish, progress polling integration.
 
 E2E Focus Remaining: JobDetailModal export/action menus, TagInput create+assign flow validations, Settings password change interactions, cancel & restart job controls via JobCard/JobDetailModal, transcription progress visual consistency, transcript view/export navigation.
 
@@ -150,8 +150,8 @@ interface NewJobModalProps {
    - Options: English, Spanish, French, German, etc.
 
 5. Options checkboxes
-   - ☑ Include timestamps (default checked)
-   - ☑ Detect speakers (default checked)
+   - [x] Include timestamps (default checked)
+   - [x] Detect speakers (default checked)
 
 6. Diarizer dropdowns (when enabled)
    - Diarizer model set dropdown
@@ -230,11 +230,11 @@ interface JobDetailModalProps {
    - Waveform visualization (optional)
 
 5. Action Buttons (grid layout)
-   - ▶️ Play Media
-   - 📄 View Transcript (opens new tab)
-   - 📥 Download Transcript (dropdown: txt, md, srt, vtt, json, docx)
-   - 🔄 Restart Transcription
-   - 🗑️ Delete Job (red, requires confirmation)
+   - Play Media
+   - View Transcript (opens new tab)
+   - Download Transcript (dropdown: txt, md, srt, vtt, json, docx)
+   - Restart Transcription
+   - Delete Job (red, requires confirmation)
 
 **Visual**:
 - Max width: 800px
@@ -320,13 +320,13 @@ interface JobCardProps {
 
 **Visual Layout**:
 ```
-┌─────────────────────────────────────────┐
-│ 🎵 interview.mp3           [Completed]  │
-│ Nov 15, 2025 at 10:30 AM    Duration: 30:34 │
-│ #interviews #important                   │
-│ ────────────────────────────────────────│
-│ [Play] [Download] [View]                │
-└─────────────────────────────────────────┘
++-----------------------------------------+
+| interview.mp3                 [Completed] |
+| Nov 15, 2025 at 10:30 AM   Duration: 30:34 |
+| #interviews #important                    |
+| ----------------------------------------- |
+| [Play] [Download] [View]                  |
++-----------------------------------------+
 ```
 
 **States**:
@@ -545,7 +545,7 @@ interface UploadOptionsProps {
    - tiny: "Fastest, lowest accuracy (75MB)"
    - base: "Fast, moderate accuracy (142MB)"
    - small: "Balanced speed and accuracy (466MB)"
-   - medium: "High accuracy, slower (1.5GB)" ← default
+   - medium: "High accuracy, slower (1.5GB)" <- default
    - large: "Highest accuracy, slowest (2.9GB)"
 
 2. Language dropdown

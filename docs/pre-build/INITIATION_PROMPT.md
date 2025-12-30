@@ -32,7 +32,7 @@ KEY DOCUMENTS:
 - docs/QUICK_REFERENCE.md: Commands, troubleshooting, progress tracking
 
 CURRENT STATUS:
-  - Frontend increments 10–18 completed (foundation, dashboard, modals, search & filters, tags UI, settings page, real-time progress, polish/responsive design)
+  - Frontend increments 10-18 completed (foundation, dashboard, modals, search & filters, tags UI, settings page, progress updates via polling, polish/responsive design)
   - Auth persistence upgraded: JWT stored in localStorage (`auth_token`), `ProtectedRoute` now waits for restoration
   - Backend /jobs listing fixed (Pydantic validation errors resolved: `model_used` always set, tag color made optional)
   - Database seeding script (`seed_e2e.py`) creates 9 jobs (completed/processing/queued/failed) + 5 tags; verified via test client
@@ -40,10 +40,10 @@ CURRENT STATUS:
   - Search tests still failing previously due to premature job load; improved polling logic added (robust wait for job cards)
   - Login tests passing across Chromium/WebKit/Firefox; other specs pending re-run after backend stabilization
   - Multi-browser GitHub Actions workflow present (not yet validated with new auth persistence)
-  - QA gateway intact (formatters + coverage thresholds) – backend & frontend unit test suites stable
-  - Current blocker: Need stable long‑running backend during Playwright invocation to prevent server shutdown
+  - QA gateway intact (formatters + coverage thresholds) - backend & frontend unit test suites stable
+  - Current blocker: Need stable long-running backend during Playwright invocation to prevent server shutdown
   - Increment 19 nearing completion; final reliability adjustments in progress
-Currently on: Build Increment 19 (End-to-End Testing) – Reliability & data loading stabilization phase
+Currently on: Build Increment 19 (End-to-End Testing) - Reliability & data loading stabilization phase
 Last completed: Backend listing fix & auth persistence integration (resolved 500s + empty storageState issue)
 
 QUALITY GATE CHECKLIST:
@@ -55,7 +55,7 @@ Before committing any increment, verify:
 - [ ] No console errors or warnings
 - [ ] Commit message follows format: [Component] Description
 
- Next task: Stabilize backend runtime during Playwright runs, finalize search/filter test reliability, then execute full multi-browser E2E suite and document pass/fail matrix prior to Increment 19 sign‑off.
+ Next task: Stabilize backend runtime during Playwright runs, finalize search/filter test reliability, then execute full multi-browser E2E suite and document pass/fail matrix prior to Increment 19 sign-off.
  Files being worked on: `backend/app/seed_e2e.py` (updated), `backend/app/schemas/job.py`, `frontend/src/context/AuthContext.tsx`, `frontend/src/lib/api.ts`, `frontend/src/pages/Login.tsx`, `frontend/e2e/search.spec.ts`, `frontend/e2e/auth.setup.ts`
 IMMEDIATE REQUEST:
 Assist with: (1) ensuring backend stays alive during Playwright runs; (2) validating updated search tests load seeded jobs; (3) running full E2E suite to produce reliability report; (4) preparing Increment 19 completion checklist.
@@ -184,7 +184,7 @@ Keep track of completed increments here:
 - [x] Increment 6: Export Formats
 - [x] Increment 7: Tag System
 - [x] Increment 8: Search Functionality
-- [x] Increment 9: Settings & System Control ✨ BACKEND COMPLETE!
+- [x] Increment 9: Settings & System Control  BACKEND COMPLETE!
 
 ### Frontend Increments
 - [x] Increment 10: Frontend Foundation
@@ -194,7 +194,7 @@ Keep track of completed increments here:
 - [x] Increment 14: Search & Filters
 - [x] Increment 15: Tag Management UI
 - [x] Increment 16: Settings Page
-- [x] Increment 17: Real-time Progress Updates
+- [x] Increment 17: Progress Updates (Polling)
 - [x] Increment 18: Polish & Responsive Design
 
 ### Testing & Deployment

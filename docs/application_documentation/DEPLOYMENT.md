@@ -2,7 +2,7 @@
 
 This guide provides step-by-step instructions for deploying Selenite to a production environment.
 
-## 🚀 Quick Production Setup
+## Quick Production Setup
 
 ### 1. Generate Secure Credentials
 ```bash
@@ -26,13 +26,13 @@ cp .env.production.example .env
 - `CORS_ORIGINS=https://yourdomain.com`
 - Storage paths to absolute paths (e.g., `/var/lib/selenite/media`)
 
-> Storage is canonicalized to a single root (`./storage` in repo clones or an absolute path you set via `MEDIA_STORAGE_PATH`/`TRANSCRIPT_STORAGE_PATH`). Legacy `backend/storage` is deprecated—keep media/transcripts together under one `storage` directory to avoid split data.
+> Storage is canonicalized to a single root (`./storage` in repo clones or an absolute path you set via `MEDIA_STORAGE_PATH`/`TRANSCRIPT_STORAGE_PATH`). Legacy `backend/storage` is deprecated; keep media/transcripts together under one `storage` directory to avoid split data.
 
 ### 3. Install Providers & Stage Models (manual, admin-only)
 - Activate the backend virtualenv and install only the providers you plan to expose (examples): `pip install faster-whisper`, `pip install pyannote.audio` (+ GPU runtimes if needed). Nothing is installed automatically.
 - Download each checkpoint manually into `backend/models/<model_set>/<model_weight>/...` (e.g., `backend/models/faster-whisper/medium-int8/`). Paths outside this tree are rejected.
 - After the app is running, use the Admin UI/REST API to create **model sets** (providers) and **model weights** (variants pointing at the staged paths), enable/disable them, and select the defaults for ASR and diarization. If the registry is empty or weights are disabled, users cannot create jobs and `/system/availability` will return empty arrays.
-- Operator validation is UI-only: after staging models, open Admin → Model Registry, click **Rescan availability**, and confirm the weights appear; then select defaults under Admin → Advanced ASR & Diarization. New Job should disable submit with “Contact admin to register a model” if no ASR weights are enabled.
+- Operator validation is UI-only: after staging models, open Admin -> Model Registry, click **Rescan availability**, and confirm the weights appear; then select defaults under Admin -> Advanced ASR & Diarization. New Job should disable submit with "Contact admin to register a model" if no ASR weights are enabled.
 
 ### 4. Validate Configuration
 
@@ -593,6 +593,28 @@ docker run --user root ...
 0 2 * * * find /var/selenite/transcripts -type f -mtime +90 -delete
 ```
 
+## Backup and Restore (Pre-release)
+
+Run a backup and restore verification before merging to `main` or deploying a release:
+
+```powershell
+./scripts/backup-verify.ps1
+```
+
+This creates a snapshot under `storage/backups/system-<timestamp>`, restores it into `scratch/restore-<timestamp>`, and verifies file hashes against the backup manifest.
+
+Restores are intentionally limited to `scratch/` so models and logs are never overwritten in place. For live recovery, stop services and manually restore only the DB and `storage/` contents; do not overwrite `backend/models` or `logs`.
+
+Optional flags:
+- `-IncludeLogs`: include `logs/` in the backup
+- `-IncludeModels`: include `backend/models` in the backup
+- `-IncludeTestStorage`: include `storage/test-*` in the backup
+
+## Release Runbook
+
+Use the formal release process before merging to `main`:
+- `docs/build/RELEASE_RUNBOOK.md`
+
 ## Security Hardening
 
 1. **Change default admin password immediately** after first login
@@ -632,7 +654,7 @@ tar -czf /backups/selenite-$(date +%Y%m%d).tar.gz \
 
 ### Vertical Scaling
 - Increase RAM for larger Whisper models
-- Add GPU support for faster transcription (CUDA-enabled GPsU)
+- Add GPU support for faster transcription (CUDA-enabled GPU)
 - Use NVMe SSDs for storage
 
 ## Support

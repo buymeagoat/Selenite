@@ -2,13 +2,13 @@
 
 [Scope] Actionable tasks to close gaps documented in `GAP_ANALYSIS.md`. This file mirrors those IDs, tracks owners/dates/status, and is the only task backlog. Production sign-off lives in `../application_documentation/PRODUCTION_READY.md`.
 
-**Last Updated**: December 7, 2025  
-**Current Status**: MVP hardening - backlog normalized  
+**Last Updated**: December 29, 2025  
+**Current Status**: MVP green - verification complete  
 **Target**: Production Deployment Ready
 
 ---
 
-## ⚖️ Process Directives
+## Process Directives
 1. **This document is the canonical backlog.** No engineering work (code, docs, automation, testing) happens unless a task exists here first.
 2. **Memorialize every change.** Before starting new work, add/confirm an entry (with owner/date/status). After finishing, update the item with a concise summary and check it off.
 3. **Archive all test outputs.** Every time automated or manual tests run, drop the resulting logs/artifacts under `docs/memorialization/test-runs/<timestamp>-<suite>` (use `run-tests.ps1`, or copy artifacts manually if you run ad-hoc commands). This folder is gitignored and serves as the historical log.
@@ -23,7 +23,33 @@ Compliance with these directives is mandatory.
 
 ---
 
-## 📓 Work Blocks
+## Work Blocks
+
+### Work Block - 2025-12-29 21:20 PT (Start)
+- **Assumptions**: Production data must be preserved across feature releases; backups should be verified before merging to main.
+- **Ambiguity**: Whether backups should include model checkpoints and logs; defaulting to data + DB + settings only, with optional switches for models/logs.
+- **Plan**: 1) Add backup/restore/verify scripts that snapshot DB + storage and validate via manifest. 2) Update release docs/runbooks and branch protection guidance to require backup verification before main merges. 3) Add manual checkpoint steps for backup verification.
+- **Pending Checkpoints**: Manual backup/restore verification.
+
+### Work Block - 2025-12-29 21:20 PT (Wrap)
+- **Progress**: Added backup/restore/verify scripts (`backup-system.ps1`, `restore-system.ps1`, `verify-backup.ps1`, `backup-verify.ps1`) with manifest-based hashing; documented pre-release backup verification steps and added PR/branch-protection guidance.
+- **Impact**: Releases can now be gated with a verified data snapshot before merging to `main`.
+- **Risks/Notes**: Backup verification is a manual host-side checkpoint; models/logs are optional flags and not included by default.
+- **Next Actions**: Run `./scripts/backup-verify.ps1` on the production host before the next `main` merge and record the backup path in the PR.
+- **Checkpoint Status**: Manual backup/restore verification pending.
+
+### Work Block - 2025-12-29 21:35 PT (Start)
+- **Assumptions**: Release process must be documented and enforce migration + rollback planning for data/storage changes.
+- **Ambiguity**: None.
+- **Plan**: 1) Add a formal release runbook. 2) Update deployment and manual verification docs to reference it. 3) Extend PR and branch protection guidance.
+- **Pending Checkpoints**: Manual release UI verification after next `main` merge.
+
+### Work Block - 2025-12-29 21:35 PT (Wrap)
+- **Progress**: Added `docs/build/RELEASE_RUNBOOK.md`, linked it from deployment docs, added release UI verification steps, and updated PR/branch protection guidance for migration + rollback planning.
+- **Impact**: Release gating is formalized and documented with clear evidence requirements.
+- **Risks/Notes**: None.
+- **Next Actions**: Use the release runbook on the next production deploy and record evidence.
+- **Checkpoint Status**: Manual release UI verification pending.
 
 ### Work Block - 2025-12-29 16:10 PT (Start)
 - **Assumptions**: Manual verification checkpoints already completed for the current MVP scope.
@@ -377,7 +403,7 @@ Compliance with these directives is mandatory.
 - **Pending Checkpoints**: None beyond the standard post-change test run.
 
 ### Work Block - 2025-12-22 23:20 PT (Wrap)
-- **Progress**: `NewJobModal` now defers default initialization until settings finish loading and re-initializes defaults when settings change (unless the user already modified inputs). Added a regression test to cover the “modal opened before settings loaded” case.
+- **Progress**: `NewJobModal` now defers default initialization until settings finish loading and re-initializes defaults when settings change (unless the user already modified inputs). Added a regression test to cover the "modal opened before settings loaded" case.
 - **Impact**: Default ASR weight (`tiny`) is respected even if the modal is opened immediately, eliminating the fallback to the first registry weight (`base`) when settings are still loading.
 - **Risks/Notes**: Frontend tests still emit existing act() warnings and auth 401 noise (unchanged).
 - **Next Actions**: Manual verification: open the New Job modal immediately after page load and confirm the default ASR weight matches the stored settings.
@@ -416,7 +442,7 @@ Compliance with these directives is mandatory.
 - **Pending Checkpoints**: None beyond the standard post-change test run.
 
 ### Work Block - 2025-12-23 00:55 PT (Wrap)
-- **Progress**: Added separate ASR/diarizer override fields in the DB + settings API, updated Admin UI to show dedicated per-job override toggles in a new card, and split New Job modal gating so ASR vs diarizer overrides are handled independently. Swapped ASR/Diarization cards and renamed ASR to “ASR Options.”
+- **Progress**: Added separate ASR/diarizer override fields in the DB + settings API, updated Admin UI to show dedicated per-job override toggles in a new card, and split New Job modal gating so ASR vs diarizer overrides are handled independently. Swapped ASR/Diarization cards and renamed ASR to "ASR Options."
 - **Impact**: Admins can independently allow per-job ASR overrides and per-job diarizer overrides, and the New Job modal reflects those permissions.
 - **Risks/Notes**: Legacy `allow_job_overrides` column remains in the database but is no longer used by the application. Existing frontend test warnings/401 noise remain unchanged.
 - **Next Actions**: Manual verification complete (admin confirmed controls operate as expected).
@@ -636,59 +662,59 @@ Compliance with these directives is mandatory.
 - **Next Actions**: Manual verification: run a job via the UI, pick a non-default ASR weight, and confirm the completed job card shows the chosen weight.
 - **Checkpoint Status**: `./scripts/run-tests.ps1 -SkipE2E` PASS; artifacts saved under `docs/memorialization/test-runs/20251222-224343-backend+frontend`.
 
-### Work Block — 2025-12-06 09:30 PT (Start)
+### Work Block - 2025-12-06 09:30 PT (Start)
 - **Assumptions**: Working tree contains a large backlog of tracked/untracked edits from prior scopes; user explicitly asked for a clean repo state without additional guardrail runs.
 - **Ambiguity**: Policy says to retain `docs/memorialization/test-runs/*` artifacts; unclear whether they should also be purged during this cleanup. Default plan is to remove everything unless the user objects.
 - **Plan**: 1) Capture current `git status -sb`; 2) run `git reset --hard HEAD` to drop tracked edits; 3) run `git clean -fd` to remove untracked files/directories; 4) recheck `git status` to confirm the repo is clean.
 - **Admin Requests**: Please confirm whether any memorialization folders or local model assets need to be restored after the cleanup.
-- **Pending Checkpoints**: None — hygiene request only.
+- **Pending Checkpoints**: None - hygiene request only.
 
-### Work Block — 2025-12-06 09:45 PT (Wrap)
+### Work Block - 2025-12-06 09:45 PT (Wrap)
 - **Progress**: Completed `git reset --hard HEAD` and `git clean -fd`, which removed all staged changes plus ~80 untracked paths (new migrations/scripts, helper PS1 files, frontend admin components/tests, `backend/models/*` assets, memorialization logs such as `docs/memorialization/INDEX.md`, etc.). `git status -sb` now reports only `## main...origin/main [ahead 1]`.
 - **Impact**: Working tree is pristine for new work, but any deleted logs/models/scripts will need manual restoration (reinstall Whisper/Pyannote checkpoints, rerun guardrails to regenerate memorialization artifacts, recreate helper scripts as needed). No extra validation executed per instruction.
 - **Risks/Notes**: Historical memorialization data and local models are no longer present in this checkout. Ensure backups exist or plan to regenerate before referencing them in future documentation.
 - **Next Actions**: Admin/user to confirm whether additional restoration steps are desired; if so, specify which artifacts to recover. Otherwise the repository is ready for new tasks.
 - **Checkpoint Status**: N/A (hygiene only).
 
-### Work Block — 2025-12-06 10:05 PT (Start)
+### Work Block - 2025-12-06 10:05 PT (Start)
 - **Assumptions**: Only tracked memorialization artifacts should be restored right now; model checkpoints remain external/ignored until the user decides how to rehydrate them.
-- **Ambiguity**: None — task is to bring `docs/memorialization/test-runs/**` back exactly as recorded in `HEAD` so the historical audit trail exists again.
+- **Ambiguity**: None - task is to bring `docs/memorialization/test-runs/**` back exactly as recorded in `HEAD` so the historical audit trail exists again.
 - **Plan**: 1) Run `git restore -- docs/memorialization/test-runs`; 2) verify `git status -sb` shows the repo clean; 3) document the restoration + call out that models still need manual reinstall.
 - **Pending Checkpoints**: Re-run `./scripts/pre-flight-check.ps1` once user requests additional edits/commits post-restoration.
 
-### Work Block — 2025-12-06 10:12 PT (Wrap)
+### Work Block - 2025-12-06 10:12 PT (Wrap)
 - **Progress**: Restored 496 memorialization artifacts via `git restore -- docs/memorialization/test-runs`; `git status -sb` now reports a clean tree (`## main...origin/main [ahead 2]`).
 - **Impact**: Historical backend/frontend/E2E logs, coverage reports, and Playwright artifacts are available again for auditors. Models remain absent (`models/` missing, `backend/models/` contains `.gitkeep` only) and must be reinstalled manually before running workloads.
 - **Risks/Notes**: Until models are rehydrated, automated tests depending on Whisper/Pyannote will fail. Keep future cleanup ops from touching `docs/memorialization` unless explicitly scoped in the hygiene policy.
 - **Next Actions**: 1) Await guidance on which model checkpoints to restore and from where. 2) Once models exist, rerun `./scripts/pre-flight-check.ps1` followed by the required `run-tests.ps1` flavor to regenerate fresh memorialization entries.
-- **Checkpoint Status**: Not requested — restoration only.
+- **Checkpoint Status**: Not requested - restoration only.
 
-### Work Block — 2025-12-06 10:25 PT (Start)
+### Work Block - 2025-12-06 10:25 PT (Start)
 - **Assumptions**: Guardrail must block destructive `git clean` usage for everyone (agents + humans) without relying on memory; policy change plus tooling is acceptable.
 - **Ambiguity**: Whether additional directories (e.g., `storage/automation`) should be protected. Default list will include memorialization, models, logs, storage, and scratch per hygiene charter; adjust later if needed.
 - **Plan**: 1) Create `scripts/protected-clean.ps1` that previews `git clean -fdn`, aborts when protected paths appear, and only runs the real clean when safe; 2) Update `AGENTS.md` + `docs/AI_COLLAB_CHARTER.md` to mandate the script and forbid raw `git clean`; 3) Document work here.
 - **Pending Checkpoints**: Run `./scripts/pre-flight-check.ps1` once updates land.
 
-### Work Block — 2025-12-06 10:42 PT (Wrap)
+### Work Block - 2025-12-06 10:42 PT (Wrap)
 - **Progress**: Added `scripts/protected-clean.ps1` (dry-run preview, protected-path enforcement, optional `-ForceProtected` override) plus charter/AGENTS bullets banning direct `git clean -fd`. Logged the change in this backlog entry.
 - **Impact**: Future hygiene work must use the guarded script, preventing accidental deletion of `docs/memorialization`, `models`, `logs`, `storage`, or `scratch`. Anyone trying to bypass it has to acknowledge the override explicitly.
 - **Risks/Notes**: Script relies on `git clean -fdn` output format; if Git changes messaging we must update the regex. Protected path list may need expansion as new critical directories emerge.
 - **Next Actions**: Enforce the workflow culturally (review PRs for `git clean` usage) and consider wiring a commit hook to block raw commands if incidents recur.
 - **Checkpoint Status**: N/A (documentation/tooling only).
 
-### Work Block — 2025-12-06 18:55 PT (Start)
+### Work Block - 2025-12-06 18:55 PT (Start)
 - **Assumptions**: Admin-only controls should cover throughput (max concurrent jobs) and storage visibility; backend API remains unchanged so UI can continue sending the same payload after relocating controls.
 - **Ambiguity**: Storage card currently shows static numbers; unclear if replacement should use live probe data or keep placeholder. Default plan: remove card from Settings entirely and surface storage using the admin system info panel that already consumes `/system/info`.
 - **Plan**: 1) Update `frontend/src/pages/Settings.tsx` to drop the storage section and performance slider while still preserving other shared defaults. 2) Introduce a throughput card + storage summary under `frontend/src/pages/Admin.tsx`, making the concurrent-jobs slider admin-only and leaning on existing system info data. 3) Update the associated unit/e2e tests (`Settings.test.tsx`, `Admin.test.tsx`, `frontend/e2e/settings.spec.ts`) so expectations match the new split, then run `./run-tests.ps1 -SkipE2E`.
 - **Pending Checkpoints**: None beyond the standard post-change `run-tests.ps1 -SkipE2E` run.
 
-### Work Block — 2025-12-06 21:20 PT (Start)
+### Work Block - 2025-12-06 21:20 PT (Start)
 - **Assumptions**: Remote testers are loading the frontend over LAN/Tailscale but the compiled bundle still points auth/API calls at `localhost`, so browsers throw `ERR_CONNECTION_REFUSED`. Backend CORS is only allowing loopback origins because `CORS_ORIGINS` inherits the static `.env` list.
 - **Ambiguity**: Not sure which host/IP the user wants to advertise (LAN vs. Tailscale). Default plan is to auto-detect at runtime: prefer the browser's current origin whenever the baked-in API URL is loopback-only, and keep backend CORS flexible enough via existing bootstrap wiring.
 - **Plan**: 1) Update `frontend/src/lib/api.ts` so loopback-only `VITE_API_URL` values fall back to the browser origin before issuing fetches. 2) Leave backend bootstrap wiring alone (already injects advertised hosts) but document the remote-access work block status here. 3) Re-run `./run-tests.ps1 -SkipE2E` to memorialize the change and capture artifacts.
 - **Pending Checkpoints**: Test suite run noted above; manual remote verification will happen once the user confirms the target IP set.
 
-### Work Block — 2025-12-06 22:15 PT (Wrap)
+### Work Block - 2025-12-06 22:15 PT (Wrap)
 - **Progress**: Added runtime host detection to `frontend/src/lib/api.ts`. When the bundle was built with a loopback-only `VITE_API_URL` but the browser originates from a real LAN/Tailscale host, the client now warns and automatically talks to the browser's host instead of `127.0.0.1`. Invalid env values also log once and fall back instead of silently failing.
 - **Impact**: Remote testers no longer have to regenerate the bundle just to change API hosts, and mobile devices hitting the LAN/Tailscale URL stop throwing `ERR_CONNECTION_REFUSED`. Backend bootstrap already injects matching CORS origins when the advertised API host differs from localhost, so no backend edits were required.
 - **Risks/Notes**: We still rely on the bootstrap script (or manual CORS updates) to ensure backend `CORS_ORIGINS` contains the LAN/Tailscale origin. Manual remote test remains outstanding; the user should hit `/health` from the target device to confirm firewall status.
@@ -700,18 +726,18 @@ Compliance with these directives is mandatory.
 - **Plan**: 1) Teach `bootstrap.ps1` (and `start-selenite.ps1`) to take an `-AdvertiseHosts` list, auto-include loopback + detected LAN/Tailscale IPs, and feed that list into CORS. 2) When multiple hosts are advertised, stop forcing a single `VITE_API_URL` so the frontend uses the runtime host detection added earlier. 3) Update docs with the new flag and re-run `./run-tests.ps1 -SkipE2E` to capture the script changes.
 - **Pending Checkpoints**: Run-tests invocation noted above after scripting changes land.
 
-### Work Block — 2025-12-06 23:05 PT (Wrap)
+### Work Block - 2025-12-06 23:05 PT (Wrap)
 - **Progress**: `bootstrap.ps1` now accepts `-AdvertiseHosts`, normalizes each host (loopback/LAN/Tailscale), derives CORS origins from the full list, and skips pinning `VITE_API_URL` when multiple hosts exist so the frontend relies on runtime detection. `start-selenite.ps1` forwards the new flag, and docs (`BOOTSTRAP.md`, `docs/build/DEBUG_MOBILE_LOGIN.md`, helper comments) explain how to pass host lists without hardcoding specific IPs.
 - **Impact**: Operators can expose localhost + LAN + Tailscale simultaneously; backend CORS and frontend routing stay aligned, so testers simply use whichever URL they were given without rebuilding.
-- **Risks/Notes**: Accuracy still depends on supplying the right host list and ensuring Windows Firewall allows inbound ports. Tailscale auto-detection is best-effort—pass the address explicitly if detection misses it. Remote manual verification remains outstanding.
+- **Risks/Notes**: Accuracy still depends on supplying the right host list and ensuring Windows Firewall allows inbound ports. Tailscale auto-detection is best-effort-pass the address explicitly if detection misses it. Remote manual verification remains outstanding.
 - **Next Actions**: 1) Have a remote tester confirm upload/login via each advertised host. 2) Consider adding a helper output that echoes the final host/origin list so operators can review before launch.
 - **Checkpoint Status**: `./run-tests.ps1 -SkipE2E` (2025-12-06 22:17 PT) PASS with artifacts at `docs/memorialization/test-runs/20251206-221400-backend+frontend`; `./scripts/pre-flight-check.ps1` passes post-change.
 
-### Work Block — 2025-12-07 00:10 PT (Start)
-- **Assumptions**: App must now ship with zero ASR/diarizer providers. Admins manually install Python deps, download models into `/backend/models/<model_set>/<model_weight>/…`, and then create model sets + weights in-app (ASR + diarizer flows mirror each other). Registry weights auto-expose immediately until explicitly disabled. Manual checkpoints are required after (a) schema/migration work, (b) backend capability/runtime updates, and (c) admin UI delivery.
-- **Ambiguity**: None – validation strictness delegated to us; we’ll enforce path + existence checks while logging warnings for optional metadata.
+### Work Block - 2025-12-07 00:10 PT (Start)
+- **Assumptions**: App must now ship with zero ASR/diarizer providers. Admins manually install Python deps, download models into `/backend/models/<model_set>/<model_weight>/...`, and then create model sets + weights in-app (ASR + diarizer flows mirror each other). Registry weights auto-expose immediately until explicitly disabled. Manual checkpoints are required after (a) schema/migration work, (b) backend capability/runtime updates, and (c) admin UI delivery.
+- **Ambiguity**: None - validation strictness delegated to us; we'll enforce path + existence checks while logging warnings for optional metadata.
 - **Plan**: 1) Update this backlog + deployment docs to capture the manual install workflow and checkpoints. 2) Add/adjust DB schema + services so model sets/weights are stored with enable/disable auditing and filesystem validation, and refresh ProviderManager immediately. 3) Remove hardcoded Whisper fallbacks so `/system/availability`, admin defaults, and runtime resolution rely solely on registry data, logging warnings when weights are invalid/missing. 4) Build the admin UI dropdown/CRUD flow (browse-or-type path inputs) for both ASR and diarizer sections plus registry-driven Settings/New Job dropdowns. 5) After each milestone, run `./scripts/pre-flight-check.ps1`, `./run-tests.ps1 -SkipE2E`, archive artifacts, and request the mandated manual checkpoint.
-- **Admin Requests**: None – proceed with the plan already reviewed/approved in chat.
+- **Admin Requests**: None - proceed with the plan already reviewed/approved in chat.
 - **Pending Checkpoints**: Three pending (post-schema, post-backend capabilities, post-admin UI) per guardrail instructions.
 
 ### Work Block - 2025-12-07 01:15 PT (Start)
@@ -724,7 +750,7 @@ Compliance with these directives is mandatory.
 ### Work Block - 2025-12-07 10:05 PT (Start)
 - **Assumptions**: Admin-managed registry milestone begins with documentation and schema. No bundled models or provider packages ship; admins must install providers, download checkpoints into `/backend/models/<model_set>/<model_weight>/...`, and register them before jobs run. Manual checkpoint required after the schema migration.
 - **Ambiguity**: None - scope is Step 1 only (docs/backlog updates + migration scaffold); backend services/UI wiring happen in later steps.
-- **Plan**: 1) Update README + `docs/application_documentation/DEPLOYMENT.md` to document the zero-bundle policy, path contract, and registry workflow (enable/disable + defaults). 2) Add a PRODUCTION_TASKS entry/checklist for the registry milestone and manual verification checkpoints. 3) Create Alembic migration for `model_sets`/`model_weights` with fields `id`, `type (ASR|DIARIZER)`, `name`, `description`, `abs_path`, `enabled`, `disable_reason`, `created_at`, `updated_at`, and FK entry→set (paths constrained to `/backend/models/...`).
+- **Plan**: 1) Update README + `docs/application_documentation/DEPLOYMENT.md` to document the zero-bundle policy, path contract, and registry workflow (enable/disable + defaults). 2) Add a PRODUCTION_TASKS entry/checklist for the registry milestone and manual verification checkpoints. 3) Create Alembic migration for `model_sets`/`model_weights` with fields `id`, `type (ASR|DIARIZER)`, `name`, `description`, `abs_path`, `enabled`, `disable_reason`, `created_at`, `updated_at`, and FK entry->set (paths constrained to `/backend/models/...`).
 - **Pending Checkpoints**: Manual review after schema/migration lands; subsequent checkpoints follow backend wiring/UI steps.
 
 ### Work Block - 2025-12-07 11:00 PT (Wrap)
@@ -738,45 +764,45 @@ Compliance with these directives is mandatory.
 - **Assumptions**: After the current manual verification of the registry milestone is complete, we immediately stand up the dual-environment workflow so a production stack can stay online while a development stack runs the latest changes. Until manual verification is signed off, this work remains staged but not executed.
 - **Ambiguity**: Dev may live on the same Windows host (different ports/paths) or a separate VM/container. Default plan assumes same host/different ports unless the user asks for a separate machine.
 - **Plan**:
-  1. **Branch & Repository Guardrails** – Formalize `dev` (integration) and `main` (production) branches, enforce PR + CI protection on both, and document the rule in `PRODUCTION_TASKS.md`, `AGENTS.md`, and `docs/application_documentation/DEPLOYMENT.md`.
-  2. **Dual-Environment Bootstrap** – Extend `scripts/restart-selenite.ps1`/`start-selenite.ps1` with an `-Environment` flag so Prod and Dev can run concurrently on different ports, DB files, and storage roots. Clone/checkout the repo twice (or use worktrees) so each environment tracks its branch.
-  3. **Data Separation** – Snapshot the prod `selenite.db`/media, create a sanitized dev copy, and document a refresh script so dev never touches prod data.
-  4. **Release Workflow** – After dev verification, merge `dev`→`main`, tag the commit, and run the production restart script (it should refuse to run unless the working tree is clean, on `main`, and the release tag/manual checkpoint are recorded). Keep rollback instructions with the previous tag/database snapshot.
-  5. **Documentation & Training** – Update README/DEPLOYMENT/PRODUCTION_TASKS with the release checklist (dev deploy, manual QA, release PR/tag, prod deploy, rollback). Add examples showing how to operate both environments and reference the new guardrails.
-  6. **Automation** – Ensure GitHub Actions runs lint/tests/hygiene on every PR to `dev`, and optionally notify operators when `dev` merges into `main`.
-- **Pending Checkpoints**: (1) Finish the in-progress manual verification for the registry milestone. (2) Bring the dev environment online and memorialize `run-tests.ps1 -SkipE2E`. (3) Dry-run a full release cycle (dev deploy → QA → merge/tag → prod deploy) and capture results under `docs/memorialization/manual-testing/`. (4) Obtain admin confirmation that the workflow is understood before enforcing the guardrails.
+  1. **Branch & Repository Guardrails** - Formalize `dev` (integration) and `main` (production) branches, enforce PR + CI protection on both, and document the rule in `PRODUCTION_TASKS.md`, `AGENTS.md`, and `docs/application_documentation/DEPLOYMENT.md`.
+  2. **Dual-Environment Bootstrap** - Extend `scripts/restart-selenite.ps1`/`start-selenite.ps1` with an `-Environment` flag so Prod and Dev can run concurrently on different ports, DB files, and storage roots. Clone/checkout the repo twice (or use worktrees) so each environment tracks its branch.
+  3. **Data Separation** - Snapshot the prod `selenite.db`/media, create a sanitized dev copy, and document a refresh script so dev never touches prod data.
+  4. **Release Workflow** - After dev verification, merge `dev`->`main`, tag the commit, and run the production restart script (it should refuse to run unless the working tree is clean, on `main`, and the release tag/manual checkpoint are recorded). Keep rollback instructions with the previous tag/database snapshot.
+  5. **Documentation & Training** - Update README/DEPLOYMENT/PRODUCTION_TASKS with the release checklist (dev deploy, manual QA, release PR/tag, prod deploy, rollback). Add examples showing how to operate both environments and reference the new guardrails.
+  6. **Automation** - Ensure GitHub Actions runs lint/tests/hygiene on every PR to `dev`, and optionally notify operators when `dev` merges into `main`.
+- **Pending Checkpoints**: (1) Finish the in-progress manual verification for the registry milestone. (2) Bring the dev environment online and memorialize `run-tests.ps1 -SkipE2E`. (3) Dry-run a full release cycle (dev deploy -> QA -> merge/tag -> prod deploy) and capture results under `docs/memorialization/manual-testing/`. (4) Obtain admin confirmation that the workflow is understood before enforcing the guardrails.
 
 ### Work Block - 2025-12-18 16:40 CT (Start)
 - **Assumptions**: Manual checkpoint `docs/memorialization/manual-testing/20251212_manual_checkpoint.md` is archived after bring-up/settings/registry verification. Remaining unchecked items roll into this UI/UX polish pass.
 - **Ambiguity**: Helper guidance could be inline copy or tooltips; default plan keeps inline text concise and uses tooltips for disabled controls.
 - **Plan**:
-  1. **Registry toggles** - Disable the enable switches when prerequisites are missing (no weights on disk, missing dependencies, set disabled) so we never fire failing PATCH calls. Add tooltips linking to `docs/application_documentation/DEPLOYMENT.md` explaining how to stage weights. ✅ Complete.
-  2. **Default selectors** - Clarify which dropdowns set global defaults vs. remember last selections. Filter the weight dropdown to enabled+available entries and display helper text when none exist ("Enable a weight to set a default"). ✅ Complete.
-  3. **New Job Modal UX** - Keep the submit button disabled until a valid provider/weight is chosen, add inline validation beneath the dropdowns, and keep unavailable options disabled so guidance happens before submit. ✅ Complete.
+  1. **Registry toggles** - Disable the enable switches when prerequisites are missing (no weights on disk, missing dependencies, set disabled) so we never fire failing PATCH calls. Add tooltips linking to `docs/application_documentation/DEPLOYMENT.md` explaining how to stage weights. [OK] Complete.
+  2. **Default selectors** - Clarify which dropdowns set global defaults vs. remember last selections. Filter the weight dropdown to enabled+available entries and display helper text when none exist ("Enable a weight to set a default"). [OK] Complete.
+  3. **New Job Modal UX** - Keep the submit button disabled until a valid provider/weight is chosen, add inline validation beneath the dropdowns, and keep unavailable options disabled so guidance happens before submit. [OK] Complete.
 - **Pending Checkpoints**: Completed (admin UI verification acknowledged).
 
 ### Work Block - 2025-12-19 10:00 CT (Start)
 - **Assumptions**: The 2025-12-18 UI/UX block tasks are complete; new follow-ups focus on industry-standard UX polish.
 - **Plan**:
-  1. **Model Registry action clarity** - Split metadata saves from availability changes so admins explicitly choose "Save metadata" vs "Update availability". ✅ Complete
-  2. **Status indicators** - Replace verbose text with consistent badges/icons for Missing files/Disabled, and show enabled-weight counts in the header. ✅ Complete
-  3. **Loading states** - Add skeletons/spinners for registry/capability loading in admin and modal dropdowns. ✅ Complete
-  4. **Accessibility** - Tie helper/error text to inputs with `aria-describedby` and add an aria-live region for validation updates. ✅ Complete
-  5. **Consistency sweep** - Final pass to ensure "Model set/Model weight" labels everywhere; remove leftover "entry" text. ✅ Complete
-  6. **Docs link UX** - Replace plain text "see docs" mentions with a clickable link/button to `docs/application_documentation/DEPLOYMENT.md`. ✅ Complete
-  7. **Prevent stale state** - After enable/disable actions, refresh local options immediately in settings/new-job modal to avoid outdated dropdowns. ✅ Complete
-- **Pending Checkpoints**: Manual UI verification passed for tasks 1–7 on 2025-12-21 (admin confirmed #1–#6 checks).
+  1. **Model Registry action clarity** - Split metadata saves from availability changes so admins explicitly choose "Save metadata" vs "Update availability". [OK] Complete
+  2. **Status indicators** - Replace verbose text with consistent badges/icons for Missing files/Disabled, and show enabled-weight counts in the header. [OK] Complete
+  3. **Loading states** - Add skeletons/spinners for registry/capability loading in admin and modal dropdowns. [OK] Complete
+  4. **Accessibility** - Tie helper/error text to inputs with `aria-describedby` and add an aria-live region for validation updates. [OK] Complete
+  5. **Consistency sweep** - Final pass to ensure "Model set/Model weight" labels everywhere; remove leftover "entry" text. [OK] Complete
+  6. **Docs link UX** - Replace plain text "see docs" mentions with a clickable link/button to `docs/application_documentation/DEPLOYMENT.md`. [OK] Complete
+  7. **Prevent stale state** - After enable/disable actions, refresh local options immediately in settings/new-job modal to avoid outdated dropdowns. [OK] Complete
+- **Pending Checkpoints**: Manual UI verification passed for tasks 1-7 on 2025-12-21 (admin confirmed #1-#6 checks).
 
 ### Work Block - 2025-12-07 14:55 PT (Wrap)
 - **Progress**: Backend registry CRUD + validation finished (paths constrained to `backend/models/<set>/<weight>`, ProviderManager refreshes on change, defaults validated against enabled weights; Whisper fallbacks removed). Admin UI now has ASR/DIARIZER tabs with set/entry CRUD, enable/disable with required reasons, path guardrails, availability rescan, and registry-driven defaults. New Job modal consumes `/system/availability` and blocks submit with "Contact admin to register a model weight" when no ASR weights are enabled. Tests: `./run-tests.ps1 -SkipE2E` (artifacts `docs/memorialization/test-runs/20251207-145734-backend+frontend`).
 - **Impact**: Only admin-registered models appear in `/system/availability` and job creation/settings. Operators validate solely via the UI (they cannot review code/DB); defaults must reference enabled registry weights.
 - **Risks/Notes**: Manual checkpoints still required: (a) admin review of schema/services, (b) admin review of UI/availability behavior, (c) final integration with a staged Whisper set/entry. All model paths must stay under `backend/models/...` or saves fail.
-- **Next Actions**: Stage a sample ASR/diarizer entry on disk, confirm Admin → Rescan availability reflects it, set defaults, and capture UI confirmation. Proceed to final integration checklist once admin confirms via UI.
+- **Next Actions**: Stage a sample ASR/diarizer entry on disk, confirm Admin -> Rescan availability reflects it, set defaults, and capture UI confirmation. Proceed to final integration checklist once admin confirms via UI.
 - **Checkpoint Status**: Awaiting admin confirmation via UI (UI-only validation per user).
 
 ---
 
-## ♻️ Maintenance Cadence
+## Maintenance Cadence
 
 | ID | Task | Description | Owner | Target Date | Status |
 |----|------|-------------|-------|-------------|--------|
@@ -784,7 +810,7 @@ Compliance with these directives is mandatory.
 
 ---
 
-## 🔧 New Work: System Probe, ASR/Diarization Config, Advanced Options
+## New Work: System Probe, ASR/Diarization Config, Advanced Options
 
 ### Implement Now
 | ID | Task | Description | Owner | Target Date | Status |
@@ -805,21 +831,21 @@ Compliance with these directives is mandatory.
 
 > **Auto-Expose Policy**: Per AGENTS/AI charter guardrails, any ASR or diarizer provider entered in the registry is considered enabled and user-visible immediately (Settings, New Job, `/system/availability`) until an administrator explicitly disables it. All implementation tasks above must include the memorialized auto-enable log hook and admin-disable auditing described here.
 
-## ✅ MVP Definition
+## [OK] MVP Definition
 - User can upload audio, trigger transcription, view job details, and export transcripts.
 - Basic job management available (delete, restart) and basic tagging (assign/remove existing tags).
 - App runs reliably on a single machine with sensible defaults and basic security (rate limiting, input validation).
 - A manual smoke test passes end-to-end; optional E2E automation can follow post-MVP.
 
-## 🔗 MVP Task Chain (Ordered)
+## MVP Task Chain (Ordered)
 - [x] Manual smoke-test pass for core workflow (Login  Upload  Process  View  Export) using `docs/build/testing/SMOKE_TEST.md`.
 - [x] Confirm download/restart/delete/tag assignment function against live API.
 - [x] Address any P0 issues uncovered by the smoke test (stability and error UX for core paths).
 - [x] Security hardening verification (rate limiting, validation, headers).
 - [x] Minimal packaging/readiness: ensure health check, logging, and configuration are in place.
-- [x] Update `./testing/E2E_TEST_REPORT.md` with a short note or perform a minimal E2E sanity (optional for MVP, recommended next).
+- [x] Update `docs/build/testing/E2E_TEST_REPORT.md` with a short note or perform a minimal E2E sanity (optional for MVP, recommended next).
 
-## 🎯 Critical Path Items (3-4 weeks)
+## Critical Path Items (3-4 weeks)
 
 ### 1. Real Whisper Integration (5-7 days)
 - [x] Load Whisper models from `/backend/models` directory
@@ -832,7 +858,7 @@ Compliance with these directives is mandatory.
 - [x] Error handling for corrupted/unsupported files
 - [x] Memory management for large files
 
-**Current Status**: ✅ Complete (WhisperService created with model caching, async processing)  
+**Current Status**: [OK] Complete (WhisperService created with model caching, async processing)  
 **Blockers**: None (models available in `/backend/models/`)  
 **Priority**: CRITICAL - Core value proposition
 
@@ -849,7 +875,7 @@ Compliance with these directives is mandatory.
 - [x] Error handling for incomplete/failed jobs
 - [x] Unit tests for each export format
 
-**Current Status**: ✅ Complete (endpoints + service + tests created)  
+**Current Status**: [OK] Complete (endpoints + service + tests created)  
 **Blockers**: None  
 **Priority**: HIGH - Essential user feature
 
@@ -869,7 +895,7 @@ Compliance with these directives is mandatory.
 - [x] Edit tag (line 79-81) - `PATCH /tags/{id}`
 - [x] Delete tag (line 82-84) - `DELETE /tags/{id}`
 
-**Current Status**: ✅ Complete (core actions: download, restart, delete, tags, settings)  
+**Current Status**: [OK] Complete (core actions: download, restart, delete, tags, settings)  
 **Blockers**: None  
 **Priority**: HIGH - Complete user experience
 
@@ -889,7 +915,7 @@ Compliance with these directives is mandatory.
 
 Production sign-off is maintained in `../application_documentation/PRODUCTION_READY.md`. This document tracks tasks and status; see `GAP_ANALYSIS.md` for rationales.
 
-**Current Status**: ✅ Complete  
+**Current Status**: [OK] Complete  
 **Recent Completion**:
 - Dependency audit with pip-audit (setuptools updated to 80.9.0)
 - SQL injection review: All queries use SQLAlchemy parameterized queries
@@ -897,7 +923,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - XSS review: React auto-escapes, no dangerouslySetInnerHTML usage
 - Security audit report: docs/SECURITY_AUDIT.md
 **Blockers**: None  
-**Priority**: CRITICAL - ✅ COMPLETE
+**Priority**: CRITICAL - [OK] COMPLETE
 
 ---
 
@@ -910,7 +936,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [x] Health check endpoint enhancements
 - [x] Resource cleanup on shutdown
 
-**Current Status**: ✅ Complete (MVP scope: environment validation, logging, migrations)  
+**Current Status**: [OK] Complete (MVP scope: environment validation, logging, migrations)  
 **Recent Completion**:
 - Environment-based settings with production validation (secret key, CORS)
 - Structured logging with rotation (10MB files, 5 backups)
@@ -922,7 +948,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-## 📚 Documentation & Testing
+## Documentation & Testing
 
 ### 9. User Documentation (2-3 days)
 - [x] README with installation instructions *(README.md, BOOTSTRAP.md)*
@@ -932,32 +958,32 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [x] API documentation (if exposing to power users) *(docs/pre-build/API_CONTRACTS.md)*
 - [x] Export format specifications *(API_CONTRACTS.md export table + services/export_service.py docs)*
 
-**Current Status**: ✅ Complete  
+**Current Status**: [OK] Complete  
 **Priority**: MEDIUM - Essential for handoff (done)
 
 ---
 
 ### 10. Final Testing (2-3 days)
-- [x] End-to-end workflow testing (upload → transcribe → export) — Minimal sanity acceptable for MVP *(Playwright `npm run e2e:full` – latest run 85/85 passing)*
+- [x] End-to-end workflow testing (upload -> transcribe -> export) - Minimal sanity acceptable for MVP *(Playwright `npm run e2e:full` - latest run 85/85 passing)*
 
-**Current Status**: ✅ Complete (E2E 85/85 passing)  
+**Current Status**: [OK] Complete (E2E 85/85 passing)  
 **Priority**: HIGH - Quality assurance
 
 ---
 
 ### Coverage Hardening (New)
-- [x] Raise `app/services/transcription.py` coverage from 80% → ≥85% (new `test_transcription_service.py` covers failure path + async helpers) *(Nov 21, 2025)*
-- [x] Raise `app/utils/file_validation.py` coverage from 78% → ≥85% (new `test_file_validation_unit.py` exercises magic detection, limits, filename checks) *(Nov 21, 2025)*
+- [x] Raise `app/services/transcription.py` coverage from 80% -> >=85% (new `test_transcription_service.py` covers failure path + async helpers) *(Nov 21, 2025)*
+- [x] Raise `app/utils/file_validation.py` coverage from 78% -> >=85% (new `test_file_validation_unit.py` exercises magic detection, limits, filename checks) *(Nov 21, 2025)*
 
-**Current Status**: ✅ Completed – previously low coverage modules now ≥98%  
-**Priority**: MEDIUM – addressed in Nov 21, 2025 run
+**Current Status**: [OK] Completed - previously low coverage modules now >=98%  
+**Priority**: MEDIUM - addressed in Nov 21, 2025 run
 
 ### Logging Enhancements (New)
-- [x] Job queue instrumentation – add `app.services.job_queue` logger statements for enqueue/worker lifecycle *(Nov 21, 2025)*
-- [x] Transcription service instrumentation – log start/finish/error paths in `app.services.transcription` *(Nov 21, 2025)*
+- [x] Job queue instrumentation - add `app.services.job_queue` logger statements for enqueue/worker lifecycle *(Nov 21, 2025)*
+- [x] Transcription service instrumentation - log start/finish/error paths in `app.services.transcription` *(Nov 21, 2025)*
 
-**Current Status**: ✅ Complete (core services instrumented; route-level tracing deferred to Future Enhancements)  
-**Priority**: MEDIUM – improves troubleshooting and production telemetry
+**Current Status**: [OK] Complete (core services instrumented; route-level tracing deferred to Future Enhancements)  
+**Priority**: MEDIUM - improves troubleshooting and production telemetry
 
 ---
 
@@ -967,7 +993,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-## 🚀 Future Enhancements (Post-MVP)
+## Quick Future Enhancements (Post-MVP)
 - [ ] Play/pause job (start/pause control UI). (non, post-MVP)
 - [ ] Fetch full job details in JobDetail modal. (partial, post-MVP)
 - [ ] Create tag (Settings) via `POST /tags`. (partial, post-MVP)
@@ -1019,16 +1045,16 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 - [ ] Database migration to PostgreSQL (multi-user). (non, post-MVP)
 - [ ] Celery/Redis for distributed job queue. (non, post-MVP)
 - [ ] Docker containerization. (non, post-MVP)
-- [ ] Automated backup system. (non, post-MVP)
+- [ ] Automated backup system. Manual backup verification scripts exist; scheduled automation remains post-MVP.
 - [ ] Performance monitoring and analytics. (non, post-MVP)
 
-## 📊 Progress Summary
+## Progress Summary
 
 **Total Tasks**: 90+  
 **Completed**: Majority (see checklists and work blocks)  
 **Not Complete**: MVP Additions (Approved) + Future Enhancements (Post-MVP)
 
-**E2E Test Suite**: 85/85 passing (100%) — see `./testing/E2E_TEST_REPORT.md`
+**E2E Test Suite**: 85/85 passing (100%) - see `docs/build/testing/E2E_TEST_REPORT.md`
 
 **Estimated Time to Production**: 1-2 days of focused development
 
@@ -1036,7 +1062,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-## 🎉 Recently Completed
+## Recently Completed
 
 - [x] Backend endpoint registration fixes (jobs.py)
 - [x] Alembic migration for user_settings table
@@ -1069,7 +1095,7 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 
 ---
 
-## 📝 Notes
+## Notes
 
 - **Single-User Focus**: This is a desktop application for a single user. Multi-user features are explicitly out of scope.
 - **Local Processing**: All transcription happens locally using Whisper models. No cloud dependencies.
@@ -1080,20 +1106,20 @@ Production sign-off is maintained in `../application_documentation/PRODUCTION_RE
 ---
 
 **Next Immediate Steps**:
-- [x] Resolve remaining P0/P1 items linked from `GAP_ANALYSIS.md` *(Nov 21, 2025 – document updated to reflect completed items)*
-- [x] Re-run E2E and update `./testing/E2E_TEST_REPORT.md` *(Nov 21, 2025 – see latest report)*
+- [x] Resolve remaining P0/P1 items linked from `GAP_ANALYSIS.md` *(Nov 21, 2025 - document updated to reflect completed items)*
+- [x] Re-run E2E and update `docs/build/testing/E2E_TEST_REPORT.md` *(Nov 21, 2025 - see latest report)*
 - [x] Close coverage gaps for transcription/file validation modules (see Coverage Hardening) *(Nov 21, 2025)*
-- [x] Prepare production sign-off in `../application_documentation/PRODUCTION_READY.md` *(Nov 21, 2025 – latest verification snapshot + commands added)*
+- [x] Prepare production sign-off in `../application_documentation/PRODUCTION_READY.md` *(Nov 21, 2025 - latest verification snapshot + commands added)*
 
-✅ **Progress Log (Nov 21, 2025)**:
-- Ran `npm run e2e:full` → 85/85 passing across Chromium/Firefox/WebKit (report updated).  
-- Coverage hardening completed (transcription + file validation now ≥98%).  
+[OK] **Progress Log (Nov 21, 2025)**:
+- Ran `npm run e2e:full` -> 85/85 passing across Chromium/Firefox/WebKit (report updated).  
+- Coverage hardening completed (transcription + file validation now >=98%).  
 - CI/automation + unified runner tasks memorialized above.
 - Production readiness document refreshed with latest verification evidence.
 
 ---
 
-## 🗂️ Memorialized Work Log (Recent Additions)
-- [x] **Unified test runner (`run-tests.ps1`)** – Added cross-platform script, documented usage in README + TESTING_PROTOCOL, and validated via CLI run (Nov 21, 2025).
-- [x] **CI workflow upgrade** – Replaced multi-job pipeline with single job that calls `run-tests.ps1`, then runs lint/type-check/build steps and publishes coverage artifacts (Nov 21, 2025).
-- [x] **Auth/Queue coverage push** – Added dedicated unit suites for auth service + job queue, raising both modules above the coverage watermark and documenting new tasks here (Nov 21, 2025).
+## Memorialized Work Log (Recent Additions)
+- [x] **Unified test runner (`run-tests.ps1`)** - Added cross-platform script, documented usage in README + TESTING_PROTOCOL, and validated via CLI run (Nov 21, 2025).
+- [x] **CI workflow upgrade** - Replaced multi-job pipeline with single job that calls `run-tests.ps1`, then runs lint/type-check/build steps and publishes coverage artifacts (Nov 21, 2025).
+- [x] **Auth/Queue coverage push** - Added dedicated unit suites for auth service + job queue, raising both modules above the coverage watermark and documenting new tasks here (Nov 21, 2025).

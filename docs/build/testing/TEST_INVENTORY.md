@@ -1,6 +1,6 @@
-# Test Inventory and Expected “Green” Outcomes
+# Test Inventory and Expected "Green" Outcomes
 
-Audit-friendly list of automated tests with what they cover and what “pass/green” means. Use this with `scripts/run-tests.ps1` or manual runs to know exactly what’s being validated.
+Audit-friendly list of automated tests with what they cover and what "pass/green" means. Use this with `scripts/run-tests.ps1` or manual runs to know exactly what's being validated.
 
 ## Backend (pytest)
 | File | What it tests | Green outcome |

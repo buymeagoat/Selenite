@@ -1,4 +1,3 @@
-```markdown
 # Selenite Smoke Test
 
 ## Purpose
@@ -56,9 +55,9 @@ This document provides step-by-step instructions for manually validating the com
 3. Click "Login" button
 
 **Success Criteria:**
-- ✅ Redirect to Dashboard page
-- ✅ Navbar displays user menu
-- ✅ No console errors
+- [OK] Redirect to Dashboard page
+- [OK] Navbar displays user menu
+- [OK] No console errors
 
 **Troubleshooting:**
 - If 404 error: Ensure the frontend production preview server (`npm run start:prod`) is running
@@ -84,10 +83,10 @@ This document provides step-by-step instructions for manually validating the com
 3. Click "Start Transcription" button
 
 **Success Criteria:**
-- ✅ Success toast appears: "Job created successfully: [filename]"
-- ✅ Modal closes automatically
-- ✅ New job appears in Dashboard immediately
-- ✅ Job status is "queued" or "processing"
+- [OK] Success toast appears: "Job created successfully: [filename]"
+- [OK] Modal closes automatically
+- [OK] New job appears in Dashboard immediately
+- [OK] Job status is "queued" or "processing"
 
 **Troubleshooting:**
 - If 413 error: File too large (max 2GB)
@@ -102,7 +101,7 @@ This document provides step-by-step instructions for manually validating the com
 - Job card shows status updates every 2 seconds
 - Progress bar updates with percentage
 - Estimated time left displays and counts down
-- Status transitions: queued → processing → completed
+- Status transitions: queued -> processing -> completed
 
 **Steps:**
 1. Observe the job card in Dashboard
@@ -111,11 +110,11 @@ This document provides step-by-step instructions for manually validating the com
 4. Wait for job completion (small files should complete in 1-5 minutes)
 
 **Success Criteria:**
-- ✅ Job status updates automatically without page refresh
-- ✅ Progress bar animates smoothly
-- ✅ Progress stage shows: "transcribing" or similar
-- ✅ Status changes to "completed" when done
-- ✅ Completed job shows duration and tags
+- [OK] Job status updates automatically without page refresh
+- [OK] Progress bar animates smoothly
+- [OK] Progress stage shows: "transcribing" or similar
+- [OK] Status changes to "completed" when done
+- [OK] Completed job shows duration and tags
 
 **Troubleshooting:**
 - If stuck in "queued": Check backend worker started (check logs)
@@ -146,10 +145,10 @@ This document provides step-by-step instructions for manually validating the com
    - Transcript preview
 
 **Success Criteria:**
-- ✅ Modal displays without errors
-- ✅ All fields populated with data
-- ✅ Transcript text is visible
-- ✅ Action buttons visible (Download, Restart, Delete)
+- [OK] Modal displays without errors
+- [OK] All fields populated with data
+- [OK] Transcript text is visible
+- [OK] Action buttons visible (Download, Restart, Delete)
 
 **Troubleshooting:**
 - If modal blank: Check browser console for errors
@@ -176,11 +175,11 @@ This document provides step-by-step instructions for manually validating the com
    - Formatting is correct
 
 **Success Criteria:**
-- ✅ File downloads successfully
-- ✅ Filename includes job ID and format
-- ✅ Transcript content is accurate
-- ✅ Timestamps formatted correctly (if enabled)
-- ✅ Multiple formats work (TXT, MD, SRT, VTT, JSON, DOCX)
+- [OK] File downloads successfully
+- [OK] Filename includes job ID and format
+- [OK] Transcript content is accurate
+- [OK] Timestamps formatted correctly (if enabled)
+- [OK] Multiple formats work (TXT, MD, SRT, VTT, JSON, DOCX)
 
 **Troubleshooting:**
 - If 404 on download: Verify the transcript file exists in `storage/transcripts/`
@@ -199,9 +198,9 @@ This document provides step-by-step instructions for manually validating the com
 4. Watch job process again
 
 **Success Criteria:**
-- ✅ Job re-processes successfully
-- ✅ New transcript generated
-- ✅ Original transcript preserved or versioned
+- [OK] Job re-processes successfully
+- [OK] New transcript generated
+- [OK] Original transcript preserved or versioned
 
 #### Test Job Deletion
 1. Select a completed job
@@ -210,9 +209,9 @@ This document provides step-by-step instructions for manually validating the com
 4. Verify job removed from list
 
 **Success Criteria:**
-- ✅ Job disappears from Dashboard
-- ✅ Confirmation dialog appears before deletion
-- ✅ No errors in console
+- [OK] Job disappears from Dashboard
+- [OK] Confirmation dialog appears before deletion
+- [OK] No errors in console
 
 #### Test Search and Filters
 1. Type filename in search bar
@@ -221,23 +220,23 @@ This document provides step-by-step instructions for manually validating the com
 4. Verify filtered results correct
 
 **Success Criteria:**
-- ✅ Search works on filename
-- ✅ Filters work correctly
-- ✅ Clear/reset filter works
+- [OK] Search works on filename
+- [OK] Filters work correctly
+- [OK] Clear/reset filter works
 
 ---
 
 ## Success Summary
 
-✅ **All Tests Passed** - The vertical slice is working correctly:
+[OK] **All Tests Passed** - The vertical slice is working correctly:
 - Login authentication successful
 - File upload and job creation working
-- Real-time progress monitoring functional
+- Progress status updates (polling-based) functional
 - Job details display correctly
 - Transcript download working for all formats
-- Core workflow complete: Upload → Process → View → Download
+- Core workflow complete: Upload -> Process -> View -> Download
 
-❌ **Test Failed** - Document failure details:
+[FAIL] **Test Failed** - Document failure details:
 - Step that failed: _______
 - Error message: _______
 - Screenshot/logs: _______
@@ -277,7 +276,7 @@ This document provides step-by-step instructions for manually validating the com
 **Symptoms:** Job stays in "processing" indefinitely  
 **Solution:**
 - Check backend logs for errors
-- Verify Whisper model downloaded (first run downloads models)
+- Verify required models are staged under `backend/models/` and enabled in Admin -> Model Registry
 - Check system resources (CPU, memory)
 - Check MAX_CONCURRENT_JOBS setting
 
@@ -292,12 +291,12 @@ This document provides step-by-step instructions for manually validating the com
 
 ## Performance Benchmarks
 
-Expected processing times (approximate):
-- **Tiny model**: 1x real-time (10min audio = 10min processing)
-- **Base model**: 1.5x real-time (10min audio = 15min processing)
-- **Small model**: 2x real-time (10min audio = 20min processing)
-- **Medium model**: 4x real-time (10min audio = 40min processing)
-- **Large model**: 8x real-time (10min audio = 80min processing)
+Expected processing times (approximate, CPU-only and hardware dependent):
+- **Tiny model**: ~1x real-time (10min audio ~= 10min processing)
+- **Base model**: ~1.5x real-time (10min audio ~= 15min processing)
+- **Small model**: ~2x real-time (10min audio ~= 20min processing)
+- **Medium model**: ~4x real-time (10min audio ~= 40min processing)
+- **Large model**: ~8x real-time (10min audio ~= 80min processing)
 
 *Note: Times vary based on CPU performance. GPU acceleration significantly faster.*
 
@@ -326,7 +325,7 @@ Document your test run:
 - Processing time: _______
 - Model used: _______
 - Transcript accuracy: _______
-- All steps completed: ✅ / ❌
+- All steps completed: [OK] / [FAIL]
 
 **Notes:** _______
 
@@ -340,5 +339,3 @@ After successful smoke test:
 3. Deploy to staging environment
 4. Conduct user acceptance testing
 5. Address remaining Sprint 0 tasks (TEST-004)
-
-```

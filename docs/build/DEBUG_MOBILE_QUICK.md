@@ -1,6 +1,6 @@
-# Mobile Login Debugging – Quick Card
+# Mobile Login Debugging - Quick Card
 
-Use this when someone on a phone/tablet says “login failed” or “nothing loads.”
+Use this when someone on a phone/tablet says "login failed" or "nothing loads."
 
 1. **Run the two network helpers locally**
    ```powershell
@@ -17,7 +17,7 @@ Use this when someone on a phone/tablet says “login failed” or “nothing lo
 
 3. **Have the tester capture client details**
    - Open `http://<LAN_IP>:5173/` (not a special debug page).
-   - After the error appears, expand the “Technical details” disclosure on the toast and screenshot it.
+   - After the error appears, expand the "Technical details" disclosure on the toast and screenshot it.
    - If they can use desktop Safari DevTools (Web Inspector), capture the console output too.
 
 4. **Reset credentials if needed**

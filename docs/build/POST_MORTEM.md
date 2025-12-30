@@ -1,7 +1,7 @@
 # Selenite Project Post-Mortem
 
 ## Purpose & Maintenance Policy
-This post-mortem documents what went well, what didn’t, and how to improve when building from a pre-defined spec. It is updated continuously during and after the build as findings occur. It must also capture work needed beyond pre-build specs and cross-reference `GAP_ANALYSIS.md` for a living list of gaps and `PRODUCTION_TASKS.md` for the actionable backlog.
+This post-mortem documents what went well, what didn't, and how to improve when building from a pre-defined spec. It is updated continuously during and after the build as findings occur. It must also capture work needed beyond pre-build specs and cross-reference `GAP_ANALYSIS.md` for a living list of gaps and `PRODUCTION_TASKS.md` for the actionable backlog.
 
 ## 1. What Went Well
 - **Incremental Structure**: The 20-increment DEVELOPMENT_PLAN provided clear staging and reduced ambiguity; backend completion in first 9 increments accelerated frontend focus.
@@ -9,27 +9,27 @@ This post-mortem documents what went well, what didn’t, and how to improve whe
 - **UI Quality & Polish**: Responsive design, skeleton loading states, toast notifications, and custom Tailwind animations delivered a professional look aligned with Increment 18 goals without overengineering.
 - **Test-First for Core Components**: SearchBar, JobFilters, Tag components, Settings, and usePolling all had tests authored before implementation, enforcing interface stability.
 - **Separation of Concerns**: Reusable primitives (TagBadge, Toast, SkeletonCard/Grid, usePolling) isolate logic and presentation for easier future maintenance.
-- **Documentation Depth**: Deployment, user guide, and README exceed baseline—providing onboarding, operational, and scaling guidance.
+- **Documentation Depth**: Deployment, user guide, and README exceed baseline-providing onboarding, operational, and scaling guidance.
 - **Consistent State Patterns**: Controlled inputs, debounced search, local tag filtering, memoized derived lists reduced rerenders and minimized complexity.
 - **Graceful Feature Merging**: Settings page (Increment 16) was completed within Increment 15 without losing clarity, avoiding redundant overhead.
 
-## 2. What Didn’t Go Well
-- **Frontend Test Execution Gap**: Tests were written but not executed due to earlier hanging issues—reducing actual confidence in UI integrity.
-- **Skipped Increment (19)**: End-to-end (Playwright) testing was deferred; this left critical integration flows (upload → processing → completion → export) unverified.
+## 2. What Didn't Go Well
+- **Frontend Test Execution Gap**: Tests were written but not executed due to earlier hanging issues-reducing actual confidence in UI integrity.
+- **Skipped Increment (19)**: End-to-end (Playwright) testing was deferred; this left critical integration flows (upload -> processing -> completion -> export) unverified.
 - **Placeholder Integrations**: Several frontend actions (job creation, restart, delete, tag CRUD, settings persistence) remain as console.log/alert placeholders; real API wiring unfinished.
-- **Commit Format Variance**: Final deployment commit used a non-standard prefix (“[Deploy]”) instead of strict “[Component] Description”.
+- **Commit Format Variance**: Final deployment commit used a non-standard prefix ("[Deploy]") instead of strict "[Component] Description".
 - **Environment Parity**: Production Docker introduced Nginx + Gunicorn, but no CI pipeline ensures builds/tests pass against container images.
 - **Security Depth**: Lacked rate limiting, brute force protection, password policy enforcement, and audit logging; health check present but no auth hardening.
-- **Monitoring Implementation**: Metrics instrumentation (Prometheus) documented but not integrated—only aspirational guidance.
+- **Monitoring Implementation**: Metrics instrumentation (Prometheus) documented but not integrated-only aspirational guidance.
 - **Model Handling**: Whisper model download strategy left to manual invocation; no automated lazy-load or verification routine during startup.
 - **Data Migration Strategy**: SQLite used without Alembic migration workflow; future schema changes have friction.
 
 ## Spec Gaps Discovered
 The authoritative list of gaps is owned by `GAP_ANALYSIS.md`. Representative examples:
-- SEC-001: Add rate limiting middleware on auth endpoints (P0) — reduce brute-force risk.
-- E2E-001/E2E-002: Scaffold Playwright suite and core path tests (P0) — validate end-to-end workflows.
-- DATA-001: Migrate to PostgreSQL + Alembic (P0) — production reliability and evolution.
-- OBS-001/OBS-002: Prometheus metrics and structured JSON logging (P1) — observability baseline.
+- SEC-001: Add rate limiting middleware on auth endpoints (P0) - reduce brute-force risk.
+- E2E-001/E2E-002: Scaffold Playwright suite and core path tests (P0) - validate end-to-end workflows.
+- DATA-001: Migrate to PostgreSQL + Alembic (P0) - production reliability and evolution.
+- OBS-001/OBS-002: Prometheus metrics and structured JSON logging (P1) - observability baseline.
 
 Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with ID/priority/owner and reflect the actionable task in `PRODUCTION_TASKS.md` with the same ID.
 
@@ -68,20 +68,20 @@ Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with 
   - Forces incremental quality improvement
 
 ### 3.2 Fix Blockers Immediately (Zero Tolerance)
-**Problem**: Test runner hang was documented but not resolved—undermined entire TDD workflow.
+**Problem**: Test runner hang was documented but not resolved-undermined entire TDD workflow.
 **Solution**:
-- **Blocker Definition**: Any issue preventing gate execution is P0—blocks all other work
+- **Blocker Definition**: Any issue preventing gate execution is P0-blocks all other work
 - **Debugging Budget**: Allocate first 2 hours of session to fix known blockers before feature work
 - **Escalation Path**: If blocker unfixed after 4 hours, pause increment and document blocker resolution as new increment
 - **Example Applied to Selenite**:
-  - Increment 10 completes → test hang discovered
+  - Increment 10 completes -> test hang discovered
   - Increment 11 becomes "Fix Vitest Configuration"
   - Identify dependency conflict (e.g., jsdom version mismatch)
   - Fix + verify tests run
   - Then proceed with original Increment 11 work
 
 ### 3.3 Integration Milestones (Not End-Loaded)
-**Problem**: API wiring deferred until after all UI complete—creates risky integration phase.
+**Problem**: API wiring deferred until after all UI complete-creates risky integration phase.
 **Solution**:
 - **Interleave Integration with UI**: After every 3 UI increments, insert 1 "Integration Increment"
   - Example: Increments 11-13 (Cards/Modals), then Increment 14 (Wire to Real API)
@@ -168,33 +168,33 @@ Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with 
 **Problem**: Placeholders invisible; no systematic tracking.
 **Solution**:
 - **Tag Placeholder Code**: Use consistent marker: `// TODO(API): Wire to POST /jobs endpoint`
-- **Integration Debt Script**: Run `grep -r "TODO(API)" frontend/src/` → generates list
+- **Integration Debt Script**: Run `grep -r "TODO(API)" frontend/src/` -> generates list
 - **Gate on Debt**: Cannot mark increment "complete" if introduces new API TODOs without timeline
 - **Debt Paydown Increments**: Schedule every 5th increment as "Integration Debt Paydown"
 
-## 4. What We Didn’t Understand Initially But Learned
+## 4. What We Didn't Understand Initially But Learned
 - **Debounce Requirements Nuance**: Practical timing (300ms) balanced responsiveness vs unnecessary filter churn; learned cleanup patterns to avoid stale queries.
-- **Tag Color Accessibility**: Implementing luma-based contrast ensured readability—elevated design quality beyond initial spec detail.
+- **Tag Color Accessibility**: Implementing luma-based contrast ensured readability-elevated design quality beyond initial spec detail.
 - **Polling Lifecycle Management**: Ref retention and conditional activation clarified how to avoid race conditions and memory leaks in recurring async tasks.
 - **Responsive Strategy**: Deciding table vs card rendering for TagList reinforced mobile-first heuristics for complex data layouts.
 - **Documentation Scope**: Recognized high-value of deeper deployment docs (systemd, Nginx, security hardening) for production readiness trust.
 
 ## 5. Final State Analysis
-- **Backend**: Complete per plan (Increments 1–9). Health endpoint present. Queue simulation implemented earlier; real transcription assumed functional (not re-validated in this phase).
-- **Frontend**: All UI increments (10–18) implemented; Increment 16 merged into 15; Increment 19 skipped; Increment 20 deployment artifacts added.
+- **Backend**: Complete per plan (Increments 1-9). Health endpoint present. Queue simulation implemented earlier; real transcription assumed functional (not re-validated in this phase).
+- **Frontend**: All UI increments (10-18) implemented; Increment 16 merged into 15; Increment 19 skipped; Increment 20 deployment artifacts added.
 - **Deployment**: Docker + Compose ready for local or simple server deployment; production best practices partially documented (SSL, systemd, scaling).
 - **Testing Coverage (Declared vs Actual)**: Backend 129 tests (declared passing); Frontend 104 tests written but execution confidence reduced due to runner issues.
 
 ## 6. Spec Adherence
 - **Component Specs**: High; implemented props, behaviors, and conditional rendering as described.
-- **API Contracts**: Partially adhered on frontend—UI assumes endpoints but stubs remain. Backend routes exist (auth, jobs, transcripts, tags, search, settings, health).
+- **API Contracts**: Partially adhered on frontend-UI assumes endpoints but stubs remain. Backend routes exist (auth, jobs, transcripts, tags, search, settings, health).
 - **Design & Theme**: Pine forest palette adhered; animations added per Increment 18 scope.
-- **Increment Plan Deviations**: Combined Increment 16 into 15 (acceptable consolidation). Skipped 19 (E2E) entirely—major test gap.
+- **Increment Plan Deviations**: Combined Increment 16 into 15 (acceptable consolidation). Skipped 19 (E2E) entirely-major test gap.
 
 ## 7. Scope Creep Assessment
 - **Additions Within Defined Scope**: Toasts, skeleton loaders, animations were explicitly part of Increment 18 (not creep).
 - **No Unauthorized Expansion**: No unplanned major features introduced (e.g., multi-user, real-time websockets, GPU path). Scope creep minimal.
-- **Documentation Enhancement**: README/User Guide depth exceeded baseline but considered beneficial—not detrimental creep.
+- **Documentation Enhancement**: README/User Guide depth exceeded baseline but considered beneficial-not detrimental creep.
 
 ## 8. Completion & Remaining Gaps
 - **Implemented**: UI flows, job listing, filtering, tagging, settings, progress simulation, deployment artifacts.
@@ -214,9 +214,9 @@ Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with 
 (See GAP_ANALYSIS.md for prioritized remediation.)
 
 ## 9. Additional Insights
-- **Value of Early Simulation**: Simulated progress allowed UI refinement without dependency on real transcription latency—accelerated feedback cycles.
+- **Value of Early Simulation**: Simulated progress allowed UI refinement without dependency on real transcription latency-accelerated feedback cycles.
 - **Test Intent vs Execution Reality**: Writing tests without running them risks false confidence. Execution feasibility must be validated early.
-- **Documentation as Onboarding Asset**: DEPLOYMENT.md and USER_GUIDE position project for external adoption—reduces future support overhead.
+- **Documentation as Onboarding Asset**: DEPLOYMENT.md and USER_GUIDE position project for external adoption-reduces future support overhead.
 - **Increment Consolidation**: Merging related increments (15 & 16) reduced ceremony; advisable when specifications overlap heavily.
 - **Future Extensibility**: Modular components (TagBadge, Toast, usePolling) create a foundation for new features (live WebSocket progress, notifications queue) with low refactor burden.
 
@@ -227,22 +227,22 @@ Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with 
 |-----------|--------|---------------|-------------|
 | All 20 increments complete | 20/20 | 19/20 (Inc 19 skipped) | High |
 | All functional requirements met | 100% | ~70% (UI present, API stubs) | Critical |
-| All tests pass | Backend >80%, Frontend >70% | Backend ✓, Frontend untested | Critical |
+| All tests pass | Backend >80%, Frontend >70% | Backend OK, Frontend untested | Critical |
 | Security requirements verified | 100% | ~40% (JWT yes, rate limit no) | High |
 | Performance targets met | <500ms non-transcription | Unverified | Medium |
 | Code reviewed | Self-review checklist | Not executed | High |
-| Application deployable | Docker + docs | Docker ✓, validation gap | Medium |
+| Application deployable | Docker + docs | Docker OK, validation gap | Medium |
 | User can complete E2E workflow | Without dev help | Cannot (API stubs) | Critical |
 | No critical/high bugs | Zero tolerance | Unknown (tests not run) | Critical |
-| Documentation complete | All 6 docs | ✓ README, DEPLOY, USER_GUIDE | Low |
+| Documentation complete | All 6 docs | OK README, DEPLOY, USER_GUIDE | Low |
 
 ### Why "Production-Ready" Was Not Achieved
-1. **Quality Gates Not Enforced**: Tests written but not run → untested code shipped
-2. **Integration Work Deferred**: UI complete, backend complete, but not connected → non-functional
+1. **Quality Gates Not Enforced**: Tests written but not run -> untested code shipped
+2. **Integration Work Deferred**: UI complete, backend complete, but not connected -> non-functional
 3. **E2E Testing Skipped**: Critical user workflows never validated end-to-end
 4. **Security Baseline Incomplete**: Auth present, but missing rate limiting, password policy, audit logs
 5. **No Production Validation**: Docker composes successfully, but application startup not verified
-6. **Observability Absent**: No metrics, no structured logs → "production" is unmonitorable
+6. **Observability Absent**: No metrics, no structured logs -> "production" is unmonitorable
 
 ### What "Production-Ready" Actually Requires (Revised Checklist)
 - [ ] **Functional Completeness**: All UI actions trigger real API calls (not stubs)
@@ -272,7 +272,7 @@ Cross-reference: When a new gap is discovered, add it to `GAP_ANALYSIS.md` with 
    - Add error handling + toast notifications
 
 3. **Validate Core Workflow** (P0 validation)
-   - Manual test: Login → Upload → Wait for completion → View transcript → Download
+   - Manual test: Login -> Upload -> Wait for completion -> View transcript -> Download
    - Fix any errors discovered
    - Document test steps for regression
 

@@ -55,7 +55,7 @@ Each job shows:
    - File upload area (drag-and-drop or click to browse)
    - Model selection dropdown (tiny, base, small, medium, large)
    - Language: Auto-detect (default)
-   - Options: ☑ Speaker detection, ☑ Timestamps
+   - Options: [x] Speaker detection, [x] Timestamps
    - Cancel / Start Transcription buttons
 
 #### Job Detail Modal
@@ -63,18 +63,18 @@ When clicking on a completed job, modal shows:
 - Full job metadata (filename, duration, date, model used, etc.)
 - Assigned tags (editable)
 - Action buttons:
-  - ▶️ Play Media (audio player in modal)
-  - 📄 View Transcript (opens in new window/tab)
-  - 📥 Download Audio/Video
-  - 📥 Download Transcript (format selector: .txt, .md, .srt, .vtt, .json, .docx)
-  - 🔄 Re-run Transcription (new job from same source file)
-  - 🏷️ Edit Tags
-  - 🗑️ Delete Job
+  - Play Media (audio player in modal)
+  - View Transcript (opens in new window/tab)
+  - Download Audio/Video
+  - Download Transcript (format selector: .txt, .md, .srt, .vtt, .json, .docx)
+  - Restart Re-run Transcription (new job from same source file)
+  - Edit Tags
+  - Delete Job
 
 #### Processing Display
 Active jobs show:
 - Progress bar (0-100%)
-- Current stage: "Uploading" → "Loading Model" → "Transcribing" → "Finalizing"
+- Current stage: "Uploading" -> "Loading Model" -> "Transcribing" -> "Finalizing"
 - Time estimate: "~3 minutes remaining"
 - Cancel button
 
@@ -281,137 +281,137 @@ value   TEXT NOT NULL
 
 ```
 Selenite/
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py                 # FastAPI app initialization
-│   │   ├── config.py               # Configuration management
-│   │   ├── database.py             # Database setup and session management
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── user.py             # User SQLAlchemy model
-│   │   │   ├── job.py              # Job SQLAlchemy model
-│   │   │   ├── tag.py              # Tag SQLAlchemy model
-│   │   │   └── transcript.py       # Transcript SQLAlchemy model
-│   │   ├── schemas/
-│   │   │   ├── __init__.py
-│   │   │   ├── user.py             # Pydantic schemas for users
-│   │   │   ├── job.py              # Pydantic schemas for jobs
-│   │   │   ├── tag.py              # Pydantic schemas for tags
-│   │   │   └── auth.py             # Auth request/response schemas
-│   │   ├── routes/
-│   │   │   ├── __init__.py
-│   │   │   ├── auth.py             # Authentication endpoints
-│   │   │   ├── jobs.py             # Job management endpoints
-│   │   │   ├── tags.py             # Tag management endpoints
-│   │   │   ├── media.py            # Media streaming endpoints
-│   │   │   ├── transcripts.py      # Transcript download endpoints
-│   │   │   ├── search.py           # Search endpoints
-│   │   │   └── system.py           # System control endpoints
-│   │   ├── services/
-│   │   │   ├── __init__.py
-│   │   │   ├── auth.py             # Authentication logic
-│   │   │   ├── transcription.py    # Whisper transcription service
-│   │   │   ├── job_queue.py        # Job queue management
-│   │   │   ├── export.py           # Export format generators
-│   │   │   └── search.py           # Search implementation
-│   │   ├── utils/
-│   │   │   ├── __init__.py
-│   │   │   ├── security.py         # Password hashing, JWT tokens
-│   │   │   ├── file_handling.py    # File upload/storage utilities
-│   │   │   └── progress.py         # Progress tracking utilities
-│   │   └── middleware/
-│   │       ├── __init__.py
-│   │       ├── cors.py             # CORS configuration
-│   │       └── error_handler.py    # Global error handling
-│   ├── alembic/
-│   │   ├── versions/               # Database migrations
-│   │   └── env.py
-│   ├── storage/
-│   │   ├── media/                  # Uploaded audio/video files
-│   │   ├── transcripts/            # Generated transcript files
-│   │   └── models/                 # Whisper model files (symlink to existing)
-│   ├── tests/
-│   │   ├── test_auth.py
-│   │   ├── test_jobs.py
-│   │   ├── test_transcription.py
-│   │   └── test_export.py
-│   ├── alembic.ini
-│   ├── pyproject.toml              # Python dependencies
-│   ├── .env.example
-│   └── README.md
-│
-├── frontend/
-│   ├── public/
-│   │   └── favicon.ico
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   │   ├── Navbar.jsx
-│   │   │   │   ├── Sidebar.jsx
-│   │   │   │   └── MobileNav.jsx
-│   │   │   ├── modals/
-│   │   │   │   ├── NewJobModal.jsx
-│   │   │   │   ├── JobDetailModal.jsx
-│   │   │   │   └── ConfirmDialog.jsx
-│   │   │   ├── jobs/
-│   │   │   │   ├── JobCard.jsx
-│   │   │   │   ├── JobList.jsx
-│   │   │   │   ├── JobFilters.jsx
-│   │   │   │   ├── ProgressBar.jsx
-│   │   │   │   └── StatusBadge.jsx
-│   │   │   ├── upload/
-│   │   │   │   ├── FileDropzone.jsx
-│   │   │   │   └── UploadOptions.jsx
-│   │   │   ├── tags/
-│   │   │   │   ├── TagInput.jsx
-│   │   │   │   ├── TagList.jsx
-│   │   │   │   └── TagBadge.jsx
-│   │   │   └── common/
-│   │   │       ├── Button.jsx
-│   │   │       ├── Input.jsx
-│   │   │       ├── SearchBar.jsx
-│   │   │       └── AudioPlayer.jsx
-│   │   ├── pages/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Settings.jsx
-│   │   │   └── TranscriptView.jsx
-│   │   ├── context/
-│   │   │   ├── AuthContext.jsx
-│   │   │   └── JobContext.jsx
-│   │   ├── services/
-│   │   │   ├── api.js              # Axios instance with interceptors
-│   │   │   ├── auth.js             # Auth API calls
-│   │   │   ├── jobs.js             # Job API calls
-│   │   │   └── tags.js             # Tag API calls
-│   │   ├── hooks/
-│   │   │   ├── useAuth.js
-│   │   │   ├── useJobs.js
-│   │   │   └── usePolling.js       # For job status updates
-│   │   ├── utils/
-│   │   │   ├── formatters.js       # Date, duration formatting
-│   │   │   └── constants.js        # App constants
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css               # Tailwind imports + custom styles
-│   ├── .env.example
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   └── README.md
-│
-├── models/                         # Symlink or copy from whisper-transcriber
-│   ├── base.pt
-│   ├── small.pt
-│   ├── medium.pt
-│   └── large-v3.pt
-│
-├── .gitignore
-├── README.md
-├── DEVELOPMENT_PLAN.md             # This file
-└── docker-compose.yml              # Optional: for containerized deployment
++-- backend/
+|   +-- app/
+|   |   +-- __init__.py
+|   |   +-- main.py                 # FastAPI app initialization
+|   |   +-- config.py               # Configuration management
+|   |   +-- database.py             # Database setup and session management
+|   |   +-- models/
+|   |   |   +-- __init__.py
+|   |   |   +-- user.py             # User SQLAlchemy model
+|   |   |   +-- job.py              # Job SQLAlchemy model
+|   |   |   +-- tag.py              # Tag SQLAlchemy model
+|   |   |   +-- transcript.py       # Transcript SQLAlchemy model
+|   |   +-- schemas/
+|   |   |   +-- __init__.py
+|   |   |   +-- user.py             # Pydantic schemas for users
+|   |   |   +-- job.py              # Pydantic schemas for jobs
+|   |   |   +-- tag.py              # Pydantic schemas for tags
+|   |   |   +-- auth.py             # Auth request/response schemas
+|   |   +-- routes/
+|   |   |   +-- __init__.py
+|   |   |   +-- auth.py             # Authentication endpoints
+|   |   |   +-- jobs.py             # Job management endpoints
+|   |   |   +-- tags.py             # Tag management endpoints
+|   |   |   +-- media.py            # Media streaming endpoints
+|   |   |   +-- transcripts.py      # Transcript download endpoints
+|   |   |   +-- search.py           # Search endpoints
+|   |   |   +-- system.py           # System control endpoints
+|   |   +-- services/
+|   |   |   +-- __init__.py
+|   |   |   +-- auth.py             # Authentication logic
+|   |   |   +-- transcription.py    # Whisper transcription service
+|   |   |   +-- job_queue.py        # Job queue management
+|   |   |   +-- export.py           # Export format generators
+|   |   |   +-- search.py           # Search implementation
+|   |   +-- utils/
+|   |   |   +-- __init__.py
+|   |   |   +-- security.py         # Password hashing, JWT tokens
+|   |   |   +-- file_handling.py    # File upload/storage utilities
+|   |   |   +-- progress.py         # Progress tracking utilities
+|   |   +-- middleware/
+|   |       +-- __init__.py
+|   |       +-- cors.py             # CORS configuration
+|   |       +-- error_handler.py    # Global error handling
+|   +-- alembic/
+|   |   +-- versions/               # Database migrations
+|   |   +-- env.py
+|   +-- storage/
+|   |   +-- media/                  # Uploaded audio/video files
+|   |   +-- transcripts/            # Generated transcript files
+|   |   +-- models/                 # Whisper model files (symlink to existing)
+|   +-- tests/
+|   |   +-- test_auth.py
+|   |   +-- test_jobs.py
+|   |   +-- test_transcription.py
+|   |   +-- test_export.py
+|   +-- alembic.ini
+|   +-- pyproject.toml              # Python dependencies
+|   +-- .env.example
+|   +-- README.md
+|
++-- frontend/
+|   +-- public/
+|   |   +-- favicon.ico
+|   +-- src/
+|   |   +-- components/
+|   |   |   +-- layout/
+|   |   |   |   +-- Navbar.jsx
+|   |   |   |   +-- Sidebar.jsx
+|   |   |   |   +-- MobileNav.jsx
+|   |   |   +-- modals/
+|   |   |   |   +-- NewJobModal.jsx
+|   |   |   |   +-- JobDetailModal.jsx
+|   |   |   |   +-- ConfirmDialog.jsx
+|   |   |   +-- jobs/
+|   |   |   |   +-- JobCard.jsx
+|   |   |   |   +-- JobList.jsx
+|   |   |   |   +-- JobFilters.jsx
+|   |   |   |   +-- ProgressBar.jsx
+|   |   |   |   +-- StatusBadge.jsx
+|   |   |   +-- upload/
+|   |   |   |   +-- FileDropzone.jsx
+|   |   |   |   +-- UploadOptions.jsx
+|   |   |   +-- tags/
+|   |   |   |   +-- TagInput.jsx
+|   |   |   |   +-- TagList.jsx
+|   |   |   |   +-- TagBadge.jsx
+|   |   |   +-- common/
+|   |   |       +-- Button.jsx
+|   |   |       +-- Input.jsx
+|   |   |       +-- SearchBar.jsx
+|   |   |       +-- AudioPlayer.jsx
+|   |   +-- pages/
+|   |   |   +-- Login.jsx
+|   |   |   +-- Dashboard.jsx
+|   |   |   +-- Settings.jsx
+|   |   |   +-- TranscriptView.jsx
+|   |   +-- context/
+|   |   |   +-- AuthContext.jsx
+|   |   |   +-- JobContext.jsx
+|   |   +-- services/
+|   |   |   +-- api.js              # Axios instance with interceptors
+|   |   |   +-- auth.js             # Auth API calls
+|   |   |   +-- jobs.js             # Job API calls
+|   |   |   +-- tags.js             # Tag API calls
+|   |   +-- hooks/
+|   |   |   +-- useAuth.js
+|   |   |   +-- useJobs.js
+|   |   |   +-- usePolling.js       # For job status updates
+|   |   +-- utils/
+|   |   |   +-- formatters.js       # Date, duration formatting
+|   |   |   +-- constants.js        # App constants
+|   |   +-- App.jsx
+|   |   +-- main.jsx
+|   |   +-- index.css               # Tailwind imports + custom styles
+|   +-- .env.example
+|   +-- package.json
+|   +-- vite.config.js
+|   +-- tailwind.config.js
+|   +-- postcss.config.js
+|   +-- README.md
+|
++-- models/                         # Symlink or copy from whisper-transcriber
+|   +-- base.pt
+|   +-- small.pt
+|   +-- medium.pt
+|   +-- large-v3.pt
+|
++-- .gitignore
++-- README.md
++-- DEVELOPMENT_PLAN.md             # This file
++-- docker-compose.yml              # Optional: for containerized deployment
 ```
 
 ---
@@ -503,7 +503,7 @@ Tasks:
 1. Build Dashboard page:
    - Job list with cards
    - Filters (status, date, tags)
-   - Search bar with real-time search
+   - Search bar with live search (client-side)
 2. Implement New Job modal:
    - File dropzone (drag-and-drop + click to browse)
    - Model selection dropdown
@@ -513,7 +513,7 @@ Tasks:
    - Action buttons (play, download, view, delete)
    - Tag assignment UI
    - Audio player component
-4. Implement real-time progress updates:
+4. Implement polling-based progress updates:
    - Polling mechanism for active jobs
    - Progress bar and stage display
    - Time estimate
@@ -881,7 +881,7 @@ These features are explicitly NOT in the initial build but can be added later:
 ### Performance Targets
 - File upload: < 2 seconds for 100MB file
 - Job queuing: < 500ms response time
-- Transcription: 1x real-time (10-min audio → ~10-min transcription time with medium model)
+- Transcription: ~1x realtime (10-min audio -> ~10-min transcription time with medium model)
 - Job list loading: < 1 second for 100 jobs
 - Search results: < 2 seconds for 1000 jobs
 
@@ -1094,7 +1094,7 @@ Comprehensive test checklist created before writing tests:
 - [ ] `test_concurrent_job_limit` - Only 3 jobs process simultaneously
 - [ ] `test_job_queue_ordering` - Jobs processed in FIFO order
 - [ ] `test_progress_updates` - Progress percentage updates correctly
-- [ ] `test_stage_transitions` - Stages progress: queued → loading → transcribing → finalizing
+- [ ] `test_stage_transitions` - Stages progress: queued -> loading -> transcribing -> finalizing
 - [ ] `test_model_selection` - Correct Whisper model loaded based on request
 - [ ] `test_language_detection` - Language auto-detected correctly
 - [ ] `test_timestamp_generation` - Timestamps included in output when enabled
@@ -1569,13 +1569,13 @@ npm test
 
 ---
 
-### Build Increment 17: Real-time Progress Updates
+### Build Increment 17: Progress Updates (Polling)
 **Goal**: Live job status updates via polling
 
 **Tasks**:
 1. Create usePolling hook
 2. Integrate polling into Dashboard
-3. Update progress bars in real-time
+3. Update progress bars on polling interval
 4. Add stage transitions
 5. Test with multiple concurrent jobs
 
@@ -1585,7 +1585,7 @@ npm test
 # Manual: Upload multiple jobs, watch progress update
 ```
 
-**Commit**: `[Frontend/Progress] Add real-time job progress updates via polling`
+**Commit**: `[Frontend/Progress] Add job progress updates via polling`
 
 ---
 
@@ -1772,7 +1772,7 @@ Runs automatically on `git commit` via Husky hooks:
 ### Tier 2: Push CI (GitHub Actions, ~5min)
 Runs on every push to `main`/`develop` via `.github/workflows/qa.yml`:
 - **Full Test Suites**: Backend (pytest), Frontend (Vitest)
-- **Coverage Enforcement**: Backend ≥80%, Frontend ≥70% (fails build if below)
+- **Coverage Enforcement**: Backend >=80%, Frontend >=70% (fails build if below)
 - **E2E Smoke Tests**: Critical flows (login, job creation) on Chromium
 - **Security Audits**: pip-audit (backend), npm audit (frontend, moderate+ severity)
 - **Artifact Collection**: Test reports, traces, and videos uploaded on failure
@@ -1801,7 +1801,7 @@ Runs on pull requests targeting `main`:
 2. Create follow-up task to fix quality issues
 3. Ensure fixes applied before merging to main
 
-**Philosophy**: Shift-left testing—catch defects early when fixes are cheapest. Fast feedback loops (pre-commit <30s) prevent interrupting flow, while comprehensive CI validation ensures nothing slips through.
+**Philosophy**: Shift-left testing-catch defects early when fixes are cheapest. Fast feedback loops (pre-commit <30s) prevent interrupting flow, while comprehensive CI validation ensures nothing slips through.
 
 ---
 
@@ -1874,33 +1874,33 @@ The project is considered **DONE** when:
 
 ---
 
-## Pre-Build Setup Complete ✅
+## Pre-Build Setup Complete [OK]
 
 All prerequisites have been verified and pre-build artifacts created:
 
-1. **Model files**: ✅ COMPLETE
+1. **Model files**: [OK] COMPLETE
    - Whisper models copied to `D:\Dev\projects\Selenite\backend\models`
    - Models available: tiny, base, small, medium, large-v3
    
-2. **Database choice**: ✅ CONFIRMED
+2. **Database choice**: [OK] CONFIRMED
    - SQLite for single-user simplicity
    - Migration path to PostgreSQL documented if needed
    
-3. **Deployment target**: ✅ CONFIRMED
+3. **Deployment target**: [OK] CONFIRMED
    - Windows development environment
    - Cross-platform considerations documented
    
-4. **Development environment**: ✅ VERIFIED
-   - Python 3.11+ installed ✓
-   - Node.js 18+ installed ✓
-   - VS Code with recommended extensions ✓
+4. **Development environment**: [OK] VERIFIED
+   - Python 3.11+ installed OK
+   - Node.js 18+ installed OK
+   - VS Code with recommended extensions OK
 
-5. **Build Process**: ✅ APPROVED
-   - Iterative test-driven development approach ✓
-   - Atomic commits per feature ✓
-   - Quality gates at each increment ✓
+5. **Build Process**: [OK] APPROVED
+   - Iterative test-driven development approach OK
+   - Atomic commits per feature OK
+   - Quality gates at each increment OK
 
-6. **Pre-Build Artifacts**: ✅ COMPLETE
+6. **Pre-Build Artifacts**: [OK] COMPLETE
    - DEVELOPMENT_PLAN.md: Complete blueprint
    - docs/API_CONTRACTS.md: All endpoints specified
    - docs/COMPONENT_SPECS.md: All components specified

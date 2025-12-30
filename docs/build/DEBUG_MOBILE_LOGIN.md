@@ -8,7 +8,7 @@ These steps assume the application is running via `scripts/start-selenite.ps1` a
 1. Run `\.\test-network-access.ps1`.  
   - It prints every non-loopback IPv4 address detected (LAN + Tailscale) and whether port 8100 is listening.  
   - It also probes `http://127.0.0.1:8100/health` and `http://<LAN_IP>:8100/health` so you immediately know if Windows Firewall is blocking remote access.
-2. If the network probe fails, follow the script’s prompt to run `\.\allow-backend-port.ps1` from an elevated PowerShell window and re-run the test.
+2. If the network probe fails, follow the script's prompt to run `\.\allow-backend-port.ps1` from an elevated PowerShell window and re-run the test.
 3. Share the reported LAN/Tailscale IPs with whoever is testing (e.g., `http://192.168.x.x:5173/`).
 4. When restarting via the helpers, explicitly advertise each host you plan to share: `.\scripts\bootstrap.ps1 -AdvertiseHosts 127.0.0.1,<LAN-IP>,100.x.y.z` (or `.\scripts\start-selenite.ps1 -AdvertiseHosts ...`). This keeps backend CORS + frontend routing aligned no matter which address the tester loads.
 
@@ -19,8 +19,8 @@ These steps assume the application is running via `scripts/start-selenite.ps1` a
 Ask the tester to:
 - Open the normal UI at `http://<LAN_IP>:5173/`.
 - Attempt a login.
-- If an error banner appears, expand the “Technical details” drawer and screenshot it. That payload mirrors what the frontend logs to the console.
-- (Optional) On iOS Safari, enable Web Inspector (Settings → Safari → Advanced → Web Inspector) and connect to a Mac to inspect the console.
+- If an error banner appears, expand the "Technical details" drawer and screenshot it. That payload mirrors what the frontend logs to the console.
+- (Optional) On iOS Safari, enable Web Inspector (Settings -> Safari -> Advanced -> Web Inspector) and connect to a Mac to inspect the console.
 
 ## 4. Watch server-side logs in real time
 ```

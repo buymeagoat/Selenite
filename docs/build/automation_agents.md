@@ -1,6 +1,6 @@
-# Automation “Agents” Plan
+# Automation "Agents" Plan
 
-This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and security. Each job has one responsibility and reports back to PRs.
+This repo uses CI jobs as "agents" to shoulder hygiene, docs, testing, and security. Each job has one responsibility and reports back to PRs.
 
 ## Gateways
 - Hygiene: `scripts/check_repo_hygiene.py` against `repo-hygiene-policy.json`.
@@ -32,7 +32,7 @@ This repo uses CI jobs as “agents” to shoulder hygiene, docs, testing, and s
 - Perf probe: GET /health (or PERF_PROBE_URL) with 200 ms budget by default.
 - Tool versions: Python 3.10, Node 20.
 - Accessibility smokes: target Dashboard and Transcript pages (add more as needed).
-- E2E flow: create → complete → export → delete (desktop + mobile viewport).
+- E2E flow: create -> complete -> export -> delete (desktop + mobile viewport).
 
 ## Branch Protection (set these as required)
 - hygiene

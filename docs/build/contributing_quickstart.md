@@ -32,4 +32,4 @@ Use this as the checklist to work in this repo and future apps:
 - Accessibility smokes: Dashboard and Transcript pages.
 
 ## User Testing Loop (manual)
-- Create job → observe progress/ETA → download transcript → delete job. Report UX gaps; we add them to backlog/e2e smokes.
+- Create job -> observe progress/ETA -> download transcript -> delete job. Report UX gaps; we add them to backlog/e2e smokes.

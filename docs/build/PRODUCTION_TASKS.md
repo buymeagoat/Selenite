@@ -25,6 +25,19 @@ Compliance with these directives is mandatory.
 
 ## Work Blocks
 
+### Work Block - 2025-12-30 09:55 PT (Start)
+- **Assumptions**: Backup verification must succeed against the live SQLite file and restored layout.
+- **Ambiguity**: None.
+- **Plan**: 1) Fix sqlite URL parsing query-stripping. 2) Hash the copied DB to avoid file-lock failures. 3) Align restore layout with manifest. 4) Re-run backup verification and capture the backup path.
+- **Pending Checkpoints**: Manual backup verification.
+
+### Work Block - 2025-12-30 09:55 PT (Wrap)
+- **Progress**: Fixed sqlite URL query stripping, hashed the copied DB with shared reads, aligned restore layout to `database/selenite.db`, re-ran `backup-verify` successfully, and re-ran `run-tests.ps1 -SkipE2E`.
+- **Impact**: Backup verification is reliable with an in-use SQLite database, and restore paths match the manifest.
+- **Risks/Notes**: `run-tests.ps1 -SkipE2E` passed; logs at `docs/memorialization/test-runs/20251230-100200-backend+frontend`.
+- **Next Actions**: Use the verified backup path when preparing the next production merge.
+- **Checkpoint Status**: Manual backup verification complete (`storage/backups/system-20251230-095309`).
+
 ### Work Block - 2025-12-29 21:20 PT (Start)
 - **Assumptions**: Production data must be preserved across feature releases; backups should be verified before merging to main.
 - **Ambiguity**: Whether backups should include model checkpoints and logs; defaulting to data + DB + settings only, with optional switches for models/logs.
@@ -50,6 +63,19 @@ Compliance with these directives is mandatory.
 - **Risks/Notes**: None.
 - **Next Actions**: Use the release runbook on the next production deploy and record evidence.
 - **Checkpoint Status**: Manual release UI verification pending.
+
+### Work Block - 2025-12-29 23:20 PT (Start)
+- **Assumptions**: Backup verification should handle quoted DATABASE_URL values.
+- **Ambiguity**: None.
+- **Plan**: 1) Fix DATABASE_URL parsing in backup script. 2) Add a self-test for parsing. 3) Re-run backup verification.
+- **Pending Checkpoints**: Manual backup verification.
+
+### Work Block - 2025-12-29 23:20 PT (Wrap)
+- **Progress**: Normalized DATABASE_URL parsing and added a self-test runner for backup scripts.
+- **Impact**: Backup verification can run even when DATABASE_URL is quoted in `.env`.
+- **Risks/Notes**: None.
+- **Next Actions**: Re-run `./scripts/backup-verify.ps1` and record the backup path.
+- **Checkpoint Status**: Manual backup verification pending.
 
 ### Work Block - 2025-12-29 16:10 PT (Start)
 - **Assumptions**: Manual verification checkpoints already completed for the current MVP scope.

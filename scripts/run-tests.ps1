@@ -132,8 +132,18 @@ try {
 $ExpectedDb = Join-Path $BackendDir "selenite.db"
 $dbs = Get-ChildItem -Path $RepoRoot -Filter "selenite.db" -Recurse -ErrorAction SilentlyContinue
 $rogueDbs = @()
+$backupRoot = Join-Path $RepoRoot "storage\\backups"
+$scratchRoot = Join-Path $RepoRoot "scratch"
 foreach ($db in $dbs) {
-    if ($db.FullName -ne (Resolve-Path $ExpectedDb).Path) {
+    $fullPath = $db.FullName
+    $normalizedPath = $fullPath -replace '/', '\\'
+    if ($normalizedPath -match "\\storage\\backups\\") {
+        continue
+    }
+    if ($normalizedPath -match "\\scratch\\") {
+        continue
+    }
+    if ($fullPath -ne (Resolve-Path $ExpectedDb).Path) {
         $rogueDbs += $db
     }
 }

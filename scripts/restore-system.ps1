@@ -31,7 +31,9 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
 $backupResolved = Resolve-Path $BackupPath | Select-Object -ExpandProperty Path
 $dbSource = Join-Path $backupResolved "database\\selenite.db"
 if (Test-Path $dbSource) {
-    Copy-Item -Path $dbSource -Destination (Join-Path $TargetRoot "selenite.db") -Force
+    $dbTargetDir = Join-Path $TargetRoot "database"
+    New-Item -ItemType Directory -Path $dbTargetDir -Force | Out-Null
+    Copy-Item -Path $dbSource -Destination (Join-Path $dbTargetDir "selenite.db") -Force
 }
 
 $storageSource = Join-Path $backupResolved "storage"

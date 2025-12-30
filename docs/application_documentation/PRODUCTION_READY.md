@@ -1,8 +1,20 @@
 # Selenite - Production Ready Checklist
 
-**Date**: December 29, 2025
+**Date**: December 30, 2025
 **Status**: PRODUCTION READY (MVP)
 **Completion**: 100% of MVP tasks (future enhancements tracked separately)
+
+---
+
+## Verification Snapshot (Dec 30, 2025)
+- `./scripts/backup-verify.ps1`
+  - Backup path: `storage/backups/system-20251230-095309`
+  - Restore path: `scratch/restore-20251230-095309`
+- `./scripts/run-tests.ps1 -SkipE2E`
+  - Backend: pytest suite passed (see `docs/memorialization/test-runs/20251230-100200-backend+frontend/backend.pytest.log`).
+  - Frontend: Vitest coverage summary written (see `docs/memorialization/test-runs/20251230-100200-backend+frontend/run-tests.log`).
+- `npm run e2e:full`
+  - Not re-run in this snapshot; last full run (Nov 21, 2025) completed 85/85 across Chromium/Firefox/WebKit.
 
 ---
 

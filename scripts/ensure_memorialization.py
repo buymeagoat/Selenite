@@ -10,9 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MEMO_FILES = {
-    "docs/build/CHANGELOG.md",
-    "docs/build/automation_agents.md",
-    "docs/pre-build/API_CONTRACTS.md",
+    "docs/application_documentation/CHANGELOG.md",
     "README.md",
 }
 CODE_PREFIXES = {

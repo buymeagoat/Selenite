@@ -5,8 +5,7 @@
 .DESCRIPTION
     - Ensures backend virtualenv and frontend node_modules exist (unless skipped).
     - Executes backend pytest with coverage, frontend Vitest coverage, and Playwright E2E tests.
-    - Mirrors the commands documented in docs/build/testing/TESTING_PROTOCOL.md so humans and AIs can
-      run the entire battery with one PowerShell command.
+    - Runs the entire test battery with one PowerShell command.
 
 .PARAMETER SkipBackend
     Skips backend dependency checks and pytest run.

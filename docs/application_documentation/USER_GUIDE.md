@@ -371,9 +371,8 @@ If you encounter issues not covered here:
    - Discussions: https://github.com/yourusername/Selenite/discussions
 
 4. **Documentation**:
-   - `docs/API_CONTRACTS.md`: API reference
    - `docs/application_documentation/DEPLOYMENT.md`: Deployment guide
-   - `docs/COMPONENT_SPECS.md`: Technical specs
+   - `docs/application_documentation/RELEASE_RUNBOOK.md`: Release procedures
 
 ## Keyboard Shortcuts
 
@@ -436,7 +435,6 @@ To free up disk space:
 
 **Enjoy using Selenite!** 
 
-For technical documentation, see:
+For operational documentation, see:
 - `docs/application_documentation/DEPLOYMENT.md` - Production deployment guide
-- `docs/API_CONTRACTS.md` - API reference
-- `docs/COMPONENT_SPECS.md` - Component specifications
+- `docs/application_documentation/RELEASE_RUNBOOK.md` - Release procedures

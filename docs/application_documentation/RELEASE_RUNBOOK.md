@@ -28,7 +28,7 @@ Breaking changes require a staged rollout or a migration that preserves old data
 ## Pre-Release Checklist (Host)
 1. **Backup verification**:
    - Run `./scripts/backup-verify.ps1`.
-   - Record the backup path in the PR and `docs/build/PRODUCTION_TASKS.md`.
+   - Record the backup path in the release notes (`docs/application_documentation/CHANGELOG.md`).
 2. **Staging rehearsal** (recommended for schema changes):
    - Restore the backup into `scratch/restore-<timestamp>`.
    - Run migrations against the restored DB.
@@ -51,7 +51,7 @@ Breaking changes require a staged rollout or a migration that preserves old data
    - Export works.
 7. **Record evidence**:
    - Update `docs/application_documentation/PRODUCTION_READY.md`.
-   - Log the release in `docs/build/PRODUCTION_TASKS.md`.
+   - Log the release in `docs/application_documentation/CHANGELOG.md`.
 
 ## Rollback Steps
 Use this if production fails after release:

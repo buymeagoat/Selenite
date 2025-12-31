@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { JobDetailModal } from '../components/modals/JobDetailModal';
 import type { Job } from '../services/jobs';
+import * as transcriptService from '../services/transcripts';
+
+vi.mock('../services/transcripts', () => ({
+  fetchSpeakerLabels: vi.fn(),
+  updateSpeakerLabels: vi.fn(),
+}));
 
 const mockJob: Job = {
   id: '123',
@@ -53,6 +59,8 @@ describe('JobDetailModal', () => {
     mockOnRename.mockClear();
     mockOnViewTranscript.mockClear();
     mockOnUpdateTags.mockClear();
+    vi.mocked(transcriptService.fetchSpeakerLabels).mockReset();
+    vi.mocked(transcriptService.updateSpeakerLabels).mockReset();
   });
 
   it('does not render when isOpen is false', () => {
@@ -316,5 +324,48 @@ describe('JobDetailModal', () => {
     );
     
     expect(screen.getByText(/view transcript/i)).toBeInTheDocument();
+  });
+
+  it('renders speaker rename controls when speaker labels are available', async () => {
+    vi.mocked(transcriptService.fetchSpeakerLabels).mockResolvedValue({
+      speakers: ['SPEAKER_00', 'SPEAKER_01'],
+    });
+    vi.mocked(transcriptService.updateSpeakerLabels).mockResolvedValue({
+      speakers: ['Lisa', 'Bob'],
+    });
+
+    render(
+      <JobDetailModal
+        isOpen={true}
+        onClose={mockOnClose}
+        job={{ ...mockJob, has_speaker_labels: true, speaker_count: 2 }}
+        onPlay={mockOnPlay}
+        onDownload={mockOnDownload}
+        onRestart={mockOnRestart}
+        onDelete={mockOnDelete}
+        onStop={mockOnStop}
+        onRename={mockOnRename}
+        onViewTranscript={mockOnViewTranscript}
+        onUpdateTags={mockOnUpdateTags}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/speaker names/i)).toBeInTheDocument();
+    });
+
+    const inputs = screen.getAllByPlaceholderText(/speaker name/i);
+    expect(inputs).toHaveLength(2);
+    fireEvent.change(inputs[0], { target: { value: 'Lisa' } });
+    fireEvent.change(inputs[1], { target: { value: 'Bob' } });
+
+    fireEvent.click(screen.getByText(/save speaker names/i));
+
+    await waitFor(() => {
+      expect(transcriptService.updateSpeakerLabels).toHaveBeenCalledWith('123', [
+        { label: 'SPEAKER_00', name: 'Lisa' },
+        { label: 'SPEAKER_01', name: 'Bob' },
+      ]);
+    });
   });
 });

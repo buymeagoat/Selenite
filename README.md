@@ -67,23 +67,13 @@ If you run manually, mirror the production settings from `scripts/bootstrap.ps1`
 - Enable weights and set defaults in the Admin UI before creating jobs.
 - If no enabled weights exist, job creation is blocked with a clear admin message.
 
-## Automated Tests
-
-Run the full suite from the repo root:
-
-```powershell
-.\scripts\run-tests.ps1
-```
-
-Common switches: `-SkipBackend`, `-SkipFrontend`, `-SkipE2E`, `-ForceBackendInstall`, `-ForceFrontendInstall`.
-
 ## Documentation
 
 - User guide: `docs/application_documentation/USER_GUIDE.md`
 - Deployment guide: `docs/application_documentation/DEPLOYMENT.md`
-- API contracts: `docs/API_CONTRACTS.md`
-- Component specs: `docs/COMPONENT_SPECS.md`
-- Development plan: `docs/build/DEVELOPMENT_PLAN.md`
+- Release runbook: `docs/application_documentation/RELEASE_RUNBOOK.md`
+- Changelog: `docs/application_documentation/CHANGELOG.md`
+- Diarization setup: `docs/application_documentation/PYANNOTE_SETUP.md`
 
 ## Project Structure
 
@@ -106,11 +96,6 @@ Selenite/
   README.md
 ```
 
-## Roadmap
-
-Future enhancements are tracked in `docs/build/PRODUCTION_TASKS.md` under "Future Enhancements (Post-MVP)".
-
 ## Support
 
 - Issues: https://github.com/buymeagoat/Selenite/issues
-

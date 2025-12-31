@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DOC_TARGETS = {"docs/pre-build/API_CONTRACTS.md"}
+DOC_TARGETS = {"docs/application_documentation/CHANGELOG.md"}
 WATCHED_PREFIXES = {
     "backend/app/routes/",
     "backend/app/schemas/",

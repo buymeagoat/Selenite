@@ -12,8 +12,9 @@ param(
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8100,   # Backend port
+    [int]$FrontendPort = 5173, # Frontend port
     [string]$BindIP = "0.0.0.0",  # Bind address for backend/frontend (0.0.0.0 listens on all)
-    [string]$ApiBase = "",          # VITE_API_URL; defaults to http://<BindIP>:8100 when empty
+    [string]$ApiBase = "",          # VITE_API_URL; defaults to http://<BindIP>:<BindPort> when empty
     [string[]]$AdvertiseHosts = @()  # Additional hosts/IPs to advertise for CORS + docs (e.g., LAN + Tailscale)
 )
 
@@ -25,9 +26,10 @@ Set-Location $Root
 $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $BackendLogDir = Join-Path $BackendDir 'logs'
-$MediaDir = Join-Path $Root 'storage\media'
-$TranscriptDir = Join-Path $Root 'storage\transcripts'
-$BackupDir = Join-Path $Root 'storage\backups'
+$StorageRoot = Join-Path $Root 'storage'
+$MediaDir = Join-Path $StorageRoot 'media'
+$TranscriptDir = Join-Path $StorageRoot 'transcripts'
+$BackupDir = Join-Path $StorageRoot 'backups'
 $ApiBaseResolved = $null
 New-Item -ItemType Directory -Force -Path $BackendLogDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
@@ -59,17 +61,23 @@ function Invoke-SqliteGuard {
 
 function Get-CorsOriginList {
     param(
-        [string[]]$AdvertisedHosts
+        [string[]]$AdvertisedHosts,
+        [int]$UiPort
     )
     $origins = [System.Collections.Generic.List[string]]::new()
-    foreach ($origin in @("http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000")) {
+    foreach ($origin in @(
+        "http://localhost:$UiPort",
+        "http://127.0.0.1:$UiPort",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    )) {
         if (-not $origins.Contains($origin)) { $origins.Add($origin) }
     }
     $hostSet = $AdvertisedHosts | Where-Object { $_ } | Select-Object -Unique
     foreach ($hostEntry in $hostSet) {
         $normalized = Normalize-HostEntry -Value $hostEntry
         if (-not $normalized) { continue }
-        foreach ($port in 5173,3000) {
+        foreach ($port in @($UiPort, 3000)) {
             $origin = "http://$normalized`:$port"
             if (-not $origins.Contains($origin)) { $origins.Add($origin) }
         }
@@ -203,9 +211,17 @@ if (-not $SkipPreflight) {
             $expectedFull = if ($expectedResolved) { $expectedResolved.Path } else { $ExpectedPath }
             $dbs = Get-ChildItem -Path $Root -Filter "selenite.db" -Recurse -ErrorAction SilentlyContinue
             $rogue = if ($expectedResolved) {
-                $dbs | Where-Object { $_.FullName -ne $expectedFull }
+                $dbs | Where-Object {
+                    $_.FullName -ne $expectedFull -and
+                    $_.FullName -notmatch "\\storage\\backups\\" -and
+                    $_.FullName -notmatch "\\scratch\\"
+                }
             } else {
-                $dbs # Any existing DB is unexpected if the authoritative one does not exist yet
+                # Any existing DB is unexpected if the authoritative one does not exist yet.
+                $dbs | Where-Object {
+                    $_.FullName -notmatch "\\storage\\backups\\" -and
+                    $_.FullName -notmatch "\\scratch\\"
+                }
             }
             if ($rogue) {
                 Write-Host "Multiple selenite.db files detected; expected only $expectedFull" -ForegroundColor Red
@@ -279,8 +295,8 @@ if (-not $SkipPreflight) {
         }
         # If port is still in use later, we will kill by port regardless of repo match
 
-        # Kill any process bound to common ports (8100 backend, 5173 frontend)
-        Stop-PortListeners -Ports @($BindPort, 5173)
+        # Kill any process bound to the requested ports
+        Stop-PortListeners -Ports @($BindPort, $FrontendPort)
 
         # If backend port is still busy after cleanup, confirm bindability; if not, fall back to free port
         $stillBusy = Get-NetTCPConnection -LocalPort $BindPort -State Listen -ErrorAction SilentlyContinue
@@ -325,7 +341,7 @@ $AdvertisedHostList = @(
 if (-not $AdvertisedHostList -or $AdvertisedHostList.Length -eq 0) {
     $AdvertisedHostList = @('localhost','127.0.0.1')
 }
-$CorsOrigins = Get-CorsOriginList -AdvertisedHosts $AdvertisedHostList
+$CorsOrigins = Get-CorsOriginList -AdvertisedHosts $AdvertisedHostList -UiPort $FrontendPort
 $advertisedDisplay = $AdvertisedHostList -join ', '
 Write-Host "Advertised API hosts: $advertisedDisplay" -ForegroundColor Yellow
 $nonDefaultHosts = @($AdvertisedHostList | Where-Object { $_ -notin @('localhost','127.0.0.1') })
@@ -439,10 +455,10 @@ Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \ 
 Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
 Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
 $viteEnvLine
-npm run start:prod -- --host $BindIP --port 5173 --strictPort
+npm run start:prod -- --host $BindIP --port $FrontendPort --strictPort
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd
-    Write-Host "Frontend starting on http://$BindIP`:5173 (check new window)." -ForegroundColor Green
+    Write-Host "Frontend starting on http://$BindIP`:$FrontendPort (check new window)." -ForegroundColor Green
 }
 
 Invoke-Step "Verify backend via smoke test" {

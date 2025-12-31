@@ -5,6 +5,11 @@ import { ConfirmDialog } from './ConfirmDialog';
 import type { Job } from '../../services/jobs';
 import { createTag, type Tag } from '../../services/tags';
 import { TagInput } from '../tags/TagInput';
+import {
+  fetchSpeakerLabels,
+  updateSpeakerLabels,
+  type SpeakerLabelUpdate,
+} from '../../services/transcripts';
 import { devError } from '../../lib/debug';
 
 interface JobDetailModalProps {
@@ -63,6 +68,11 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [isRenaming, setIsRenaming] = useState(false);
   const [editableTags, setEditableTags] = useState<TagOption[]>(job.tags);
   const [tagCatalog, setTagCatalog] = useState<TagOption[]>(() => mergeTags(job.tags, resolvedAvailableTags));
+  const [speakerLabels, setSpeakerLabels] = useState<string[]>([]);
+  const [speakerEdits, setSpeakerEdits] = useState<SpeakerLabelUpdate[]>([]);
+  const [speakerLoading, setSpeakerLoading] = useState(false);
+  const [speakerSaving, setSpeakerSaving] = useState(false);
+  const [speakerError, setSpeakerError] = useState('');
 
   const stripExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
 
@@ -77,7 +87,41 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
     setRenameError('');
     setShowRenameModal(false);
     setIsRenaming(false);
+    setSpeakerLabels([]);
+    setSpeakerEdits([]);
+    setSpeakerError('');
+    setSpeakerLoading(false);
+    setSpeakerSaving(false);
   }, [isOpen, job, resolvedAvailableTags]);
+
+  useEffect(() => {
+    if (!isOpen || job.status !== 'completed' || !job.has_speaker_labels) {
+      return;
+    }
+    let isActive = true;
+    setSpeakerLoading(true);
+    setSpeakerError('');
+    fetchSpeakerLabels(job.id)
+      .then((response) => {
+        if (!isActive) return;
+        setSpeakerLabels(response.speakers);
+        setSpeakerEdits(response.speakers.map((label) => ({ label, name: label })));
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setSpeakerLabels([]);
+        setSpeakerEdits([]);
+        setSpeakerError('Unable to load speaker labels.');
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setSpeakerLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isOpen, job.id, job.status, job.has_speaker_labels]);
 
   if (!isOpen) return null;
 
@@ -236,6 +280,39 @@ function parseAsUTC(value: string): Date {
     onUpdateTags(job.id, tagIds);
   };
 
+  const handleSpeakerChange = (index: number, value: string) => {
+    setSpeakerEdits((prev) =>
+      prev.map((entry, idx) => (idx === index ? { ...entry, name: value } : entry))
+    );
+  };
+
+  const handleSpeakerReset = () => {
+    setSpeakerEdits(speakerLabels.map((label) => ({ label, name: label })));
+    setSpeakerError('');
+  };
+
+  const handleSpeakerSave = async () => {
+    const trimmedUpdates = speakerEdits
+      .map((entry) => ({ label: entry.label.trim(), name: entry.name.trim() }))
+      .filter((entry) => entry.label && entry.name);
+    if (trimmedUpdates.length === 0) {
+      setSpeakerError('Enter a name for each speaker.');
+      return;
+    }
+    setSpeakerSaving(true);
+    setSpeakerError('');
+    try {
+      const response = await updateSpeakerLabels(job.id, trimmedUpdates);
+      setSpeakerLabels(response.speakers);
+      setSpeakerEdits(response.speakers.map((label) => ({ label, name: label })));
+    } catch (error) {
+      devError('Speaker rename failed', error);
+      setSpeakerError('Failed to update speaker names.');
+    } finally {
+      setSpeakerSaving(false);
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" data-testid="job-detail-modal">
@@ -324,6 +401,66 @@ function parseAsUTC(value: string): Date {
                 </div>
               </div>
             </div>
+
+            {job.status === 'completed' && job.has_speaker_labels && (
+              <div className="mb-6" data-testid="speaker-names-section">
+                <div className="text-sm text-pine-mid mb-2">Speaker names</div>
+                {speakerLoading && (
+                  <div className="text-xs text-pine-mid mb-2">Loading speaker labels...</div>
+                )}
+                {speakerError && (
+                  <div className="text-xs text-rose-600 mb-2">{speakerError}</div>
+                )}
+                {!speakerLoading && !speakerError && speakerEdits.length === 0 && (
+                  <div className="text-xs text-pine-mid mb-2">No speaker labels detected.</div>
+                )}
+                {speakerEdits.length > 0 && (
+                  <div className="space-y-3">
+                    {speakerEdits.map((entry, index) => (
+                      <div
+                        key={`${entry.label}-${index}`}
+                        className="flex flex-col sm:flex-row sm:items-center gap-2"
+                      >
+                        <span className="text-xs text-pine-mid w-28 shrink-0">{entry.label}</span>
+                        <input
+                          type="text"
+                          value={entry.name}
+                          onChange={(event) => handleSpeakerChange(index, event.target.value)}
+                          className="flex-1 rounded-md border border-gray-200 px-3 py-2 text-sm text-pine-deep focus:outline-none focus:ring-2 focus:ring-sage-mid"
+                          placeholder="Speaker name"
+                        />
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSpeakerSave}
+                        disabled={speakerSaving || speakerLoading}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          speakerSaving || speakerLoading
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-forest-green text-white hover:bg-pine-deep'
+                        }`}
+                      >
+                        {speakerSaving ? 'Saving...' : 'Save speaker names'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSpeakerReset}
+                        disabled={speakerSaving || speakerLoading}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          speakerSaving || speakerLoading
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gray-100 text-pine-deep hover:bg-gray-200'
+                        }`}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tags Section (view & edit) */}
             <div className="mb-6" data-testid="job-tags-section">

@@ -613,7 +613,7 @@ Optional flags:
 ## Release Runbook
 
 Use the formal release process before merging to `main`:
-- `docs/build/RELEASE_RUNBOOK.md`
+- `docs/application_documentation/RELEASE_RUNBOOK.md`
 
 ## Security Hardening
 

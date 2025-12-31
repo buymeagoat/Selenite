@@ -20,15 +20,6 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
     key: 'color' | 'name' | 'jobs' | null;
     direction: 'asc' | 'desc';
   }>({ key: null, direction: 'asc' });
-  if (tags.length === 0) {
-    return (
-      <div className="text-center py-12 border border-sage-mid rounded-lg bg-white" data-testid="tag-list">
-        <div className="text-5xl mb-3">🏷️</div>
-        <p className="text-pine-mid">No tags created yet</p>
-        <p className="text-sm text-pine-mid mt-1">Create tags to organize your transcriptions</p>
-      </div>
-    );
-  }
 
   const sortedTags = useMemo(() => {
     if (!sortState.key) return tags;
@@ -76,6 +67,16 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
     const status = sortState.key === key ? sortState.direction : 'none';
     return `Sort by ${key} (${status})`;
   };
+
+  if (tags.length === 0) {
+    return (
+      <div className="text-center py-12 border border-sage-mid rounded-lg bg-white" data-testid="tag-list">
+        <div className="text-5xl mb-3">🏷️</div>
+        <p className="text-pine-mid">No tags created yet</p>
+        <p className="text-sm text-pine-mid mt-1">Create tags to organize your transcriptions</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border border-sage-mid rounded-lg overflow-hidden" data-testid="tag-list">

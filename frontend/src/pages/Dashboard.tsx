@@ -597,12 +597,13 @@ export const Dashboard: React.FC = () => {
         let counter = 1;
         for (const job of selectedJobs) {
           let candidate = '';
-          while (true) {
+          let found = false;
+          while (!found) {
             candidate = `${trimmed}-${String(counter).padStart(2, '0')}`;
             counter += 1;
             if (!existingBases.has(candidate.toLowerCase())) {
               existingBases.add(candidate.toLowerCase());
-              break;
+              found = true;
             }
           }
           await renameJob(job.id, candidate);

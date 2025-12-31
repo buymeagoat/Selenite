@@ -199,6 +199,46 @@ async def create_job_with_transcript(user_id: int, tmp_path, status: str = "comp
         return job
 
 
+async def create_job_with_speaker_transcript(user_id: int, tmp_path) -> Job:
+    transcript_file = tmp_path / f"{uuid4()}.txt"
+    metadata = {
+        "text": "[00:00.00 - 00:01.00] SPEAKER_00: hello\n[00:01.00 - 00:02.00] SPEAKER_01: world",
+        "language": "en",
+        "duration": 2.0,
+        "segments": [
+            {"id": 1, "start": 0.0, "end": 1.0, "text": "hello", "speaker": "SPEAKER_00"},
+            {"id": 2, "start": 1.0, "end": 2.0, "text": "world", "speaker": "SPEAKER_01"},
+        ],
+        "options": {"has_timestamps": True, "has_speaker_labels": True},
+    }
+    transcript_file.write_text(metadata["text"], encoding="utf-8")
+    transcript_file.with_suffix(".json").write_text(
+        json.dumps(metadata, ensure_ascii=False), encoding="utf-8"
+    )
+
+    async with AsyncSessionLocal() as session:
+        job = Job(
+            id=str(uuid4()),
+            user_id=user_id,
+            original_filename="speakers.mp3",
+            saved_filename="speakers.mp3",
+            file_path="/tmp/speakers.mp3",
+            file_size=256,
+            mime_type="audio/mpeg",
+            status="completed",
+            progress_percent=100,
+            transcript_path=str(transcript_file),
+            language_detected="en",
+            duration=2.0,
+            has_timestamps=True,
+            has_speaker_labels=True,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        return job
+
+
 @pytest.mark.asyncio
 class TestTranscriptRoutes:
     async def test_get_transcript_and_export_all_formats(self, test_db, auth_headers):
@@ -336,6 +376,38 @@ class TestTranscriptRoutes:
             )
             assert export_resp.status_code == 200
             assert "Actual transcript text" in export_resp.text
+
+    async def test_update_speaker_labels(self, test_db, auth_headers, tmp_path):
+        job = await create_job_with_speaker_transcript(user_id=1, tmp_path=tmp_path)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            speakers_resp = await client.get(
+                f"/transcripts/{job.id}/speakers", headers=auth_headers
+            )
+            assert speakers_resp.status_code == 200
+            assert speakers_resp.json()["speakers"] == ["SPEAKER_00", "SPEAKER_01"]
+
+            update_resp = await client.patch(
+                f"/transcripts/{job.id}/speakers",
+                headers=auth_headers,
+                json={
+                    "updates": [
+                        {"label": "SPEAKER_00", "name": "Lisa"},
+                        {"label": "SPEAKER_01", "name": "Bob"},
+                    ]
+                },
+            )
+            assert update_resp.status_code == 200
+            assert update_resp.json()["speakers"] == ["Lisa", "Bob"]
+
+            transcript_resp = await client.get(f"/transcripts/{job.id}", headers=auth_headers)
+            assert transcript_resp.status_code == 200
+            body = transcript_resp.json()
+            assert "Lisa:" in body["text"]
+            assert "Bob:" in body["text"]
+            speakers = [seg["speaker"] for seg in body["segments"]]
+            assert speakers == ["Lisa", "Bob"]
 
 
 def test_load_transcript_missing_path():

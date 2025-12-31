@@ -75,4 +75,4 @@ Write-Host "`n=== Share with mobile tester ===" -ForegroundColor Cyan
 Write-Host "Frontend UI : http://${testIP}:5173/" -ForegroundColor Cyan
 Write-Host "Health check: http://${testIP}:8100/health" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "If the tester reports failures, have them capture the Technical Details drawer in the UI and follow docs/build/DEBUG_MOBILE_QUICK.md." -ForegroundColor Yellow
+Write-Host "If the tester reports failures, capture the Technical Details drawer in the UI and review docs/application_documentation/USER_GUIDE.md under Troubleshooting." -ForegroundColor Yellow

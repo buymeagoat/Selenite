@@ -75,6 +75,25 @@ If you run manually, mirror the production settings from `scripts/bootstrap.ps1`
 - Changelog: `docs/application_documentation/CHANGELOG.md`
 - Diarization setup: `docs/application_documentation/PYANNOTE_SETUP.md`
 
+## Documentation Scope (Prod vs Dev)
+
+This repository (prod) only keeps **operations** documentation. Development, build, testing, and memorialization artifacts live in the dev repo (`Selenite-dev`).
+
+**Prod keeps (ops-only):**
+- `README.md`
+- `docs/application_documentation/*`
+
+**Dev keeps (build/test/guidance):**
+- `docs/build/**`
+- `docs/pre-build/**`
+- `docs/memorialization/**`
+- `AGENTS.md`, `docs/AI_COLLAB_CHARTER.md`
+- `docs/API_CONTRACTS.md`, `docs/COMPONENT_SPECS.md`, `docs/openapi.json`
+
+**Artifacts policy:**
+- `.last_tests_run` and `docs/memorialization/**` are **dev-only** and should not be committed in prod.
+- If tests are run from the prod repo, move any memorialization output to `Selenite-dev` before pushing.
+
 ## Project Structure
 
 ```

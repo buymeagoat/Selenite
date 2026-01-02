@@ -11,6 +11,8 @@ import {
   fetchJobs,
   createJob,
   cancelJob,
+  pauseJob,
+  resumeJob,
   deleteJob,
   assignTag,
   removeTag,
@@ -251,7 +253,7 @@ export const Dashboard: React.FC = () => {
 
   // Poll for job updates (fast when active, slow when idle)
   const hasProcessingJobs = jobs.some(
-    (j) => j.status === 'processing' || j.status === 'queued' || j.status === 'cancelling'
+    (j) => ['processing', 'queued', 'cancelling', 'pausing'].includes(j.status)
   );
   const shouldPoll = !streamActive || streamStale;
   const pollingIntervalMs = hasProcessingJobs ? 2000 : 15000;
@@ -736,6 +738,66 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handlePause = async (jobId: string) => {
+    try {
+      await pauseJob(jobId);
+      showSuccess('Pause requested');
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJob = jobsResponse.items.find((j) => j.id === jobId);
+        if (updatedJob) {
+          setSelectedJob({
+            ...updatedJob,
+            file_size: updatedJob.file_size || selectedJob.file_size,
+            duration: updatedJob.duration || selectedJob.duration,
+            model_used: updatedJob.model_used || selectedJob.model_used,
+            language_detected: updatedJob.language_detected || selectedJob.language_detected,
+            speaker_count: updatedJob.speaker_count || selectedJob.speaker_count,
+            completed_at: updatedJob.completed_at || selectedJob.completed_at,
+          });
+        }
+      }
+    } catch (error) {
+      devError('Failed to pause job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to pause job: ${error.message}`);
+      } else {
+        showError('Failed to pause job. Please try again.');
+      }
+    }
+  };
+
+  const handleResume = async (jobId: string) => {
+    try {
+      await resumeJob(jobId);
+      showSuccess('Job resumed');
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJob = jobsResponse.items.find((j) => j.id === jobId);
+        if (updatedJob) {
+          setSelectedJob({
+            ...updatedJob,
+            file_size: updatedJob.file_size || selectedJob.file_size,
+            duration: updatedJob.duration || selectedJob.duration,
+            model_used: updatedJob.model_used || selectedJob.model_used,
+            language_detected: updatedJob.language_detected || selectedJob.language_detected,
+            speaker_count: updatedJob.speaker_count || selectedJob.speaker_count,
+            completed_at: updatedJob.completed_at || selectedJob.completed_at,
+          });
+        }
+      }
+    } catch (error) {
+      devError('Failed to resume job:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to resume job: ${error.message}`);
+      } else {
+        showError('Failed to resume job. Please try again.');
+      }
+    }
+  };
+
   const toggleSelect = (jobId: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -764,6 +826,34 @@ export const Dashboard: React.FC = () => {
     } catch (error) {
       devError('Bulk delete failed:', error);
       showError('Failed to delete selected jobs. Please try again.');
+    }
+  };
+
+  const handleBulkPause = async () => {
+    if (selectedIds.size === 0) return;
+    const pausable = Array.from(selectedIds)
+      .map((id) => jobs.find((job) => job.id === id))
+      .filter((job): job is Job => Boolean(job))
+      .filter(
+        (job) => ['queued', 'processing'].includes(job.status) && job.progress_stage !== 'diarizing'
+      );
+
+    if (!pausable.length) {
+      showError('No selected jobs can be paused.');
+      return;
+    }
+
+    try {
+      for (const job of pausable) {
+        await pauseJob(job.id);
+      }
+      showSuccess(`Pause requested for ${pausable.length} job(s)`);
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+      clearSelection();
+    } catch (error) {
+      devError('Bulk pause failed:', error);
+      showError('Failed to pause selected jobs. Please try again.');
     }
   };
 
@@ -899,7 +989,10 @@ export const Dashboard: React.FC = () => {
     [jobs, selectedIds]
   );
   const hasActiveSelection = selectedJobs.some((job) =>
-    ['processing', 'cancelling'].includes(job.status)
+    ['processing', 'cancelling', 'pausing'].includes(job.status)
+  );
+  const hasPausableSelection = selectedJobs.some((job) =>
+    ['queued', 'processing'].includes(job.status)
   );
 
   const filteredJobs = useMemo(() => {
@@ -910,7 +1003,7 @@ export const Dashboard: React.FC = () => {
     }
     if (filters.status) {
       if (filters.status === 'in_progress') {
-        data = data.filter(j => ['queued', 'processing', 'cancelling'].includes(j.status));
+        data = data.filter(j => ['queued', 'processing', 'cancelling', 'pausing'].includes(j.status));
       } else {
         data = data.filter(j => j.status === filters.status);
       }
@@ -1154,6 +1247,13 @@ export const Dashboard: React.FC = () => {
                   Delete
                 </button>
                 <button
+                  onClick={handleBulkPause}
+                  className="px-3 py-2 bg-sage-light text-pine-deep rounded hover:bg-sage-mid text-sm disabled:opacity-50"
+                  disabled={!hasPausableSelection}
+                >
+                  Pause
+                </button>
+                <button
                   onClick={() => setIsBulkDownloadModalOpen(true)}
                   className="px-3 py-2 bg-forest-green text-white rounded hover:bg-pine-deep text-sm disabled:opacity-50"
                   disabled={isBulkDownloadSubmitting}
@@ -1254,6 +1354,8 @@ export const Dashboard: React.FC = () => {
         onRestart={handleRestart}
         onDelete={handleDelete}
         onStop={handleStop}
+        onPause={handlePause}
+        onResume={handleResume}
         onRename={handleRenameJob}
         onViewTranscript={handleViewTranscript}
         onUpdateTags={handleUpdateTags}

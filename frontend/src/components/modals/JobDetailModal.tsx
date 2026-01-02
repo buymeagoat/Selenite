@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Play, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle, Pencil } from 'lucide-react';
+import { X, Play, Pause, FileText, Download, RotateCw, Trash2, ChevronDown, StopCircle, Pencil } from 'lucide-react';
 import { StatusBadge } from '../jobs/StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Job } from '../../services/jobs';
@@ -21,6 +21,8 @@ interface JobDetailModalProps {
   onRestart: (jobId: string) => void;
   onDelete: (jobId: string) => void;
   onStop: (jobId: string) => void;
+  onPause: (jobId: string) => void;
+  onResume: (jobId: string) => void;
   onRename: (jobId: string, name: string) => Promise<void> | void;
   onViewTranscript: (jobId: string) => void;
   onUpdateTags: (jobId: string, tagIds: number[]) => void;
@@ -51,6 +53,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onRestart,
   onDelete,
   onStop,
+  onPause,
+  onResume,
   onRename,
   onViewTranscript,
   onUpdateTags,
@@ -127,22 +131,40 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
   // UI Logic: Determine what actions are available based on job status
   const hasTranscript = job.status === 'completed';
-const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
-const canDelete = !['processing', 'cancelling'].includes(job.status);
-const canRename = !['processing', 'cancelling'].includes(job.status);
-const canStop = job.status === 'processing' || job.status === 'queued';
+  const canRestart = ['completed', 'failed', 'cancelled'].includes(job.status);
+  const canDelete = !['processing', 'cancelling', 'pausing'].includes(job.status);
+  const canRename = !['processing', 'cancelling', 'pausing'].includes(job.status);
+  const canStop = ['processing', 'queued', 'pausing', 'paused'].includes(job.status);
+  const isDiarizing = job.progress_stage === 'diarizing';
+  const canPause = ['processing', 'queued'].includes(job.status) && !isDiarizing;
+  const canResume = job.status === 'paused';
   const hasMedia = true; // Media always exists if job was created
-  const canPlayMedia = hasMedia && job.status !== 'processing';
+  const canPlayMedia = hasMedia && !['processing', 'pausing'].includes(job.status);
   const mediaDuration = job.duration ?? 0;
-  const processingDuration =
-    job.started_at && job.completed_at
-      ? Math.max(
-          0,
-          Math.round(
-            (parseAsUTC(job.completed_at).getTime() - parseAsUTC(job.started_at).getTime()) / 1000
-          )
-        )
-      : null;
+  const processingDuration = (() => {
+    const accumulated = job.processing_seconds ?? 0;
+    if (['processing', 'pausing', 'cancelling'].includes(job.status) && job.started_at) {
+      const elapsed = Math.max(
+        0,
+        Math.round((Date.now() - parseAsUTC(job.started_at).getTime()) / 1000)
+      );
+      return accumulated + elapsed;
+    }
+    return accumulated || null;
+  })();
+  const progressPercent =
+    typeof job.progress_percent === 'number' ? Math.max(0, Math.round(job.progress_percent)) : null;
+
+  const formatStage = (stage?: string | null) => {
+    if (stage) {
+      const normalized = stage.replace(/_/g, ' ').trim();
+      return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : undefined;
+    }
+    if (job.status === 'cancelling') return 'Cancelling';
+    if (job.status === 'pausing') return 'Pausing';
+    if (job.status === 'paused') return 'Paused';
+    return 'Processing';
+  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -400,6 +422,15 @@ function parseAsUTC(value: string): Date {
                   {processingDuration !== null ? formatDuration(processingDuration) : 'Unknown'}
                 </div>
               </div>
+              {['processing', 'pausing', 'paused', 'cancelling'].includes(job.status) && (
+                <div>
+                  <div className="text-sm text-pine-mid">Current stage</div>
+                  <div className="text-base font-medium text-pine-deep">
+                    {formatStage(job.progress_stage)}
+                    {progressPercent !== null ? ` (${progressPercent}%)` : ''}
+                  </div>
+                </div>
+              )}
             </div>
 
             {job.status === 'completed' && job.has_speaker_labels && (
@@ -484,6 +515,16 @@ function parseAsUTC(value: string): Date {
             {job.status === 'cancelling' && (
               <p className="text-xs text-amber-700 mb-4">
                 Cancellation requested. This job will stop once the current step finishes.
+              </p>
+            )}
+            {job.status === 'pausing' && (
+              <p className="text-xs text-amber-700 mb-4">
+                Pause requested. This job will stop once the current step finishes.
+              </p>
+            )}
+            {job.status === 'paused' && (
+              <p className="text-xs text-amber-700 mb-4">
+                This job is paused. Resume to continue processing.
               </p>
             )}
 
@@ -580,6 +621,26 @@ function parseAsUTC(value: string): Date {
                 >
                   <StopCircle className="w-5 h-5" />
                   <span>Stop Transcription</span>
+                </button>
+              )}
+
+              {canPause && (
+                <button
+                  onClick={() => onPause(job.id)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-sage-light text-pine-deep rounded-lg hover:bg-sage-mid transition-colors"
+                >
+                  <Pause className="w-5 h-5" />
+                  <span>Pause Transcription</span>
+                </button>
+              )}
+
+              {canResume && (
+                <button
+                  onClick={() => onResume(job.id)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
+                >
+                  <Play className="w-5 h-5" />
+                  <span>Resume Transcription</span>
                 </button>
               )}
 

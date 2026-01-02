@@ -14,21 +14,21 @@ describe('StatusBadge', () => {
     render(<StatusBadge status="processing" />);
     const badge = screen.getByText('Processing');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-black', 'text-white');
+    expect(badge).toHaveClass('bg-sky-600', 'text-white');
   });
 
   it('renders completed status with high contrast', () => {
     render(<StatusBadge status="completed" />);
     const badge = screen.getByText('Completed');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-black', 'text-white');
+    expect(badge).toHaveClass('bg-emerald-600', 'text-white');
   });
 
   it('renders failed status with high contrast', () => {
     render(<StatusBadge status="failed" />);
     const badge = screen.getByText('Failed');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-black', 'text-white');
+    expect(badge).toHaveClass('bg-red-600', 'text-white');
   });
 
   it('supports different sizes', () => {

@@ -78,6 +78,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
   const statusLabelMap: Record<string, string> = {
     in_progress: 'In Progress',
     cancelling: 'Cancelling',
+    paused: 'Paused',
     completed: 'Completed',
     failed: 'Failed',
     cancelled: 'Cancelled',
@@ -118,7 +119,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
         </button>
         {openDropdown === 'status' && (
           <div className="absolute left-0 top-full z-20 mt-1 bg-white border border-sage-mid rounded-lg shadow-md p-2 w-40">
-            {['All', 'In Progress', 'Cancelling', 'Completed', 'Failed', 'Cancelled'].map(label => (
+            {['All', 'In Progress', 'Paused', 'Cancelling', 'Completed', 'Failed', 'Cancelled'].map(label => (
               <button
                 key={label}
                 className="w-full text-left px-2 py-1 rounded text-sm hover:bg-sage-light"

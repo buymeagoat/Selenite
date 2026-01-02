@@ -32,6 +32,13 @@ function Add-Failure($msg) {
 
 Write-Info "Running guardrail checks..."
 
+# Workspace guard: prevent accidental prod edits without explicit acknowledgement.
+try {
+    & (Join-Path $repoRoot "scripts\workspace-guard.ps1")
+} catch {
+    Add-Failure $_.Exception.Message
+}
+
 function Should-ExcludePath {
     param([string]$Path)
     $fragments = @(

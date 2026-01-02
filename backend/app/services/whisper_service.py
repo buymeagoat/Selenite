@@ -8,6 +8,7 @@ import asyncio
 from contextlib import suppress
 from datetime import datetime
 import json
+import math
 import logging
 import os
 from pathlib import Path
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 # Global model cache to avoid reloading
 _model_cache: Dict[str, Any] = {}
 _model_lock = asyncio.Lock()
+CHECKPOINT_VERSION = 1
+DEFAULT_CHUNK_SECONDS = 10
 
 
 class WhisperService:
@@ -53,8 +56,15 @@ class WhisperService:
     def _is_cancelled_state(self, job: Job) -> bool:
         return job.status in {"cancelled", "cancelling"}
 
+    def _is_pause_state(self, job: Job) -> bool:
+        return job.status in {"paused", "pausing"}
+
     async def _finalize_cancellation(self, job: Job, db: AsyncSession, context: str) -> None:
         """Finalize a cancellation by ensuring consistent state and logging."""
+        if job.started_at:
+            job.processing_seconds = int(job.processing_seconds or 0) + int(
+                (datetime.utcnow() - job.started_at).total_seconds()
+            )
         job.status = "cancelled"
         job.progress_stage = None
         job.estimated_time_left = None
@@ -63,10 +73,32 @@ class WhisperService:
         await db.commit()
         logger.info(f"Job {job.id} cancellation acknowledged ({context})")
 
+    async def _finalize_pause(self, job: Job, db: AsyncSession, context: str) -> None:
+        """Finalize a pause by ensuring consistent state and logging."""
+        if job.started_at:
+            job.processing_seconds = int(job.processing_seconds or 0) + int(
+                (datetime.utcnow() - job.started_at).total_seconds()
+            )
+        job.status = "paused"
+        job.paused_at = job.paused_at or datetime.utcnow()
+        job.progress_stage = "paused"
+        job.estimated_time_left = None
+        await db.commit()
+        logger.info("Job %s pause acknowledged (%s)", job.id, context)
+
     async def _abort_if_cancelled(self, job: Job, db: AsyncSession, context: str) -> bool:
         await db.refresh(job)
         if self._is_cancelled_state(job):
             await self._finalize_cancellation(job, db, context)
+            return True
+        return False
+
+    async def _abort_if_pausing(self, job: Job, db: AsyncSession, context: str) -> bool:
+        await db.refresh(job)
+        if job.status == "pausing":
+            await self._finalize_pause(job, db, context)
+            return True
+        if job.status == "paused":
             return True
         return False
 
@@ -292,6 +324,66 @@ class WhisperService:
         out = ffmpeg.output(stream, str(dst), format="wav", acodec="pcm_s16le")
         ffmpeg.run(out, overwrite_output=True, quiet=True)
         return dst
+
+    def _checkpoint_root(self, job_id: str) -> Path:
+        return Path(settings.transcript_storage_path) / job_id
+
+    def _checkpoint_path(self, job_id: str) -> Path:
+        return self._checkpoint_root(job_id) / "checkpoint.json"
+
+    def _chunk_dir(self, job_id: str) -> Path:
+        return self._checkpoint_root(job_id) / "chunks"
+
+    def _load_checkpoint(self, path: Path) -> Optional[Dict[str, Any]]:
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception as exc:
+            logger.warning("Failed to read checkpoint %s: %s", path, exc)
+        return None
+
+    def _write_checkpoint(self, path: Path, payload: Dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    def _build_checkpoint(
+        self,
+        job: Job,
+        *,
+        audio_path: str,
+        model_name: str,
+        language: Optional[str],
+        chunk_seconds: int,
+        total_duration: float,
+    ) -> Dict[str, Any]:
+        return {
+            "version": CHECKPOINT_VERSION,
+            "job_id": job.id,
+            "audio_path": audio_path,
+            "model_name": model_name,
+            "language": language,
+            "chunk_seconds": chunk_seconds,
+            "total_duration": total_duration,
+            "next_index": 0,
+            "segments": [],
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+    def _render_chunk(
+        self, audio_path: str, chunk_path: Path, *, start: float, duration: float
+    ) -> None:
+        try:
+            import ffmpeg  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError("ffmpeg-python not installed") from exc
+
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        stream = ffmpeg.input(str(audio_path), ss=start, t=duration)
+        out = ffmpeg.output(stream, str(chunk_path), format="wav", acodec="pcm_s16le")
+        ffmpeg.run(out, overwrite_output=True, quiet=True)
 
     def _diarizer_available(self, record) -> bool:
         if not record:
@@ -603,6 +695,163 @@ class WhisperService:
             return await self._run_vad_diarization(audio_path, record)
         raise RuntimeError(f"Unsupported diarizer provider: {provider or 'unknown'}")
 
+    async def _transcribe_with_checkpoints(
+        self,
+        job: Job,
+        db: AsyncSession,
+        *,
+        audio_path: str,
+        model_name: str,
+        language: Optional[str],
+        enable_timestamps: bool,
+        model_obj: Any,
+    ) -> Optional[Dict[str, Any]]:
+        checkpoint_path = self._checkpoint_path(job.id)
+        checkpoint = self._load_checkpoint(checkpoint_path)
+
+        total_duration = None
+        if checkpoint:
+            total_duration = checkpoint.get("total_duration")
+        if not total_duration:
+            total_duration = self._probe_duration_seconds(Path(audio_path)) or job.duration
+        if not total_duration:
+            total_duration = float(settings.default_estimated_duration_seconds)
+
+        chunk_seconds = (
+            int(checkpoint.get("chunk_seconds", DEFAULT_CHUNK_SECONDS))
+            if checkpoint
+            else DEFAULT_CHUNK_SECONDS
+        )
+        if not checkpoint:
+            checkpoint = self._build_checkpoint(
+                job,
+                audio_path=audio_path,
+                model_name=model_name,
+                language=language,
+                chunk_seconds=chunk_seconds,
+                total_duration=float(total_duration),
+            )
+        checkpoint.setdefault("segments", [])
+        checkpoint.setdefault("next_index", 0)
+        checkpoint["audio_path"] = audio_path
+        checkpoint["model_name"] = model_name
+        if language:
+            checkpoint["language"] = language
+
+        job.checkpoint_path = str(checkpoint_path)
+        await db.commit()
+
+        total_chunks = max(1, int(math.ceil(float(total_duration) / chunk_seconds)))
+        next_index = int(checkpoint.get("next_index") or 0)
+        segments: list[Dict[str, Any]] = checkpoint["segments"]
+        if next_index >= total_chunks:
+            logger.info(
+                "Job %s checkpoint already complete (chunk %s of %s); proceeding to finalization",
+                job.id,
+                next_index,
+                total_chunks,
+            )
+        elif next_index > 0:
+            logger.info(
+                "Job %s resuming transcription from checkpoint chunk %s of %s",
+                job.id,
+                next_index,
+                total_chunks,
+            )
+        else:
+            logger.info("Job %s starting transcription from chunk 0 of %s", job.id, total_chunks)
+
+        for index in range(next_index, total_chunks):
+            if await self._abort_if_cancelled(job, db, f"checkpoint chunk {index}"):
+                return None
+            if await self._abort_if_pausing(job, db, f"checkpoint chunk {index}"):
+                checkpoint["updated_at"] = datetime.utcnow().isoformat()
+                self._write_checkpoint(checkpoint_path, checkpoint)
+                return None
+
+            start = index * chunk_seconds
+            duration = max(0.0, min(chunk_seconds, float(total_duration) - start))
+            chunk_path = self._chunk_dir(job.id) / f"chunk-{index:04d}.wav"
+            if not chunk_path.exists():
+                try:
+                    self._render_chunk(audio_path, chunk_path, start=start, duration=duration)
+                except Exception as exc:
+                    logger.warning(
+                        "Chunk render failed for job %s (index %s): %s. Falling back to full-file transcription.",
+                        job.id,
+                        index,
+                        exc,
+                    )
+                    transcript_result = await self.transcribe_audio(
+                        audio_path=audio_path,
+                        model_name=model_name,
+                        language=language,
+                        enable_timestamps=enable_timestamps,
+                        enable_speaker_detection=False,
+                        model_obj=model_obj,
+                    )
+                    if checkpoint_path.exists():
+                        with suppress(Exception):
+                            checkpoint_path.unlink()
+                    job.checkpoint_path = None
+                    await db.commit()
+                    return transcript_result
+
+            chunk_result = await self.transcribe_audio(
+                audio_path=str(chunk_path),
+                model_name=model_name,
+                language=language,
+                enable_timestamps=enable_timestamps,
+                enable_speaker_detection=False,
+                model_obj=model_obj,
+            )
+
+            offset = start
+            for seg in chunk_result.get("segments", []):
+                segments.append(
+                    {
+                        "id": seg.get("id"),
+                        "start": float(seg.get("start", 0.0)) + offset,
+                        "end": float(seg.get("end", 0.0)) + offset,
+                        "text": seg.get("text", ""),
+                        "speaker": seg.get("speaker"),
+                    }
+                )
+
+            if not checkpoint.get("language"):
+                checkpoint["language"] = chunk_result.get("language")
+
+            checkpoint["segments"] = segments
+            checkpoint["next_index"] = index + 1
+            checkpoint["updated_at"] = datetime.utcnow().isoformat()
+            self._write_checkpoint(checkpoint_path, checkpoint)
+
+            asr_seconds, _, total_seconds = self._estimate_stage_seconds(
+                job, duration_hint=total_duration
+            )
+            asr_weight = asr_seconds / total_seconds if total_seconds else 1.0
+            progress_ratio = (index + 1) / total_chunks
+            estimated_progress = int(progress_ratio * asr_weight * 100)
+            job.progress_percent = max(int(job.progress_percent or 0), estimated_progress)
+            job.progress_stage = "transcribing"
+            job.estimated_time_left = max(int((total_chunks - index - 1) * chunk_seconds), 0)
+            job.updated_at = datetime.utcnow()
+            await db.commit()
+
+        normalized_segments = self._normalize_segments(segments)
+        formatted_text = self._format_full_text(
+            normalized_segments,
+            include_timestamps=enable_timestamps,
+            include_speakers=False,
+        )
+        transcript_result = {
+            "text": formatted_text,
+            "segments": normalized_segments,
+            "language": checkpoint.get("language") or "unknown",
+            "duration": float(total_duration),
+        }
+        return transcript_result
+
     async def process_job(self, job_id: str, db: AsyncSession) -> None:
         """Process a transcription job end-to-end.
 
@@ -622,6 +871,10 @@ class WhisperService:
         if self._is_cancelled_state(job):
             await self._finalize_cancellation(job, db, "job fetched")
             return
+        if self._is_pause_state(job):
+            if job.status == "pausing":
+                await self._finalize_pause(job, db, "job fetched")
+            return
 
         settings_result = await db.execute(
             select(UserSettings).where(UserSettings.user_id == job.user_id)
@@ -629,7 +882,6 @@ class WhisperService:
         user_settings = settings_result.scalar_one_or_none()
         system_preferences = await self._get_system_preferences(db)
 
-        progress_task: Optional[asyncio.Task] = None
         fast_path = settings.is_testing or settings.e2e_fast_transcription
         transcoded_path: Optional[Path] = None
         audio_path_for_processing: str = job.file_path
@@ -643,6 +895,10 @@ class WhisperService:
             # Check if already cancelled
             if self._is_cancelled_state(job):
                 await self._finalize_cancellation(job, db, "before processing")
+                return
+            if self._is_pause_state(job):
+                if job.status == "pausing":
+                    await self._finalize_pause(job, db, "before processing")
                 return
 
             runtime_diarizer = enforce_runtime_diarizer(
@@ -676,7 +932,7 @@ class WhisperService:
             # Stage 1: Loading model
             job.status = "processing"
             job.started_at = datetime.utcnow()
-            job.progress_percent = 10
+            job.progress_percent = 0
             job.progress_stage = "loading_model"
             job.estimated_total_seconds = (
                 job.estimated_total_seconds or self._estimate_total_seconds(job)
@@ -693,6 +949,8 @@ class WhisperService:
                 return
 
             if await self._abort_if_cancelled(job, db, "before resolving model availability"):
+                return
+            if await self._abort_if_pausing(job, db, "before resolving model availability"):
                 return
 
             # Resolve model candidates from registry (provider + entry)
@@ -785,47 +1043,66 @@ class WhisperService:
 
             if await self._abort_if_cancelled(job, db, "after selecting model"):
                 return
+            if await self._abort_if_pausing(job, db, "after selecting model"):
+                return
 
             # Stage 2: Transcribing
-            job.progress_percent = 30
+            job.progress_percent = 0
             job.progress_stage = "transcribing"
             job.estimated_time_left = job.estimated_time_left or job.estimated_total_seconds
             await db.commit()
 
-            # Nudge progress forward while Whisper transcribes (best-effort)
-            progress_task = asyncio.create_task(
-                self._drain_progress_during_transcription(job.id, cap_percent=95)
-            )
-
             if await self._abort_if_cancelled(job, db, "before transcription"):
-                if progress_task:
-                    progress_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await progress_task
+                return
+            if await self._abort_if_pausing(job, db, "before transcription"):
                 return
 
             # Perform transcription using the resolved record/path
             model_obj = await self._load_model_from_record(resolved_record)
-            transcript_result = await self.transcribe_audio(
+            transcript_result = await self._transcribe_with_checkpoints(
+                job,
+                db,
                 audio_path=audio_path_for_processing,
                 model_name=model_name,
                 language=language,
                 enable_timestamps=job.has_timestamps,
-                enable_speaker_detection=job.has_speaker_labels,
                 model_obj=model_obj,
             )
+            if transcript_result is None:
+                return
 
             diarization_attempted = False
             if job.has_speaker_labels and diarizer_ready and diarizer_record:
                 try:
+                    asr_seconds, diar_seconds, total_seconds = self._estimate_stage_seconds(
+                        job, duration_hint=job.duration
+                    )
+                    asr_weight = asr_seconds / total_seconds if total_seconds else 1.0
+                    job.progress_stage = "diarizing"
+                    diar_floor = int(asr_weight * 100)
+                    job.progress_percent = max(int(job.progress_percent or 0), diar_floor)
+                    await db.commit()
+                    diar_task = asyncio.create_task(
+                        self._drain_progress_during_diarization(
+                            job_id,
+                            start_percent=diar_floor,
+                            end_percent=95,
+                            expected_seconds=diar_seconds or 1.0,
+                        )
+                    )
                     speaker_count_hint = (
                         job.speaker_count if job.speaker_count and job.speaker_count > 1 else None
                     )
-                    diarization_result = await self._run_diarization(
-                        audio_path_for_processing,
-                        diarizer_record,
-                        speaker_count_hint=speaker_count_hint,
-                    )
+                    try:
+                        diarization_result = await self._run_diarization(
+                            audio_path_for_processing,
+                            diarizer_record,
+                            speaker_count_hint=speaker_count_hint,
+                        )
+                    finally:
+                        diar_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await diar_task
                     job.speaker_count = diarization_result.get("speaker_count") or 1
                     diarization_segments = diarization_result.get("segments") or []
                     if diarization_segments:
@@ -852,6 +1129,9 @@ class WhisperService:
                         diarizer_record.name,
                         job.speaker_count,
                     )
+                    diar_completion = int(((asr_seconds + diar_seconds) / total_seconds) * 100)
+                    diar_completion = min(max(diar_completion, diar_floor), 95)
+                    job.progress_percent = max(int(job.progress_percent or 0), diar_completion)
                     diarization_attempted = True
                 except Exception as exc:
                     logger.warning(
@@ -880,20 +1160,12 @@ class WhisperService:
             transcript_result["duration"] = float(duration)
 
             if await self._abort_if_cancelled(job, db, "after transcription"):
-                if progress_task:
-                    progress_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await progress_task
+                return
+            if await self._abort_if_pausing(job, db, "after transcription"):
                 return
 
-            # Stop background progress updates now that transcription is done
-            if progress_task:
-                progress_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await progress_task
-
             # Stage 3: Finalizing
-            job.progress_percent = 90
+            job.progress_percent = max(int(job.progress_percent or 0), 95)
             job.progress_stage = "finalizing"
             await db.commit()
 
@@ -924,6 +1196,10 @@ class WhisperService:
             db.add(transcript_db)
 
             # Update job with results
+            if job.started_at:
+                job.processing_seconds = int(job.processing_seconds or 0) + int(
+                    (datetime.utcnow() - job.started_at).total_seconds()
+                )
             job.status = "completed"
             job.completed_at = datetime.utcnow()
             job.progress_percent = 100
@@ -941,15 +1217,33 @@ class WhisperService:
             await db.commit()
             logger.info(f"Job {job_id} completed successfully")
 
+            if job.checkpoint_path:
+                checkpoint_path = Path(job.checkpoint_path)
+                if checkpoint_path.exists():
+                    with suppress(Exception):
+                        checkpoint_path.unlink()
+                with suppress(Exception):
+                    chunk_dir = checkpoint_path.parent / "chunks"
+                    if chunk_dir.exists():
+                        for item in chunk_dir.glob("*.wav"):
+                            item.unlink(missing_ok=True)
+                        chunk_dir.rmdir()
+                job.checkpoint_path = None
+                await db.commit()
+
         except Exception as exc:
-            if progress_task:
-                progress_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await progress_task
             await db.refresh(job)
             if self._is_cancelled_state(job):
                 await self._finalize_cancellation(job, db, "during exception")
                 return
+            if self._is_pause_state(job):
+                await self._finalize_pause(job, db, "during exception")
+                return
+            if job.started_at:
+                job.processing_seconds = int(job.processing_seconds or 0) + int(
+                    (datetime.utcnow() - job.started_at).total_seconds()
+                )
+                job.started_at = None
             logger.error(f"Job {job_id} failed: {exc}")
             job.status = "failed"
             job.progress_stage = None
@@ -958,8 +1252,10 @@ class WhisperService:
             await db.commit()
         finally:
             if transcoded_path:
-                with suppress(Exception):
-                    transcoded_path.unlink(missing_ok=True)
+                await db.refresh(job)
+                if job.status not in {"paused", "pausing"}:
+                    with suppress(Exception):
+                        transcoded_path.unlink(missing_ok=True)
 
     def _estimate_speaker_count(self, transcript_result: Dict[str, Any]) -> int:
         """Estimate number of speakers from transcript.
@@ -988,12 +1284,30 @@ class WhisperService:
         }
         return lookup.get(model_name, 1.3)
 
-    def _estimate_total_seconds(self, job: Job, duration_hint: Optional[float] = None) -> int:
-        """Estimate total processing time based on duration and model."""
+    def _diarization_speed_factor(self, job: Job) -> float:
+        """Approximate realtime factor for diarization."""
+        provider = (job.diarizer_provider_used or "").lower()
+        if provider == "vad":
+            return 0.1
+        return 0.75
+
+    def _estimate_stage_seconds(
+        self, job: Job, duration_hint: Optional[float] = None
+    ) -> tuple[float, float, float]:
+        """Estimate ASR/diarization seconds and total."""
         duration = duration_hint if duration_hint is not None else job.duration
         base_seconds = float(duration or settings.default_estimated_duration_seconds)
-        factor = self._model_speed_factor(job.model_used or "unknown")
-        estimate = int(max(base_seconds * factor, 60))
+        asr_seconds = max(base_seconds * self._model_speed_factor(job.model_used or "unknown"), 1.0)
+        diar_seconds = 0.0
+        if job.has_speaker_labels:
+            diar_seconds = max(base_seconds * self._diarization_speed_factor(job), 1.0)
+        total_seconds = max(asr_seconds + diar_seconds, 1.0)
+        return asr_seconds, diar_seconds, total_seconds
+
+    def _estimate_total_seconds(self, job: Job, duration_hint: Optional[float] = None) -> int:
+        """Estimate total processing time based on duration, model, and diarization."""
+        _, _, total_seconds = self._estimate_stage_seconds(job, duration_hint=duration_hint)
+        estimate = int(max(total_seconds, 60))
         return estimate
 
     @staticmethod
@@ -1109,6 +1423,42 @@ class WhisperService:
         except Exception as exc:  # Best-effort, don't fail transcription for this
             logger.warning("Progress updater failed for job %s: %s", job_id, exc)
 
+    async def _drain_progress_during_diarization(
+        self,
+        job_id: str,
+        *,
+        start_percent: int,
+        end_percent: int,
+        expected_seconds: float,
+        interval: float = 2.0,
+    ) -> None:
+        """Advance progress during diarization using a time-based heuristic."""
+        try:
+            diar_start = datetime.utcnow()
+            while True:
+                await asyncio.sleep(interval)
+                async with AsyncSessionLocal() as session:
+                    job_obj = await session.get(Job, job_id)
+                    if (
+                        not job_obj
+                        or job_obj.status != "processing"
+                        or job_obj.progress_stage != "diarizing"
+                    ):
+                        return
+                    elapsed = (datetime.utcnow() - diar_start).total_seconds()
+                    denom = expected_seconds or 1.0
+                    if elapsed > denom:
+                        denom = elapsed * 1.25
+                    ratio = min(max(elapsed / denom, 0.0), 1.0)
+                    target = int(start_percent + ((end_percent - start_percent) * ratio))
+                    job_obj.progress_percent = max(int(job_obj.progress_percent or 0), target)
+                    job_obj.updated_at = datetime.utcnow()
+                    await session.commit()
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:  # Best-effort, don't fail transcription for this
+            logger.warning("Diarization progress updater failed for job %s: %s", job_id, exc)
+
     async def _simulate_transcription(self, job: Job, db: AsyncSession) -> None:
         """Fast path for tests to avoid loading large Whisper models."""
         transcript_text = f"Simulated transcript for {job.original_filename}"
@@ -1124,7 +1474,7 @@ class WhisperService:
         job.status = "processing"
         job.started_at = datetime.utcnow()
         job.updated_at = datetime.utcnow()
-        job.progress_percent = 10
+        job.progress_percent = 0
         job.progress_stage = "loading_model"
         job.estimated_total_seconds = job.estimated_total_seconds or 180
         job.estimated_time_left = job.estimated_total_seconds
@@ -1132,7 +1482,7 @@ class WhisperService:
 
         await asyncio.sleep(0.2)
 
-        job.progress_percent = 60
+        job.progress_percent = 50
         job.progress_stage = "transcribing"
         job.estimated_time_left = 30
         job.updated_at = datetime.utcnow()
@@ -1140,7 +1490,7 @@ class WhisperService:
 
         await asyncio.sleep(0.2)
 
-        job.progress_percent = 90
+        job.progress_percent = 95
         job.progress_stage = "finalizing"
         job.estimated_time_left = 5
         job.updated_at = datetime.utcnow()
@@ -1177,6 +1527,10 @@ class WhisperService:
         )
         db.add(transcript_db)
 
+        if job.started_at:
+            job.processing_seconds = int(job.processing_seconds or 0) + int(
+                (datetime.utcnow() - job.started_at).total_seconds()
+            )
         job.status = "completed"
         job.completed_at = datetime.utcnow()
         job.progress_percent = 100

@@ -92,6 +92,53 @@ async def test_cancel_job_success(test_db, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_pause_job_from_queued(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        resp = await client.post(f"/jobs/{job_id}/pause", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "paused"
+
+
+@pytest.mark.asyncio
+async def test_pause_job_from_processing_sets_pausing(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, job_id)
+            job.status = "processing"
+            await session.commit()
+        resp = await client.post(f"/jobs/{job_id}/pause", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "pausing"
+
+
+@pytest.mark.asyncio
+async def test_pause_job_rejected_during_diarization(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        async with AsyncSessionLocal() as session:
+            job = await session.get(Job, job_id)
+            job.status = "processing"
+            job.progress_stage = "diarizing"
+            await session.commit()
+        resp = await client.post(f"/jobs/{job_id}/pause", headers=auth_headers)
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Job cannot be paused during diarization"
+
+
+@pytest.mark.asyncio
+async def test_resume_job_from_paused(test_db, auth_headers):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        job_id = await _create_job_via_api(client, auth_headers)
+        pause_resp = await client.post(f"/jobs/{job_id}/pause", headers=auth_headers)
+        assert pause_resp.status_code == 200
+        resp = await client.post(f"/jobs/{job_id}/resume", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "queued"
+
+
+@pytest.mark.asyncio
 async def test_cancel_job_invalid_status(test_db, auth_headers):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         job_id = await _create_job_via_api(client, auth_headers)

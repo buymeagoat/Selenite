@@ -242,13 +242,29 @@ async def resume_queued_jobs(queue_obj: TranscriptionJobQueue) -> int:
 async def finalize_incomplete_jobs(session: AsyncSession) -> int:
     """Mark lingering queued/processing/cancelling jobs as cancelled (startup cleanup)."""
     result = await session.execute(
-        select(Job).where(Job.status.in_(["queued", "processing", "cancelling"]))
+        select(Job).where(Job.status.in_(["queued", "processing", "cancelling", "pausing"]))
     )
     jobs = result.scalars().all()
     if not jobs:
         return 0
     now = datetime.utcnow()
     for job in jobs:
+        if job.status == "pausing":
+            if job.started_at:
+                job.processing_seconds = int(job.processing_seconds or 0) + int(
+                    (now - job.started_at).total_seconds()
+                )
+                job.started_at = None
+            job.status = "paused"
+            job.paused_at = job.paused_at or now
+            job.progress_stage = "paused"
+            job.estimated_time_left = None
+            continue
+        if job.started_at:
+            job.processing_seconds = int(job.processing_seconds or 0) + int(
+                (now - job.started_at).total_seconds()
+            )
+            job.started_at = None
         job.status = "cancelled"
         job.progress_stage = None
         job.estimated_time_left = None

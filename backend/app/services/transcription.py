@@ -41,7 +41,21 @@ async def process_transcription_job(
     # Use real Whisper service for transcription
     logger.info("Processing transcription job %s", job_id)
     await whisper_service.process_job(job_id, db)
-    logger.info("Completed transcription job %s", job_id)
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        logger.warning("Transcription job %s finished but no job record found", job_id)
+        return
+    if job.status == "completed":
+        logger.info("Completed transcription job %s", job_id)
+    elif job.status in {"paused", "pausing"}:
+        logger.info("Paused transcription job %s (status=%s)", job_id, job.status)
+    elif job.status in {"cancelled", "cancelling"}:
+        logger.info("Cancelled transcription job %s (status=%s)", job_id, job.status)
+    elif job.status == "failed":
+        logger.info("Failed transcription job %s", job_id)
+    else:
+        logger.info("Transcription job %s finished with status=%s", job_id, job.status)
 
 
 def start_transcription_job_async(job_id: str, db: AsyncSession) -> None:

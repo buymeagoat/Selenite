@@ -436,9 +436,13 @@ async def cancel_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job is not cancellable in its current state",
         )
-    if job.status == "processing":
+    if job.status in {"processing", "pausing"}:
         job.status = "cancelling"
         job.progress_stage = "cancelling"
+    elif job.status == "paused":
+        job.status = "cancelled"
+        job.progress_stage = None
+        job.completed_at = datetime.utcnow()
     else:
         job.status = "cancelled"
         job.progress_stage = None
@@ -446,6 +450,81 @@ async def cancel_job(
     job.estimated_time_left = None
     await db.commit()
     await db.refresh(job)
+    return JobStatusResponse.model_validate(job)
+
+
+@router.post("/{job_id}/pause", response_model=JobStatusResponse)
+async def pause_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pause a queued or processing job (checkpointed after current chunk)."""
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.status in {"completed", "failed", "cancelled"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job is not pausable in its current state",
+        )
+    if job.status == "processing" and job.progress_stage == "diarizing":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job cannot be paused during diarization",
+        )
+    if job.status == "paused":
+        return JobStatusResponse.model_validate(job)
+
+    now = datetime.utcnow()
+    job.pause_requested_at = now
+    if job.status == "queued":
+        job.status = "paused"
+        job.paused_at = now
+        job.progress_stage = "paused"
+        job.estimated_time_left = None
+    elif job.status == "processing":
+        job.status = "pausing"
+        job.progress_stage = "pausing"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job is not pausable in its current state",
+        )
+    await db.commit()
+    await db.refresh(job)
+    return JobStatusResponse.model_validate(job)
+
+
+@router.post("/{job_id}/resume", response_model=JobStatusResponse)
+async def resume_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resume a paused job (re-queues with checkpoint if available)."""
+    result = await db.execute(
+        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.status != "paused":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job is not paused",
+        )
+
+    job.status = "queued"
+    job.progress_stage = None
+    job.resume_count = int(job.resume_count or 0) + 1
+    await db.commit()
+    await db.refresh(job)
+    await queue.enqueue(str(job.id))
+    logger.info("Job %s resume requested (resume_count=%s)", job.id, job.resume_count)
     return JobStatusResponse.model_validate(job)
 
 

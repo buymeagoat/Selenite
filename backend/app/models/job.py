@@ -13,6 +13,8 @@ class Job(Base):
     queued      - Waiting to be picked up by a worker
     processing  - Actively being transcribed
     cancelling  - Cancellation requested; worker is draining work in progress
+    pausing     - Pause requested; worker will checkpoint and halt
+    paused      - Checkpointed and awaiting resume
     completed   - Finished successfully
     failed      - Processing ended with an error
     cancelled   - Cancellation confirmed (queued job or worker acknowledged)
@@ -52,6 +54,11 @@ class Job(Base):
     completed_at = Column(DateTime, nullable=True)
     estimated_total_seconds = Column(Integer, nullable=True)
     stalled_at = Column(DateTime, nullable=True)
+    processing_seconds = Column(Integer, default=0, nullable=False)
+    pause_requested_at = Column(DateTime, nullable=True)
+    paused_at = Column(DateTime, nullable=True)
+    resume_count = Column(Integer, default=0, nullable=False)
+    checkpoint_path = Column(String(512), nullable=True)
 
     # Relationships
     tags = relationship("Tag", secondary="job_tags", back_populates="jobs")

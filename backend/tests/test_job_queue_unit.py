@@ -325,16 +325,35 @@ async def test_finalize_incomplete_jobs_marks_cancelled():
                 has_speaker_labels=False,
                 created_at=datetime.utcnow(),
             ),
+            Job(
+                id=str(uuid4()),
+                user_id=user.id,
+                original_filename="pausing.wav",
+                saved_filename="pausing.wav",
+                file_path="/tmp/pausing.wav",
+                file_size=123,
+                mime_type="audio/wav",
+                status="pausing",
+                progress_percent=40,
+                model_used="medium",
+                has_timestamps=True,
+                has_speaker_labels=False,
+                created_at=datetime.utcnow(),
+            ),
         ]
         session.add_all(jobs)
         await session.commit()
 
         cleared = await finalize_incomplete_jobs(session)
-        assert cleared == 3
+        assert cleared == 4
         for job in jobs:
             await session.refresh(job)
-            assert job.status == "cancelled"
-            assert job.progress_stage is None
+            if job.original_filename == "pausing.wav":
+                assert job.status == "paused"
+                assert job.progress_stage == "paused"
+            else:
+                assert job.status == "cancelled"
+                assert job.progress_stage is None
 
 
 @pytest.mark.asyncio

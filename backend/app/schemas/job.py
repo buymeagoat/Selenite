@@ -53,6 +53,7 @@ class JobResponse(BaseModel):
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
     estimated_total_seconds: Optional[int] = None
+    processing_seconds: Optional[int] = 0
     model_used: str
     asr_provider_used: Optional[str] = None
     diarizer_used: Optional[str] = None
@@ -70,6 +71,9 @@ class JobResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     stalled_at: Optional[datetime] = None
+    pause_requested_at: Optional[datetime] = None
+    paused_at: Optional[datetime] = None
+    resume_count: Optional[int] = None
 
 
 class JobRenameRequest(BaseModel):
@@ -93,6 +97,7 @@ class JobListItem(BaseModel):
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
     estimated_total_seconds: Optional[int] = None
+    processing_seconds: Optional[int] = 0
     model_used: str
     asr_provider_used: Optional[str] = None
     diarizer_used: Optional[str] = None
@@ -107,6 +112,9 @@ class JobListItem(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     stalled_at: Optional[datetime] = None
+    pause_requested_at: Optional[datetime] = None
+    paused_at: Optional[datetime] = None
+    resume_count: Optional[int] = None
 
 
 class JobListResponse(BaseModel):
@@ -129,8 +137,12 @@ class JobStatusResponse(BaseModel):
     progress_stage: Optional[str] = None
     estimated_time_left: Optional[int] = None
     estimated_total_seconds: Optional[int] = None
+    processing_seconds: Optional[int] = 0
     updated_at: Optional[datetime] = None
     stalled_at: Optional[datetime] = None
+    pause_requested_at: Optional[datetime] = None
+    paused_at: Optional[datetime] = None
+    resume_count: Optional[int] = None
 
 
 class JobCreatedResponse(BaseModel):

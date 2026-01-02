@@ -1,18 +1,28 @@
 import React from 'react';
 
 interface StatusBadgeProps {
-  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
+  status:
+    | 'queued'
+    | 'processing'
+    | 'cancelling'
+    | 'pausing'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
   size?: 'sm' | 'md' | 'lg';
 }
 
 // High-contrast palette to satisfy WCAG contrast
 const statusConfig = {
   queued: { bg: 'bg-gray-200', text: 'text-gray-900', label: 'Queued', pulse: false },
-  processing: { bg: 'bg-black', text: 'text-white', label: 'Processing', pulse: false },
-  cancelling: { bg: 'bg-black', text: 'text-white', label: 'Cancelling', pulse: false },
-  completed: { bg: 'bg-black', text: 'text-white', label: 'Completed', pulse: false },
-  failed: { bg: 'bg-black', text: 'text-white', label: 'Failed', pulse: false },
-  cancelled: { bg: 'bg-gray-800', text: 'text-white', label: 'Cancelled', pulse: false },
+  processing: { bg: 'bg-sky-600', text: 'text-white', label: 'Processing', pulse: false },
+  cancelling: { bg: 'bg-amber-600', text: 'text-white', label: 'Cancelling', pulse: false },
+  pausing: { bg: 'bg-amber-500', text: 'text-white', label: 'Pausing', pulse: false },
+  paused: { bg: 'bg-teal-600', text: 'text-white', label: 'Paused', pulse: false },
+  completed: { bg: 'bg-emerald-600', text: 'text-white', label: 'Completed', pulse: false },
+  failed: { bg: 'bg-red-600', text: 'text-white', label: 'Failed', pulse: false },
+  cancelled: { bg: 'bg-slate-600', text: 'text-white', label: 'Cancelled', pulse: false },
 } as const;
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {

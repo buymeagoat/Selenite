@@ -12,11 +12,20 @@ export interface Job {
   file_size: number;
   mime_type: string;
   duration: number;
-  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
+  status:
+    | 'queued'
+    | 'processing'
+    | 'cancelling'
+    | 'pausing'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
   progress_percent: number | null;
   progress_stage: string | null;
   estimated_time_left: number | null;
   estimated_total_seconds: number | null;
+  processing_seconds?: number | null;
   model_used: string;
   asr_provider_used?: string | null;
   diarizer_used: string | null;
@@ -35,6 +44,9 @@ export interface Job {
   started_at: string | null;
   completed_at: string | null;
   stalled_at?: string | null;
+  pause_requested_at?: string | null;
+  paused_at?: string | null;
+  resume_count?: number | null;
 }
 
 export interface JobsResponse {
@@ -45,7 +57,15 @@ export interface JobsResponse {
 }
 
 export interface FetchJobsParams {
-  status?: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
+  status?:
+    | 'queued'
+    | 'processing'
+    | 'cancelling'
+    | 'pausing'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
   date_from?: string;
   date_to?: string;
   tags?: string; // Comma-separated tag IDs
@@ -152,6 +172,20 @@ export async function restartJob(jobId: string): Promise<CreateJobResponse> {
  */
 export async function cancelJob(jobId: string): Promise<Job> {
   return apiPost<Job>(`/jobs/${jobId}/cancel`);
+}
+
+/**
+ * Pause a queued or processing job
+ */
+export async function pauseJob(jobId: string): Promise<Job> {
+  return apiPost<Job>(`/jobs/${jobId}/pause`);
+}
+
+/**
+ * Resume a paused job
+ */
+export async function resumeJob(jobId: string): Promise<Job> {
+  return apiPost<Job>(`/jobs/${jobId}/resume`);
 }
 
 /**

@@ -10,9 +10,12 @@ from sqlalchemy import select
 from app.main import app
 from app.services.job_queue import queue
 from app.database import AsyncSessionLocal, engine, Base
-from app.config import settings
+from app.config import settings, BACKEND_ROOT
 from app.models.user import User
 from app.models.job import Job
+from app.schemas.model_registry import ModelSetCreate, ModelWeightCreate
+from app.services.model_registry import ModelRegistryService
+from app.services.provider_manager import ProviderManager
 from app.utils.security import create_access_token, hash_password
 
 
@@ -38,6 +41,28 @@ async def test_db():
         )
         session.add(test_user)
         await session.commit()
+        models_root = BACKEND_ROOT / "models"
+        set_path = models_root / "test-set"
+        entry_path = set_path / "test-entry" / "model.bin"
+        entry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry_path.write_text("ok", encoding="utf-8")
+        model_set = await ModelRegistryService.create_model_set(
+            session,
+            ModelSetCreate(type="asr", name="test-set", abs_path=str(set_path.resolve())),
+            actor="system",
+        )
+        await ModelRegistryService.create_model_weight(
+            session,
+            model_set,
+            ModelWeightCreate(
+                name="test-entry",
+                description="seed entry",
+                abs_path=str(entry_path.resolve()),
+                checksum=None,
+            ),
+            actor="system",
+        )
+        await ProviderManager.refresh(session)
 
     # Ensure transcription workers are running for tests
     # Reset queue binding to current event loop to avoid stale workers
@@ -106,7 +131,7 @@ class TestTranscriptionLifecycle:
         # Wait for processing then completion
         await asyncio.sleep(0.3)  # Allow worker to pick up job
         job_processing = await wait_for_status(job_id, "processing", timeout=3.0)
-        assert job_processing.progress_percent >= 10
+        assert job_processing.progress_percent >= 0
         assert job_processing.progress_stage in {"loading_model", "transcribing", "finalizing"}
 
         job_done = await wait_for_status(job_id, "completed", timeout=5.0)

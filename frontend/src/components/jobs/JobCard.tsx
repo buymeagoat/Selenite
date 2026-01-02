@@ -6,7 +6,15 @@ import { getTagColor, getTagTextColor } from '../tags/tagColors';
 interface Job {
   id: string;
   original_filename: string;
-  status: 'queued' | 'processing' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
+  status:
+    | 'queued'
+    | 'processing'
+    | 'cancelling'
+    | 'pausing'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
   created_at: string;
   started_at?: string | null;
   duration?: number;
@@ -65,7 +73,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 }) => {
   const [now, setNow] = useState(() => Date.now());
   const durationSeconds = job.duration ?? 0;
-  const isProcessing = ['processing', 'cancelling'].includes(job.status);
+  const isProcessing = ['processing', 'cancelling', 'pausing'].includes(job.status);
 
   const formatDuration = (seconds: number): string => {
     const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -99,7 +107,9 @@ export const JobCard: React.FC<JobCardProps> = ({
       const normalized = stage.replace(/_/g, ' ').trim();
       return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : undefined;
     }
-    return job.status === 'cancelling' ? 'Cancelling' : 'Processing';
+    if (job.status === 'cancelling') return 'Cancelling';
+    if (job.status === 'pausing') return 'Pausing';
+    return 'Processing';
   };
 
   useEffect(() => {
@@ -136,6 +146,8 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const showDuration = job.status === 'completed' && durationSeconds > 0;
   const showCompletedMetadata = job.status === 'completed';
+  const progressPercent =
+    typeof job.progress_percent === 'number' ? Math.max(0, Math.round(job.progress_percent)) : null;
 
   const asrDisplay = (() => {
     if (!job.model_used && !job.asr_provider_used) return null;
@@ -206,7 +218,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           <span>
             {job.progress_stage === 'stalled' || Boolean(job.stalled_at)
               ? 'Stalled - no recent progress'
-              : formatStage(job.progress_stage)}
+              : `${formatStage(job.progress_stage)}${progressPercent !== null ? ` (${progressPercent}%)` : ''}`}
           </span>
           {elapsedSeconds !== null && <span>Elapsed {formatDuration(elapsedSeconds)}</span>}
         </div>

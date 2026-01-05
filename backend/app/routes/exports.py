@@ -12,6 +12,7 @@ from app.models.job import Job
 from app.models.user import User
 from app.routes.auth import get_current_user
 from app.services.export_service import export_service
+from app.utils.access import should_include_all_jobs
 
 router = APIRouter(prefix="/jobs", tags=["exports"])
 
@@ -57,15 +58,19 @@ async def export_transcript(
             detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
         )
 
+    include_all = await should_include_all_jobs(current_user, db)
+
     # Get job
-    result = await db.execute(select(Job).where(Job.id == job_id))
+    stmt = select(Job).where(Job.id == job_id)
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
 
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Check ownership
-    if job.user_id != current_user.id:
+    if not include_all and job.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     # Check if job is completed

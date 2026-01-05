@@ -1,12 +1,20 @@
 param(
     [string]$BackupRoot,
-    [string]$Tag = (Get-Date -Format "yyyyMMdd-HHmmss"),
+    [string]$Tag = (Get-Date -Format "yyyyMMdd-HHmmss")
+,
     [switch]$IncludeLogs,
     [switch]$IncludeModels,
     [switch]$IncludeTestStorage,
     [switch]$DryRun,
     [switch]$SelfTest
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $ErrorActionPreference = "Stop"
 
@@ -63,9 +71,9 @@ function Get-SqlitePathPart {
 
 function Invoke-SelfTest {
     $cases = @(
-        @{ Input = 'sqlite+aiosqlite:///./selenite.db'; Expected = 'sqlite+aiosqlite:///./selenite.db' },
-        @{ Input = ' "sqlite+aiosqlite:///./selenite.db" '; Expected = 'sqlite+aiosqlite:///./selenite.db' },
-        @{ Input = " 'sqlite+aiosqlite:///./selenite.db' "; Expected = 'sqlite+aiosqlite:///./selenite.db' }
+        @{ Input = 'sqlite+aiosqlite:///./backend/selenite.db'; Expected = 'sqlite+aiosqlite:///./backend/selenite.db' },
+        @{ Input = ' "sqlite+aiosqlite:///./backend/selenite.db" '; Expected = 'sqlite+aiosqlite:///./backend/selenite.db' },
+        @{ Input = " 'sqlite+aiosqlite:///./backend/selenite.db' "; Expected = 'sqlite+aiosqlite:///./backend/selenite.db' }
     )
 
     foreach ($case in $cases) {
@@ -97,7 +105,7 @@ function Get-DatabaseUrl {
         }
     }
 
-    return "sqlite+aiosqlite:///./selenite.db"
+    return "sqlite+aiosqlite:///./backend/selenite.db"
 }
 
 function Resolve-SqlitePath {
@@ -290,3 +298,7 @@ if (-not $DryRun) {
 
 Write-Host "Backup complete: $backupDir" -ForegroundColor Green
 Write-Output $backupDir
+
+
+
+

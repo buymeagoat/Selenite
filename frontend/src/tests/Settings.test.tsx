@@ -2,20 +2,27 @@ import React from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Settings } from '../pages/Settings';
+import { fetchSettings } from '../services/settings';
 
 const mockAuthContext = vi.hoisted(() => ({
   user: {
     id: 1,
     username: 'admin',
-    email: 'admin@example.com',
+    email: 'admin@selenite.local',
     is_admin: true,
+    is_disabled: false,
+    force_password_reset: false,
+    last_login_at: null,
     created_at: new Date().toISOString()
   },
   token: 'token',
   isLoading: false,
   login: vi.fn(),
-  logout: vi.fn()
+  logout: vi.fn(),
+  refreshUser: vi.fn(),
 }));
+
+const fetchSettingsMock = vi.mocked(fetchSettings);
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockAuthContext,
@@ -35,6 +42,7 @@ vi.mock('../services/settings', () => ({
     allow_diarizer_overrides: false,
     enable_timestamps: true,
     max_concurrent_jobs: 3,
+    show_all_jobs: false,
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
@@ -46,7 +54,75 @@ vi.mock('../services/settings', () => ({
 }));
 vi.mock('../services/tags', () => ({
   fetchTags: vi.fn().mockResolvedValue({ items: [] }),
-  deleteTag: vi.fn().mockResolvedValue({ jobs_affected: 0 })
+  deleteTag: vi.fn().mockResolvedValue({ jobs_affected: 0 }),
+  createTag: vi.fn().mockResolvedValue({
+    id: 99,
+    name: 'Personal',
+    color: '#000000',
+    scope: 'personal',
+    owner_user_id: 1,
+    job_count: 0,
+    created_at: new Date().toISOString(),
+  }),
+}));
+
+vi.mock('../services/modelRegistry', () => ({
+  listModelSets: vi.fn().mockResolvedValue([
+    {
+      id: 1,
+      type: 'asr',
+      name: 'whisper',
+      description: '',
+      abs_path: '/backend/models/whisper',
+      enabled: true,
+      disable_reason: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      weights: [
+        {
+          id: 10,
+          set_id: 1,
+          type: 'asr',
+          name: 'base',
+          description: '',
+          abs_path: '/backend/models/whisper/base/model.bin',
+          checksum: null,
+          enabled: true,
+          disable_reason: null,
+          has_weights: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    },
+    {
+      id: 2,
+      type: 'diarizer',
+      name: 'pyannote',
+      description: '',
+      abs_path: '/backend/models/pyannote',
+      enabled: true,
+      disable_reason: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      weights: [
+        {
+          id: 20,
+          set_id: 2,
+          type: 'diarizer',
+          name: 'diarization-3.1',
+          description: '',
+          abs_path: '/backend/models/pyannote/diarization-3.1/model.bin',
+          checksum: null,
+          enabled: true,
+          disable_reason: null,
+          has_weights: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    },
+  ]),
 }));
 
 // Mock child components
@@ -91,6 +167,25 @@ describe('Settings', () => {
       ...mockAuthContext.user,
       is_admin: true,
     };
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: null,
+      default_model: 'medium',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'vad',
+      diarization_enabled: false,
+      allow_asr_overrides: false,
+      allow_diarizer_overrides: false,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      show_all_jobs: false,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
   });
 
   it('renders all settings sections', async () => {
@@ -111,10 +206,50 @@ describe('Settings', () => {
     await renderSettings();
     const defaultSection = screen.getByText(/default transcription options/i).closest('section');
     expect(defaultSection).not.toBeNull();
-    expect(within(defaultSection as HTMLElement).getByLabelText(/default model/i)).toBeInTheDocument();
+    expect(within(defaultSection as HTMLElement).getByLabelText(/ASR Model Set/i)).toBeInTheDocument();
+    expect(within(defaultSection as HTMLElement).getByLabelText(/ASR Model Weight/i)).toBeInTheDocument();
+    expect(within(defaultSection as HTMLElement).getByLabelText(/Diarizer Model Set/i)).toBeInTheDocument();
+    expect(within(defaultSection as HTMLElement).getByLabelText(/Diarizer Weight/i)).toBeInTheDocument();
     expect(within(defaultSection as HTMLElement).getByLabelText(/default language/i)).toBeInTheDocument();
-    expect(within(defaultSection as HTMLElement).queryByLabelText(/default diarizer/i)).not.toBeInTheDocument();
   });
+
+  it(
+    'shows admin defaults for non-admin users when overrides are disabled',
+    async () => {
+    mockAuthContext.user = {
+      ...mockAuthContext.user,
+      is_admin: false,
+    };
+    fetchSettingsMock.mockResolvedValue({
+      default_asr_provider: 'whisper',
+      default_model: 'tiny',
+      default_language: 'auto',
+      default_diarizer_provider: 'pyannote',
+      default_diarizer: 'diarization-3.1',
+      diarization_enabled: true,
+      allow_asr_overrides: false,
+      allow_diarizer_overrides: false,
+      enable_timestamps: true,
+      max_concurrent_jobs: 3,
+      show_all_jobs: false,
+      time_zone: 'UTC',
+      server_time_zone: 'UTC',
+      transcode_to_wav: true,
+      enable_empty_weights: false,
+      last_selected_asr_set: null,
+      last_selected_diarizer_set: null,
+    });
+
+    render(<Settings />);
+    expect(await screen.findByText(/^ASR defaults$/i, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText(/whisper \/ tiny/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Diarization defaults$/i, {}, { timeout: 3000 })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/pyannote \/ diarization-3.1/i)).toBeInTheDocument();
+  },
+  10000
+  );
 
   it('renders tag list section', async () => {
     await renderSettings();
@@ -135,9 +270,10 @@ describe('Settings', () => {
 
   it('saves default transcription options', async () => {
     await renderSettings();
-    const modelSelect = screen.getByLabelText(/default model/i);
-    await changeField(modelSelect, 'large');
+    const modelSelect = screen.getByLabelText(/ASR Model Weight/i);
+    await changeField(modelSelect, 'base');
     const saveBtn = screen.getByTestId('default-save');
     await clickButton(saveBtn);
   });
 });
+

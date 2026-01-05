@@ -1,7 +1,15 @@
 param(
-    [Parameter(Mandatory = $true)][string]$BackupPath,
+    [Parameter(Mandatory = $true)
+][string]$BackupPath,
     [Parameter(Mandatory = $true)][string]$TargetRoot
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $ErrorActionPreference = "Stop"
 
@@ -43,3 +51,7 @@ if ($missing.Count -gt 0 -or $mismatch.Count -gt 0) {
 }
 
 Write-Host "Backup verification passed." -ForegroundColor Green
+
+
+
+

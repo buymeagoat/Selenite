@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "production", "testing"] = "development"
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///./selenite.db"
+    database_url: str = "sqlite+aiosqlite:///./backend/selenite.db"
 
     # Security
     secret_key: str = "dev-secret-key-change-in-production"
@@ -217,4 +217,4 @@ if os.getenv("PYTEST_CURRENT_TEST"):
 if settings.is_testing:
     settings.environment = "testing"
     if not settings.database_url.startswith("sqlite+aiosqlite"):
-        settings.database_url = "sqlite+aiosqlite:///./selenite.db"
+        settings.database_url = "sqlite+aiosqlite:///./backend/selenite.db"

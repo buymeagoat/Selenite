@@ -37,7 +37,7 @@ async def test_login_success(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/auth/login",
-            json={"username": "testuser", "password": "testpassword123"},
+            json={"email": "test@example.com", "password": "testpassword123"},
         )
 
     assert response.status_code == 200
@@ -49,15 +49,15 @@ async def test_login_success(test_db):
 
 @pytest.mark.asyncio
 async def test_login_invalid_username(test_db):
-    """Test login with non-existent username."""
+    """Test login with non-existent identifier."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/auth/login",
-            json={"username": "nonexistent", "password": "password123"},
+            json={"email": "nonexistent@example.com", "password": "password123"},
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Incorrect username or password"
+    assert response.json()["detail"] == "Incorrect email or password"
 
 
 @pytest.mark.asyncio
@@ -66,11 +66,11 @@ async def test_login_invalid_password(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/auth/login",
-            json={"username": "testuser", "password": "wrongpassword"},
+            json={"email": "test@example.com", "password": "wrongpassword"},
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Incorrect username or password"
+    assert response.json()["detail"] == "Incorrect email or password"
 
 
 @pytest.mark.asyncio
@@ -79,7 +79,7 @@ async def test_login_validation_error(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/auth/login",
-            json={"username": "ab", "password": "short"},  # Too short
+            json={"email": "ab", "password": "short"},  # Too short
         )
 
     assert response.status_code == 422  # Validation error
@@ -92,7 +92,7 @@ async def test_get_me_with_valid_token(test_db):
         # Login to get token
         login_response = await client.post(
             "/auth/login",
-            json={"username": "testuser", "password": "testpassword123"},
+            json={"email": "test@example.com", "password": "testpassword123"},
         )
         token = login_response.json()["access_token"]
 

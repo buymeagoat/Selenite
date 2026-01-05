@@ -306,7 +306,7 @@ For best transcription results:
 
 #### "Login Failed" Error
 **Solution**:
-- Verify username and password are correct
+- Verify email (or admin) and password are correct
 - Check that backend server is running
 - Confirm network connectivity
 
@@ -438,3 +438,5 @@ To free up disk space:
 For operational documentation, see:
 - `docs/application_documentation/DEPLOYMENT.md` - Production deployment guide
 - `docs/application_documentation/RELEASE_RUNBOOK.md` - Release procedures
+
+

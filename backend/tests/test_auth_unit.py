@@ -3,6 +3,7 @@
 import pytest
 from fastapi import HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials
+from starlette.requests import Request
 from sqlalchemy import select
 
 from app.routes.auth import login, get_current_user, change_password
@@ -38,9 +39,17 @@ async def setup_db():
 @pytest.mark.asyncio
 async def test_login_invalid_credentials_direct():
     async with AsyncSessionLocal() as session:
-        req = LoginRequest(username="missing", password="Nope1234")
+        req = LoginRequest(email="missing@example.com", password="Nope1234")
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/auth/login",
+                "headers": [],
+            }
+        )
         with pytest.raises(HTTPException) as exc:
-            await login(req, db=session)
+            await login(req, request=request, db=session)
         assert exc.value.status_code == 401
 
 

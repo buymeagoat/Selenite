@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Edit2, Trash2 } from 'lucide-react';
 import { getTagColor } from './tagColors';
 
@@ -11,24 +11,27 @@ interface TagWithCount {
 
 interface TagListProps {
   tags: TagWithCount[];
-  onEdit: (tagId: number) => void;
-  onDelete: (tagId: number) => void;
+  onEdit?: (tagId: number) => void;
+  onDelete?: (tagId: number) => void;
+  showActions?: boolean;
 }
 
-export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
+export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete, showActions = true }) => {
   const [sortState, setSortState] = useState<{
     key: 'color' | 'name' | 'jobs' | null;
     direction: 'asc' | 'desc';
   }>({ key: null, direction: 'asc' });
 
-  const sortedTags = useMemo(() => {
+  const sortedTags = (() => {
     if (!sortState.key) return tags;
     const sorted = [...tags];
     const direction = sortState.direction === 'asc' ? 1 : -1;
     sorted.sort((a, b) => {
       let comparison = 0;
       if (sortState.key === 'color') {
-        comparison = getTagColor(a).localeCompare(getTagColor(b), undefined, { sensitivity: 'base' });
+        comparison = getTagColor(a).localeCompare(getTagColor(b), undefined, {
+          sensitivity: 'base',
+        });
       } else if (sortState.key === 'name') {
         comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       } else {
@@ -40,7 +43,7 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
       return comparison * direction;
     });
     return sorted;
-  }, [tags, sortState]);
+  })();
 
   const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
   const sortIcon = (key: 'color' | 'name' | 'jobs') => {
@@ -71,7 +74,7 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
   if (tags.length === 0) {
     return (
       <div className="text-center py-12 border border-sage-mid rounded-lg bg-white" data-testid="tag-list">
-        <div className="text-5xl mb-3">🏷️</div>
+        <div className="text-5xl mb-3">Tags</div>
         <p className="text-pine-mid">No tags created yet</p>
         <p className="text-sm text-pine-mid mt-1">Create tags to organize your transcriptions</p>
       </div>
@@ -127,7 +130,11 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
                 {sortIcon('jobs')}
               </button>
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-pine-deep uppercase tracking-wider w-32">Actions</th>
+            {showActions && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-pine-deep uppercase tracking-wider w-32">
+                Actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-sage-mid">
@@ -146,24 +153,26 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
               <td className="px-4 py-3">
                 <span className="text-sm text-pine-mid">{tag.job_count}</span>
               </td>
-              <td className="px-4 py-3">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onEdit(tag.id)}
-                    aria-label={`Edit ${tag.name}`}
-                    className="p-1 text-pine-mid hover:text-forest-green transition"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(tag.id)}
-                    aria-label={`Delete ${tag.name}`}
-                    className="p-1 text-pine-mid hover:text-terracotta transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </td>
+              {showActions && (
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onEdit?.(tag.id)}
+                      aria-label={`Edit ${tag.name}`}
+                      className="p-1 text-pine-mid hover:text-forest-green transition"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete?.(tag.id)}
+                      aria-label={`Delete ${tag.name}`}
+                      className="p-1 text-pine-mid hover:text-terracotta transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -185,22 +194,24 @@ export const TagList: React.FC<TagListProps> = ({ tags, onEdit, onDelete }) => {
                     <div className="text-xs text-pine-mid mt-1">{tag.job_count} jobs</div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onEdit(tag.id)}
-                    aria-label={`Edit ${tag.name}`}
-                    className="p-2 text-pine-mid hover:text-forest-green transition"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(tag.id)}
-                    aria-label={`Delete ${tag.name}`}
-                    className="p-2 text-pine-mid hover:text-terracotta transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {showActions && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onEdit?.(tag.id)}
+                      aria-label={`Edit ${tag.name}`}
+                      className="p-2 text-pine-mid hover:text-forest-green transition"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete?.(tag.id)}
+                      aria-label={`Delete ${tag.name}`}
+                      className="p-2 text-pine-mid hover:text-terracotta transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -1,11 +1,19 @@
 param(
     [string]$BackupRoot,
-    [string]$Tag = (Get-Date -Format "yyyyMMdd-HHmmss"),
+    [string]$Tag = (Get-Date -Format "yyyyMMdd-HHmmss")
+,
     [switch]$IncludeLogs,
     [switch]$IncludeModels,
     [switch]$IncludeTestStorage,
     [string]$RestoreRoot
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $ErrorActionPreference = "Stop"
 
@@ -24,3 +32,7 @@ $restoredPath = & $restoreScript -BackupPath $backupPath -TargetRoot $RestoreRoo
 & $verifyScript -BackupPath $backupPath -TargetRoot $restoredPath
 
 Write-Host "Backup and restore verification complete." -ForegroundColor Green
+
+
+
+

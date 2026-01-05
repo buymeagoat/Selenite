@@ -21,6 +21,11 @@ async def seed_database():
         admin_user = result.scalar_one_or_none()
 
         if admin_user:
+            if admin_user.email != "admin@selenite.local":
+                admin_user.email = "admin@selenite.local"
+            if not admin_user.is_admin:
+                admin_user.is_admin = True
+                await db.commit()
             print("Admin user already exists.")
         else:
             # Create admin user
@@ -28,6 +33,9 @@ async def seed_database():
                 username="admin",
                 email="admin@selenite.local",
                 hashed_password=hash_password("changeme"),
+                is_admin=True,
+                is_disabled=False,
+                force_password_reset=False,
             )
             db.add(admin_user)
             await db.commit()

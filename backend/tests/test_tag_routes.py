@@ -27,6 +27,7 @@ async def test_db():
             username="testuser",
             email="test@example.com",
             hashed_password=hash_password("testpass123"),
+            is_admin=True,
         )
         session.add(test_user)
         await session.commit()
@@ -125,6 +126,8 @@ class TestTagCRUD:
             assert data["name"] == "important"
             assert data["id"] > 0
             assert data["job_count"] == 0
+            assert data["scope"] == "global"
+            assert data["owner_user_id"] is None
             assert "created_at" in data
             # Color should be auto-assigned or null
             assert data["color"] is None or data["color"].startswith("#")
@@ -141,6 +144,8 @@ class TestTagCRUD:
             data = response.json()
             assert data["name"] == "urgent"
             assert data["color"] == "#FF5733"
+            assert data["scope"] == "global"
+            assert data["owner_user_id"] is None
 
     async def test_create_tag_duplicate_name(
         self, test_db, auth_headers: dict, sample_tags: list[Tag]
@@ -171,6 +176,27 @@ class TestTagCRUD:
             response = await client.post("/tags", headers=auth_headers, json={"name": "x" * 51})
             assert response.status_code == 422
 
+    async def test_create_personal_tag_for_non_admin(self, test_db):
+        """Non-admin users should create personal tags."""
+        async with AsyncSessionLocal() as session:
+            user = User(
+                id=2,
+                username="regular",
+                email="regular@example.com",
+                hashed_password=hash_password("password123"),
+                is_admin=False,
+            )
+            session.add(user)
+            await session.commit()
+        token = create_access_token({"user_id": 2, "username": "regular"})
+        headers = {"Authorization": f"Bearer {token}"}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/tags", headers=headers, json={"name": "personal"})
+            assert response.status_code == 201
+            data = response.json()
+            assert data["scope"] == "personal"
+            assert data["owner_user_id"] == 2
+
     async def test_list_tags_with_data(self, test_db, auth_headers: dict, sample_tags: list[Tag]):
         """Test listing tags returns all tags."""
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -183,6 +209,8 @@ class TestTagCRUD:
             assert "interviews" in names
             assert "lectures" in names
             assert "meetings" in names
+            for tag in data["items"]:
+                assert tag["scope"] == "global"
 
     async def test_update_tag_name(self, test_db, auth_headers: dict, sample_tags: list[Tag]):
         """Test updating tag name."""

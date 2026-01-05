@@ -29,6 +29,7 @@ from app.utils.transcript_export import (
     export_vtt,
     export_docx,
 )
+from app.utils.access import should_include_all_jobs
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 
@@ -152,6 +153,19 @@ def _load_transcript_metadata(path: Path) -> Dict[str, Any]:
         ) from exc
 
 
+async def _get_accessible_job(
+    job_id: UUID,
+    current_user,
+    db: AsyncSession,
+) -> Job | None:
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 @router.get("/{job_id}", response_model=TranscriptResponse)
 async def get_transcript(
     job_id: UUID,
@@ -159,10 +173,7 @@ async def get_transcript(
     db: AsyncSession = Depends(get_db),
 ):
     """Return the primary transcript structure for a completed job."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
-    job = result.scalar_one_or_none()
+    job = await _get_accessible_job(job_id, current_user, db)
     if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -196,10 +207,7 @@ async def get_speaker_labels(
     db: AsyncSession = Depends(get_db),
 ):
     """Return available speaker labels for a completed job."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
-    job = result.scalar_one_or_none()
+    job = await _get_accessible_job(job_id, current_user, db)
     if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -232,10 +240,7 @@ async def update_speaker_labels(
     db: AsyncSession = Depends(get_db),
 ):
     """Rename speaker labels for a completed job transcript."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
-    job = result.scalar_one_or_none()
+    job = await _get_accessible_job(job_id, current_user, db)
     if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -314,10 +319,7 @@ async def export_transcript(
             detail="Invalid format. Supported: txt, md, srt, vtt, json, docx",
         )
 
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
-    job = result.scalar_one_or_none()
+    job = await _get_accessible_job(job_id, current_user, db)
     if not job or job.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

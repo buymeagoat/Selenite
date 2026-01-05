@@ -4,6 +4,10 @@ This guide provides step-by-step instructions for deploying Selenite to a produc
 
 ## Quick Production Setup
 
+### Port Convention (Prod vs Dev)
+- **Production**: backend `8200`, frontend `5173`
+- **Development**: backend `8100`, frontend `5173`
+
 ### 1. Generate Secure Credentials
 ```bash
 # Generate a secure secret key (32+ characters)
@@ -56,7 +60,7 @@ alembic upgrade head
 
 ```bash
 # Start the server
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8200
 
 # In another terminal, check health
 curl http://localhost:8100/health
@@ -182,7 +186,7 @@ DEFAULT_LANGUAGE=auto
 
 # Server configuration
 HOST=0.0.0.0
-PORT=8000
+PORT=8200
 CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
 
 # Logging
@@ -286,7 +290,7 @@ pip install gunicorn
 gunicorn app.main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
+  --bind 0.0.0.0:8100 \
   --timeout 300 \
   --access-logfile /var/log/selenite/access.log \
   --error-logfile /var/log/selenite/error.log
@@ -368,7 +372,7 @@ Environment="PATH=/opt/selenite/backend/venv/bin"
 ExecStart=/opt/selenite/backend/venv/bin/gunicorn app.main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
+  --bind 0.0.0.0:8100 \
   --timeout 300
 Restart=always
 RestartSec=10
@@ -412,7 +416,7 @@ docker build -t selenite-frontend -f frontend/Dockerfile frontend/
 # Run backend
 docker run -d \
   --name selenite-backend \
-  -p 8000:8000 \
+  -p 8100:8100 \
   -v $(pwd)/storage:/app/storage \
   -v $(pwd)/backend/models:/app/models \
   --env-file backend/.env \
@@ -466,7 +470,7 @@ df -h
 du -sh /var/selenite/*
 
 # Active connections
-netstat -tuln | grep :8000
+netstat -tuln | grep :8100
 ```
 
 ### Prometheus + Grafana (Advanced)
@@ -556,7 +560,7 @@ docker logs selenite-backend
 docker logs selenite-frontend
 
 # Verify port availability
-sudo netstat -tuln | grep :8000
+sudo netstat -tuln | grep :8100
 
 # Check resource limits
 docker stats
@@ -678,3 +682,7 @@ For issues or questions:
 - [ ] Backups scheduled
 - [ ] Default admin password changed
 - [ ] Firewall rules applied
+
+
+
+

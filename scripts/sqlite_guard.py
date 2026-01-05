@@ -8,10 +8,25 @@ moves unexpected copies into storage/backups with a timestamped filename.
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 from datetime import datetime
 from pathlib import Path
-import shutil
 from typing import Dict, List
+
+
+def _ensure_dev_workspace() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    role_file = repo_root / ".workspace-role"
+    if role_file.exists():
+        role = role_file.read_text(encoding="utf-8").splitlines()[0].strip().lower()
+        if role != "dev":
+            if os.getenv("SELENITE_ALLOW_PROD_WRITES") == "1":
+                return
+            raise RuntimeError("This script must be run from a dev workspace.")
+
+
+_ensure_dev_workspace()
 
 
 def _should_skip(path: Path, repo_root: Path) -> bool:
@@ -100,3 +115,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+

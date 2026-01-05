@@ -10,20 +10,30 @@
 param(
     [string]$BindIPOverride = "",
     [string[]]$AdvertiseHosts = @()
+
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $repo
 
+$env:SELENITE_BACKEND_PORT = '8100'
+$env:SELENITE_FRONTEND_PORT = '5173'
+
 $bind = $BindIPOverride
 if (-not $bind -or $bind -eq "") {
-    # Default to all interfaces so LAN/Tailscale clients can reach it
+    # Default to all interfaces so LAN/Tailscale clients can reach dev.
     $bind = "0.0.0.0"
 }
 
-$defaultAdvertise = @("127.0.0.1")
 if (-not $AdvertiseHosts -or $AdvertiseHosts.Count -eq 0) {
-    $AdvertiseHosts = $defaultAdvertise
+    $AdvertiseHosts = @()
 }
 
 # Proactively ensure any previous Selenite processes are stopped before starting fresh
@@ -38,9 +48,16 @@ try {
 }
 
 # Invoke bootstrap directly so parameters are passed safely
-& (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth -BindIP $bind -AdvertiseHosts $AdvertiseHosts
+& (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth -BindIP $bind -BindPort 8100 -FrontendPort 5173 -AdvertiseHosts $AdvertiseHosts
 
 # Example usage for Task Scheduler Action:
 # Program/script: pwsh
-# Arguments: -NoLogo -NoProfile -Command "& 'D:\Dev\projects\Selenite\scripts\start-selenite.ps1'"
-# Start in: D:\Dev\projects\Selenite
+# Arguments: -NoLogo -NoProfile -Command "& 'D:\Dev\projects\Selenite-dev\scripts\start-selenite.ps1'"
+# Start in: D:\Dev\projects\Selenite-dev
+
+
+
+
+
+
+

@@ -4,7 +4,7 @@ This file is the single source of truth for getting the Selenite dev stack runni
 
 ## Quick start (preferred)
 
-1. Open PowerShell and `cd D:\Dev\projects\Selenite`.
+1. Open PowerShell and `cd D:\Dev\projects\Selenite-dev`.
 2. Run the automated bootstrap script:
    ```powershell
    .\scripts\bootstrap.ps1
@@ -22,7 +22,7 @@ If you cannot run PowerShell scripts (policy, different shell, etc.), follow the
 ## 0. Pre-flight
 
 1. **Open two PowerShell windows as the same user** (Backend / Frontend).
-2. In *each* window: `cd D:\Dev\projects\Selenite`
+2. In *each* window: `cd D:\Dev\projects\Selenite-dev`
 3. Kill stray processes that may lock ports/files:
    ```powershell
    Get-ChildItem -Path logs -Filter *.log -Recurse | ForEach-Object { $_.IsReadOnly = $false }
@@ -136,3 +136,5 @@ When done testing:
 - Clear env vars if desired (`Remove-Item Env:DISABLE_FILE_LOGS`).
 
 This leaves the workspace clean for the next run (human or AI).
+
+

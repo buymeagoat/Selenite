@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.job import Job
 from app.models.tag import job_tags
 from pydantic import BaseModel
+from app.utils.access import should_include_all_jobs
 
 router = APIRouter(tags=["search"])
 
@@ -125,8 +126,12 @@ async def search_jobs(
     Returns:
         SearchResponse with matching jobs
     """
+    include_all = await should_include_all_jobs(current_user, db)
+
     # Build base query
-    stmt = select(Job).where(Job.user_id == current_user.id).options(selectinload(Job.tags))
+    stmt = select(Job).options(selectinload(Job.tags))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
 
     # Apply search filter (filename only for MVP)
     if q != "*":

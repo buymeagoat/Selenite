@@ -11,9 +11,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("user_settings", sa.Column("default_asr_provider", sa.String(length=255), nullable=True))
+    op.add_column(
+        "user_settings", sa.Column("default_asr_provider", sa.String(length=255), nullable=True)
+    )
 
 
 def downgrade() -> None:
     op.drop_column("user_settings", "default_asr_provider")
-

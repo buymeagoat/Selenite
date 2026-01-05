@@ -1,8 +1,16 @@
 param(
-    [Parameter(Mandatory = $true)][string]$BackupPath,
+    [Parameter(Mandatory = $true)
+][string]$BackupPath,
     [string]$TargetRoot,
     [switch]$Force
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $ErrorActionPreference = "Stop"
 
@@ -54,3 +62,7 @@ if (Test-Path $modelsSource) {
 
 Write-Host "Restore complete: $TargetRoot" -ForegroundColor Green
 Write-Output $TargetRoot
+
+
+
+

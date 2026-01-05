@@ -30,7 +30,12 @@ def upgrade() -> None:
     with op.batch_alter_table("system_preferences") as batch_op:
         if "enable_empty_weights" not in cols:
             batch_op.add_column(
-                sa.Column("enable_empty_weights", sa.Boolean(), nullable=False, server_default=sa.text("0"))
+                sa.Column(
+                    "enable_empty_weights",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.text("0"),
+                )
             )
 
 

@@ -38,11 +38,12 @@ async def list_model_sets(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """Return all registered providers for the admin console."""
+    """Return registered providers for the admin console or user overrides."""
 
-    _require_admin(current_user)
     try:
-        return await ModelRegistryService.list_model_sets(session)
+        if current_user.is_admin:
+            return await ModelRegistryService.list_model_sets(session)
+        return await ModelRegistryService.list_visible_model_sets(session)
     except HTTPException:
         raise
     except Exception:

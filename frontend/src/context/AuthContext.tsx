@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { fetchCurrentUser, type CurrentUserResponse } from '../services/auth';
 import { devError } from '../lib/debug';
 
@@ -10,6 +11,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (token: string, bootstrapUser?: User) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -19,23 +21,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const persistUser = (nextUser: User | null) => {
+  const persistUser = useCallback((nextUser: User | null) => {
     if (nextUser) {
       localStorage.setItem('auth_user', JSON.stringify(nextUser));
     } else {
       localStorage.removeItem('auth_user');
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     // Clear from localStorage
     localStorage.removeItem('auth_token');
     persistUser(null);
-  };
+  }, [persistUser]);
 
-  const refreshUserProfile = async () => {
+  const refreshUserProfile = useCallback(async () => {
     if (!localStorage.getItem('auth_token')) {
       return;
     }
@@ -47,9 +49,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       devError('Failed to refresh user profile', error);
       logout();
     }
-  };
+  }, [logout, persistUser]);
 
-  const login = (newToken: string, bootstrapUser?: User) => {
+  const login = useCallback((newToken: string, bootstrapUser?: User) => {
     setToken(newToken);
     localStorage.setItem('auth_token', newToken);
     if (bootstrapUser) {
@@ -58,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     void refreshUserProfile();
-  };
+  }, [persistUser, refreshUserProfile]);
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -96,10 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [persistUser, refreshUserProfile]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshUser: refreshUserProfile }}>
+      {children}
+    </AuthContext.Provider>
   );
 };
 

@@ -30,6 +30,9 @@ interface Job {
   diarizer_used?: string | null;
   diarizer_provider_used?: string | null;
   completed_at?: string | null;
+  owner_user_id?: number | null;
+  owner_username?: string | null;
+  owner_email?: string | null;
   tags: Array<{ id: number; name: string; color?: string | null }>;
 }
 
@@ -51,6 +54,7 @@ interface JobCardProps {
   selected?: boolean;
   onSelectToggle?: (jobId: string, checked: boolean) => void;
   timeZone?: string | null;
+  showOwnerLabel?: boolean;
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -70,6 +74,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   selected = false,
   onSelectToggle,
   timeZone = null,
+  showOwnerLabel = false,
 }) => {
   const [now, setNow] = useState(() => Date.now());
   const durationSeconds = job.duration ?? 0;
@@ -119,10 +124,11 @@ export const JobCard: React.FC<JobCardProps> = ({
   }, [isProcessing]);
 
   const speakerText = (() => {
-    const detected = job.speaker_count ?? (job.has_speaker_labels ? 1 : null);
-    if (detected === null) return null;
-    const mode = job.has_speaker_labels ? 'Detected' : 'Requested';
-    return `${mode} ${detected}`;
+    if (!job.has_speaker_labels) {
+      return 'Disabled';
+    }
+    const detected = job.speaker_count ?? 1;
+    return `Detected ${detected}`;
   })();
 
   const parseAsUTC = (isoString: string): Date => {
@@ -156,11 +162,16 @@ export const JobCard: React.FC<JobCardProps> = ({
   })();
 
   const diarizerDisplay = (() => {
+    if (!job.has_speaker_labels) return 'Disabled';
     if (!job.diarizer_used) return 'None';
     return job.diarizer_provider_used
       ? `${job.diarizer_provider_used} / ${job.diarizer_used}`
       : job.diarizer_used;
   })();
+  const ownerLabel =
+    job.owner_email ||
+    job.owner_username ||
+    (job.owner_user_id ? `User ${job.owner_user_id}` : 'Unassigned');
 
   return (
     <div
@@ -191,13 +202,19 @@ export const JobCard: React.FC<JobCardProps> = ({
       {/* Metadata */}
       <div className="flex items-center gap-3 text-sm text-pine-mid mb-3">
         <span>{formatDate(job.created_at)}</span>
+        {showOwnerLabel && (
+          <>
+            <span aria-hidden="true" className="text-gray-300">|</span>
+            <span>Owner: {ownerLabel}</span>
+          </>
+        )}
         {showDuration && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
             <span>Duration: {formatDuration(durationSeconds)}</span>
           </>
         )}
-        {job.status === 'completed' && speakerText && (
+        {job.status === 'completed' && (
           <>
             <span aria-hidden="true" className="text-gray-300">|</span>
             <span>Speakers: {speakerText}</span>

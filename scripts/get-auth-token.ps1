@@ -5,6 +5,14 @@ param(
     [switch]$ShowExample
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
+
 if (-not $Password) {
     $Password = Read-Host -AsSecureString "Enter password for $Username" | `
         ConvertFrom-SecureString -AsPlainText
@@ -49,3 +57,8 @@ curl -H "Authorization: Bearer $token" ${ApiBaseUrl}system/availability
 "@
     Write-Host "`n$example"
 }
+
+
+
+
+

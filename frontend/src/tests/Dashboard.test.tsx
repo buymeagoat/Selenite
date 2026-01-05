@@ -5,6 +5,24 @@ import { Dashboard } from '../pages/Dashboard';
 import { ApiError } from '../lib/api';
 import { SettingsProvider } from '../context/SettingsContext';
 
+const mockAuthContext = vi.hoisted(() => ({
+  user: {
+    id: 1,
+    username: 'admin',
+    email: 'admin@selenite.local',
+    is_admin: true,
+    is_disabled: false,
+    force_password_reset: false,
+    last_login_at: null,
+    created_at: new Date().toISOString(),
+  },
+  token: 'token',
+  isLoading: false,
+  login: vi.fn(),
+  logout: vi.fn(),
+  refreshUser: vi.fn(),
+}));
+
 const fetchJobsMock = vi.fn();
 const createJobMock = vi.fn();
 const restartJobMock = vi.fn();
@@ -38,6 +56,7 @@ vi.mock('../services/tags', () => ({
 
 vi.mock('../services/settings', () => ({
   fetchSettings: (...args: any[]) => fetchSettingsMock(...args),
+  updateSettings: vi.fn().mockResolvedValue({}),
 }));
 
 const toastMock = {
@@ -49,6 +68,11 @@ const toastMock = {
 
 vi.mock('../context/ToastContext', () => ({
   useToast: () => toastMock,
+}));
+
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => mockAuthContext,
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('../hooks/usePolling', () => ({
@@ -76,7 +100,15 @@ const buildJob = (overrides: Partial<any> = {}) => ({
   has_timestamps: true,
   has_speaker_labels: false,
   tags: overrides.tags ?? [
-    { id: 1, name: 'General', color: '#1D8348' },
+    {
+      id: 1,
+      name: 'General',
+      color: '#1D8348',
+      scope: 'global',
+      owner_user_id: null,
+      job_count: 0,
+      created_at: new Date().toISOString(),
+    },
   ],
   created_at: overrides.created_at ?? new Date().toISOString(),
   updated_at: overrides.updated_at ?? new Date().toISOString(),
@@ -183,7 +215,20 @@ describe('Dashboard', () => {
     const jobA = buildJob({ id: 'a', original_filename: 'Quarterly Review' });
     const jobB = buildJob({ id: 'b', original_filename: 'All Hands Recording' });
     fetchJobsMock.mockResolvedValue(jobsResponse([jobA, jobB]));
-    fetchTagsMock.mockResolvedValue({ total: 1, items: [{ id: 1, name: 'General', color: '#1D8348', job_count: 2, created_at: new Date().toISOString() }] });
+    fetchTagsMock.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          id: 1,
+          name: 'General',
+          color: '#1D8348',
+          scope: 'global',
+          owner_user_id: null,
+          job_count: 2,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
     fetchSettingsMock.mockResolvedValue({
       default_asr_provider: null,
       default_model: 'medium',
@@ -194,7 +239,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: true,
       allow_diarizer_overrides: true,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -231,7 +277,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: true,
       allow_diarizer_overrides: true,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -280,7 +327,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: true,
       allow_diarizer_overrides: true,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -347,7 +395,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: true,
       allow_diarizer_overrides: true,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -385,7 +434,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: false,
       allow_diarizer_overrides: false,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -409,9 +459,27 @@ describe('Dashboard', () => {
       .mockResolvedValueOnce({ total: 0, items: [] })
       .mockResolvedValueOnce({
         total: 1,
-        items: [{ id: 42, name: 'Priority', color: '#000000', job_count: 0, created_at: new Date().toISOString() }],
+        items: [
+          {
+            id: 42,
+            name: 'Priority',
+            color: '#000000',
+            scope: 'global',
+            owner_user_id: null,
+            job_count: 0,
+            created_at: new Date().toISOString(),
+          },
+        ],
       });
-    createTagMock.mockResolvedValue({ id: 42, name: 'Priority', color: '#000000', job_count: 0, created_at: new Date().toISOString() });
+    createTagMock.mockResolvedValue({
+      id: 42,
+      name: 'Priority',
+      color: '#000000',
+      scope: 'global',
+      owner_user_id: null,
+      job_count: 0,
+      created_at: new Date().toISOString(),
+    });
     fetchSettingsMock.mockResolvedValue({
       default_asr_provider: null,
       default_model: 'medium',
@@ -422,7 +490,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: false,
       allow_diarizer_overrides: false,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -451,7 +520,20 @@ describe('Dashboard', () => {
   it('updates tags from the modal without dropping existing tags', async () => {
     const job = buildJob({ id: 'job-2', original_filename: 'Modal tag test' });
     fetchJobsMock.mockResolvedValue(jobsResponse([job]));
-    fetchTagsMock.mockResolvedValue({ total: 1, items: [{ id: 1, name: 'General', color: '#1D8348', job_count: 1, created_at: new Date().toISOString() }] });
+    fetchTagsMock.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          id: 1,
+          name: 'General',
+          color: '#1D8348',
+          scope: 'global',
+          owner_user_id: null,
+          job_count: 1,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
     fetchSettingsMock.mockResolvedValue({
       default_asr_provider: null,
       default_model: 'medium',
@@ -462,7 +544,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: false,
       allow_diarizer_overrides: false,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -494,7 +577,8 @@ describe('Dashboard', () => {
       allow_asr_overrides: false,
       allow_diarizer_overrides: false,
       enable_timestamps: true,
-      max_concurrent_jobs: 3,
+      max_concurrent_jobs: 1,
+      show_all_jobs: false,
       time_zone: 'UTC',
       server_time_zone: 'UTC',
       transcode_to_wav: true,
@@ -513,3 +597,6 @@ describe('Dashboard', () => {
     expect(endMeridiem.value).toBe('AM');
   });
 });
+
+
+

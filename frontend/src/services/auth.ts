@@ -5,6 +5,9 @@ export interface CurrentUserResponse {
   username: string;
   email?: string | null;
   is_admin: boolean;
+  is_disabled: boolean;
+  force_password_reset: boolean;
+  last_login_at?: string | null;
   created_at: string;
 }
 

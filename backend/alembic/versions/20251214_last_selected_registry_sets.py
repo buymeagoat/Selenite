@@ -12,8 +12,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("user_settings", sa.Column("last_selected_asr_set", sa.String(length=255), nullable=True))
-    op.add_column("user_settings", sa.Column("last_selected_diarizer_set", sa.String(length=255), nullable=True))
+    op.add_column(
+        "user_settings", sa.Column("last_selected_asr_set", sa.String(length=255), nullable=True)
+    )
+    op.add_column(
+        "user_settings",
+        sa.Column("last_selected_diarizer_set", sa.String(length=255), nullable=True),
+    )
 
 
 def downgrade() -> None:

@@ -15,7 +15,6 @@ import {
   resumeJob,
   deleteJob,
   assignTag,
-  removeTag,
   renameJob,
   type Job,
 } from '../services/jobs';
@@ -25,6 +24,8 @@ import { ApiError, API_BASE_URL } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { useAdminSettings } from '../context/SettingsContext';
 import { devError } from '../lib/debug';
+import { updateSettings } from '../services/settings';
+import { useAuth } from '../context/AuthContext';
 
 type RestartPrefill = {
   file: File;
@@ -86,13 +87,16 @@ export const Dashboard: React.FC = () => {
   const reconnectAttemptRef = useRef(0);
   const lastStreamEventRef = useRef(0);
   const { showError, showSuccess } = useToast();
+  const { user } = useAuth();
+  const isAdmin = Boolean(user?.is_admin);
   const {
     settings: adminSettings,
-    status: adminSettingsStatus,
     error: adminSettingsError,
+    refresh: refreshSettings,
   } = useAdminSettings();
   const effectiveTimeZone = adminSettings?.time_zone || adminSettings?.server_time_zone || null;
   const downloadTimeZone = adminSettings?.time_zone || null;
+  const [showAllJobs, setShowAllJobs] = useState(false);
   const settingsErrorNotified = useRef(false);
 
   useEffect(() => {
@@ -104,6 +108,12 @@ export const Dashboard: React.FC = () => {
       settingsErrorNotified.current = false;
     }
   }, [adminSettingsError, showError]);
+
+  useEffect(() => {
+    if (adminSettings && typeof adminSettings.show_all_jobs === 'boolean') {
+      setShowAllJobs(adminSettings.show_all_jobs);
+    }
+  }, [adminSettings]);
 
   useEffect(() => {
     // Load jobs from API
@@ -263,7 +273,11 @@ export const Dashboard: React.FC = () => {
     try {
       const response = await fetchJobs();
       setJobs(response.items);
-      setSelectedIds(new Set());
+      setSelectedIds((prev) => {
+        if (!prev.size) return prev;
+        const visibleIds = new Set(response.items.map((job) => job.id));
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
     } catch (error) {
       devError('Failed to poll job updates:', error);
       // Continue polling on error (don't stop polling for temporary failures)
@@ -330,6 +344,21 @@ export const Dashboard: React.FC = () => {
         showError('Failed to create job. Please try again.');
       }
       throw error; // Re-throw so modal can handle the error state
+    }
+  };
+
+  const handleToggleAllJobs = async (nextValue: boolean) => {
+    if (!isAdmin) return;
+    setShowAllJobs(nextValue);
+    try {
+      await updateSettings({ show_all_jobs: nextValue });
+      await refreshSettings({ force: true });
+      const jobsResponse = await fetchJobs();
+      setJobs(jobsResponse.items);
+    } catch (error) {
+      devError('Failed to update job visibility:', error);
+      showError('Failed to update job visibility. Please try again.');
+      setShowAllJobs((prev) => !prev);
     }
   };
 
@@ -1052,7 +1081,17 @@ export const Dashboard: React.FC = () => {
       data = data.filter(j => j.tags.some(t => filters.tags!.includes(t.id)));
     }
     return data;
-  }, [jobs, searchQuery, filters]);
+  }, [
+    jobs,
+    searchQuery,
+    filters,
+    customRangeStartDate,
+    customRangeStartTime,
+    customRangeStartMeridiem,
+    customRangeEndDate,
+    customRangeEndTime,
+    customRangeEndMeridiem,
+  ]);
 
   const visibleJobIds = useMemo(() => filteredJobs.map((job) => job.id), [filteredJobs]);
   const allVisibleSelected =
@@ -1146,8 +1185,20 @@ export const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
+          {isAdmin && (
+            <label className="flex items-center gap-2 text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                className="h-4 w-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                checked={showAllJobs}
+                onChange={(event) => handleToggleAllJobs(event.target.checked)}
+                aria-label="Show all jobs"
+              />
+              <span>Show all jobs</span>
+            </label>
+          )}
         </div>
         <SkeletonGrid />
       </div>
@@ -1158,18 +1209,32 @@ export const Dashboard: React.FC = () => {
     return (
       <>
         <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
             <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
-            <button
-              data-testid="new-job-btn"
-              onClick={() => {
-                setRestartPrefill(null);
-                setIsNewJobModalOpen(true);
-              }}
-              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
-            >
-              + New Job
-            </button>
+            <div className="flex items-center gap-4 flex-wrap">
+              {isAdmin && (
+                <label className="flex items-center gap-2 text-sm text-pine-deep">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                    checked={showAllJobs}
+                    onChange={(event) => handleToggleAllJobs(event.target.checked)}
+                    aria-label="Show all jobs"
+                  />
+                  <span>Show all jobs</span>
+                </label>
+              )}
+              <button
+                data-testid="new-job-btn"
+                onClick={() => {
+                  setRestartPrefill(null);
+                  setIsNewJobModalOpen(true);
+                }}
+                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
+              >
+                + New Job
+              </button>
+            </div>
           </div>
           <div className="text-center py-16">
             <div className="text-6xl mb-4">📝</div>
@@ -1189,6 +1254,10 @@ export const Dashboard: React.FC = () => {
           isOpen={isNewJobModalOpen}
           onClose={() => setIsNewJobModalOpen(false)}
           onSubmit={handleNewJob}
+          defaultModel={adminSettings?.default_model}
+          defaultLanguage={adminSettings?.default_language}
+          defaultDiarizer={adminSettings?.default_diarizer}
+          defaultDiarizerProvider={adminSettings?.default_diarizer_provider ?? undefined}
         />
       </>
     );
@@ -1200,13 +1269,27 @@ export const Dashboard: React.FC = () => {
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl font-semibold text-pine-deep">Transcriptions</h1>
-            <button
-              data-testid="new-job-btn"
-              onClick={() => setIsNewJobModalOpen(true)}
-              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
-            >
-              + New Job
-            </button>
+            <div className="flex items-center gap-4 flex-wrap">
+              {isAdmin && (
+                <label className="flex items-center gap-2 text-sm text-pine-deep">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-forest-green border-gray-300 rounded focus:ring-forest-green"
+                    checked={showAllJobs}
+                    onChange={(event) => handleToggleAllJobs(event.target.checked)}
+                    aria-label="Show all jobs"
+                  />
+                  <span>Show all jobs</span>
+                </label>
+              )}
+              <button
+                data-testid="new-job-btn"
+                onClick={() => setIsNewJobModalOpen(true)}
+                className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition-colors"
+              >
+                + New Job
+              </button>
+            </div>
           </div>
           <div className="flex flex-col md:flex-row gap-4 md:items-center">
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search jobs" />
@@ -1321,25 +1404,26 @@ export const Dashboard: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredJobs.map(job => (
-              <JobCard
-                key={job.id}
-                job={job}
-                onClick={handleJobClick}
-                selectionMode
-                selected={selectedIds.has(job.id)}
-                onSelectToggle={toggleSelect}
-                onPlay={handlePlay}
-                onStop={handleStopAudio}
-                onSeek={handleSeekAudio}
-                onSpeed={handleSpeedAudio}
-                isActive={audioJobId === job.id}
-                isPlaying={isAudioPlaying && audioJobId === job.id}
-                currentTime={audioJobId === job.id ? audioPosition : 0}
-                playbackRate={audioJobId === job.id ? audioRate : 1}
-                onDownload={handleDownloadDefault}
-                onView={handleViewTranscript}
-                timeZone={effectiveTimeZone}
-              />
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  onClick={handleJobClick}
+                  selectionMode
+                  selected={selectedIds.has(job.id)}
+                  onSelectToggle={toggleSelect}
+                  onPlay={handlePlay}
+                  onStop={handleStopAudio}
+                  onSeek={handleSeekAudio}
+                  onSpeed={handleSpeedAudio}
+                  isActive={audioJobId === job.id}
+                  isPlaying={isAudioPlaying && audioJobId === job.id}
+                  currentTime={audioJobId === job.id ? audioPosition : 0}
+                  playbackRate={audioJobId === job.id ? audioRate : 1}
+                  onDownload={handleDownloadDefault}
+                  onView={handleViewTranscript}
+                  timeZone={effectiveTimeZone}
+                  showOwnerLabel={isAdmin && showAllJobs}
+                />
             ))}
           </div>
         )}

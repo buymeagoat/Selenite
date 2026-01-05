@@ -14,6 +14,9 @@ const AuthPreset: React.FC<{ children: React.ReactNode; isAdmin?: boolean }> = (
       username: 'alice',
       email: 'alice@example.com',
       is_admin: isAdmin,
+      is_disabled: false,
+      force_password_reset: false,
+      last_login_at: null,
       created_at: new Date().toISOString()
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

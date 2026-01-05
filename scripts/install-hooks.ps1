@@ -1,3 +1,13 @@
+
+
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
 # Selenite QA Gateway - Hook Installation Script
 # Automatically installs Git hooks for pre-commit and commit-msg validation
 
@@ -55,3 +65,7 @@ Write-Host ""
 Write-Host "Emergency bypass (use sparingly):" -ForegroundColor Yellow
 Write-Host "  `$env:SKIP_QA='1'; git commit -m '[Component] Message'; Remove-Item Env:SKIP_QA" -ForegroundColor Gray
 Write-Host ""
+
+
+
+

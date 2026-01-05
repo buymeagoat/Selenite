@@ -4,9 +4,33 @@ import { vi } from 'vitest';
 import { TagList } from '../components/tags/TagList';
 
 const mockTags = [
-  { id: 1, name: 'interviews', color: '#0F3D2E', job_count: 5 },
-  { id: 2, name: 'marketing', color: '#B5543A', job_count: 12 },
-  { id: 3, name: 'research', color: '#C9A227', job_count: 0 }
+  {
+    id: 1,
+    name: 'interviews',
+    color: '#0F3D2E',
+    scope: 'global',
+    owner_user_id: null,
+    job_count: 5,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 2,
+    name: 'marketing',
+    color: '#B5543A',
+    scope: 'global',
+    owner_user_id: null,
+    job_count: 12,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 3,
+    name: 'research',
+    color: '#C9A227',
+    scope: 'global',
+    owner_user_id: null,
+    job_count: 0,
+    created_at: new Date().toISOString(),
+  },
 ];
 
 describe('TagList', () => {

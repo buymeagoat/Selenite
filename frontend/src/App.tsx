@@ -1,16 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
 import { Admin } from './pages/Admin';
 import { ToastProvider } from './context/ToastContext';
+import { useAuth } from './context/AuthContext';
 
 type Page = 'dashboard' | 'settings' | 'admin';
 
 const App: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const currentPage: Page =
     location.pathname === '/settings' ? 'settings' : location.pathname === '/admin' ? 'admin' : 'dashboard';
 
@@ -23,6 +25,12 @@ const App: React.FC = () => {
       navigate('/');
     }
   };
+
+  useEffect(() => {
+    if (user?.force_password_reset && location.pathname !== '/settings') {
+      navigate('/settings');
+    }
+  }, [user?.force_password_reset, location.pathname, navigate]);
 
   return (
     <ToastProvider>

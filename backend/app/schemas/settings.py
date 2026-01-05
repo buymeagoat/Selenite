@@ -14,6 +14,7 @@ class SettingsResponse(BaseModel):
     allow_diarizer_overrides: bool
     enable_timestamps: bool
     max_concurrent_jobs: int
+    show_all_jobs: bool
     time_zone: str | None = None
     server_time_zone: str
     transcode_to_wav: bool
@@ -33,6 +34,7 @@ class SettingsUpdateRequest(BaseModel):
     allow_diarizer_overrides: bool | None = Field(default=None)
     enable_timestamps: bool | None = Field(default=None)
     max_concurrent_jobs: int | None = Field(default=None, ge=1, le=10)
+    show_all_jobs: bool | None = Field(default=None)
     time_zone: str | None = Field(default=None, max_length=100)
     server_time_zone: str | None = Field(default=None, max_length=100)
     transcode_to_wav: bool | None = Field(default=None)
@@ -48,6 +50,7 @@ class SettingsUpdateAsr(BaseModel):
     allow_asr_overrides: bool | None = Field(default=None)
     enable_timestamps: bool | None = Field(default=None)
     max_concurrent_jobs: int | None = Field(default=None, ge=1, le=10)
+    show_all_jobs: bool | None = Field(default=None)
     time_zone: str | None = Field(default=None, max_length=100)
     last_selected_asr_set: str | None = Field(default=None, min_length=1, max_length=255)
 
@@ -57,5 +60,6 @@ class SettingsUpdateDiarization(BaseModel):
     default_diarizer: str | None = Field(default=None, min_length=1, max_length=200)
     diarization_enabled: bool | None = Field(default=None)
     allow_diarizer_overrides: bool | None = Field(default=None)
+    show_all_jobs: bool | None = Field(default=None)
     time_zone: str | None = Field(default=None, max_length=100)
     last_selected_diarizer_set: str | None = Field(default=None, min_length=1, max_length=255)

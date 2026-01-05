@@ -23,7 +23,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(String(36), primary_key=True)  # UUID
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     original_filename = Column(String(255), nullable=False)
     saved_filename = Column(String(255), nullable=False)
     file_path = Column(String(512), nullable=False)
@@ -61,8 +61,21 @@ class Job(Base):
     checkpoint_path = Column(String(512), nullable=True)
 
     # Relationships
+    user = relationship("User", back_populates="jobs")
     tags = relationship("Tag", secondary="job_tags", back_populates="jobs")
     transcripts = relationship("Transcript", back_populates="job", cascade="all, delete-orphan")
+
+    @property
+    def owner_user_id(self):
+        return self.user_id
+
+    @property
+    def owner_username(self):
+        return self.user.username if self.user else None
+
+    @property
+    def owner_email(self):
+        return self.user.email if self.user else None
 
     def __repr__(self) -> str:
         return f"<Job(id='{self.id}', filename='{self.original_filename}', status='{self.status}')>"

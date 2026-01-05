@@ -51,7 +51,8 @@ const parseUrl = (value?: string | null): URL | null => {
 };
 
 const runtimeHostInfo = getRuntimeHostInfo();
-const runtimeApiBase = `${runtimeHostInfo.protocol}//${runtimeHostInfo.hostname}:8100`;
+const runtimeApiPort = import.meta.env.VITE_API_PORT?.trim() || '8100';
+const runtimeApiBase = `${runtimeHostInfo.protocol}//${runtimeHostInfo.hostname}:${runtimeApiPort}`;
 const envApiUrl = parseUrl(envApiBase);
 
 let resolvedApiBase = (envApiBase && envApiBase.length > 0)
@@ -327,3 +328,5 @@ export async function apiUpload<T>(endpoint: string, formData: FormData): Promis
     throw new ApiError('Unknown error occurred', 0);
   }
 }
+
+

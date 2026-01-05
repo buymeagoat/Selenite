@@ -11,21 +11,37 @@ from app.utils.security import verify_password, create_access_token
 from app.config import settings
 
 
-async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[User]:
+async def authenticate_user(
+    db: AsyncSession,
+    identifier: str,
+    password: str,
+    *,
+    include_disabled: bool = False,
+) -> Optional[User]:
     """
-    Authenticate a user by username and password.
+    Authenticate a user by email (or admin username) and password.
 
     Args:
         db: Database session
-        username: Username to authenticate
+        identifier: Email address or admin username
         password: Plain text password
 
     Returns:
         User object if authentication successful, None otherwise
     """
-    result = await db.execute(select(User).where(User.username == username))
+    ident = identifier.strip().lower()
+    stmt = select(User)
+    if ident == "admin":
+        stmt = stmt.where(User.username == "admin")
+    else:
+        stmt = stmt.where(User.email == ident)
+    result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    return user if user and verify_password(password, user.hashed_password) else None
+    if not user:
+        return None
+    if user.is_disabled and not include_disabled:
+        return None
+    return user if verify_password(password, user.hashed_password) else None
 
 
 def create_token_response(user: User) -> TokenResponse:

@@ -3,13 +3,13 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginRequest(BaseModel):
     """Request schema for user login."""
 
-    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
 
 
@@ -31,7 +31,17 @@ class UserResponse(BaseModel):
     username: str
     email: Optional[str] = None
     is_admin: bool
+    is_disabled: bool
+    force_password_reset: bool
+    last_login_at: Optional[datetime] = None
     created_at: datetime
+
+    @field_validator("is_admin", "is_disabled", "force_password_reset", mode="before")
+    @classmethod
+    def coerce_bool_defaults(cls, value: Optional[bool]) -> bool:
+        if value is None:
+            return False
+        return bool(value)
 
 
 class PasswordChangeRequest(BaseModel):

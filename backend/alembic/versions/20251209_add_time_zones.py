@@ -16,8 +16,12 @@ def upgrade() -> None:
         "system_preferences",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("server_time_zone", sa.String(length=100), nullable=False, server_default="UTC"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
     )
     # Ensure a single preferences row exists
     op.execute("INSERT INTO system_preferences (id, server_time_zone) VALUES (1, 'UTC')")

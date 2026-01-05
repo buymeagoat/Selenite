@@ -19,7 +19,7 @@ from app.services.provider_manager import ProviderManager, ProviderRecord
 @pytest.fixture(autouse=True)
 def override_auth():
     app.dependency_overrides[get_current_user] = lambda: User(
-        id=1, username="admin", email="admin@test"
+        id=1, username="admin", email="admin@selenite.local"
     )
     yield
     app.dependency_overrides.pop(get_current_user, None)

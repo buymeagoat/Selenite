@@ -31,6 +31,8 @@ class UserSettings(Base):
     allow_diarizer_overrides = Column(Boolean, nullable=False, default=False)
     enable_timestamps = Column(Boolean, nullable=False, default=True)
     max_concurrent_jobs = Column(Integer, nullable=False, default=3)
+    show_all_jobs = Column(Boolean, nullable=False, default=False)
+    show_all_jobs_set = Column(Boolean, nullable=False, default=False)
     time_zone = Column(String(100), nullable=True)
     last_selected_asr_set = Column(String(255), nullable=True)
     last_selected_diarizer_set = Column(String(255), nullable=True)

@@ -97,7 +97,7 @@ export const TagInput: React.FC<TagInputProps> = ({
       setInputValue('');
       setShowDropdown(false);
       setCreateColor(defaultColor);
-    } catch (error) {
+    } catch {
       return;
     } finally {
       setIsCreating(false);

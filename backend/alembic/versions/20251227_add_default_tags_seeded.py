@@ -29,7 +29,9 @@ def upgrade() -> None:
     with op.batch_alter_table("system_preferences") as batch_op:
         if "default_tags_seeded" not in cols:
             batch_op.add_column(
-                sa.Column("default_tags_seeded", sa.Boolean(), nullable=False, server_default=sa.text("0"))
+                sa.Column(
+                    "default_tags_seeded", sa.Boolean(), nullable=False, server_default=sa.text("0")
+                )
             )
 
 

@@ -1,6 +1,8 @@
 """Tag schemas for request/response validation."""
 
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
@@ -14,7 +16,7 @@ class TagBase(BaseModel):
 class TagCreate(TagBase):
     """Schema for creating a tag."""
 
-    pass
+    scope: Literal["global", "personal"] | None = None
 
 
 class TagUpdate(BaseModel):
@@ -34,6 +36,8 @@ class TagResponse(TagBase):
     """Schema for tag response."""
 
     id: int
+    scope: Literal["global", "personal"]
+    owner_user_id: int | None = None
     job_count: int = 0
     created_at: datetime
 

@@ -8,7 +8,7 @@ import type { CurrentUserResponse } from '../services/auth';
 export const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [errorDetails, setErrorDetails] = useState<any>(null);
@@ -21,7 +21,7 @@ export const Login: React.FC = () => {
     setIsLoading(true);
 
     devInfo('[LOGIN ATTEMPT]', {
-      username,
+      email,
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent
     });
@@ -33,11 +33,11 @@ export const Login: React.FC = () => {
         expires_in: number;
         user: CurrentUserResponse;
       }>('/auth/login', {
-        username,
+        email,
         password
       });
 
-      devInfo('[LOGIN SUCCESS]', { username, hasToken: !!data.access_token });
+      devInfo('[LOGIN SUCCESS]', { email, hasToken: !!data.access_token });
       login(data.access_token, data.user);
       navigate('/');
     } catch (err) {
@@ -83,13 +83,13 @@ export const Login: React.FC = () => {
           </div>
         )}
         <div className="space-y-1">
-          <label className="text-sm font-medium text-pine-mid" htmlFor="username">Username</label>
+          <label className="text-sm font-medium text-pine-mid" htmlFor="email">Email</label>
           <input
-            id="username"
+            id="email"
             className="border rounded px-3 py-2 w-full"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
             autoComplete="username"
             disabled={isLoading}
           />
@@ -109,7 +109,7 @@ export const Login: React.FC = () => {
         </div>
         <button
           type="submit"
-          disabled={!username || !password || isLoading}
+          disabled={!email || !password || isLoading}
           className="w-full bg-forest-green text-white py-2 rounded disabled:opacity-50"
         >
           {isLoading ? 'Logging in...' : 'Login'}

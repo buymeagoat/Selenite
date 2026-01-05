@@ -42,6 +42,7 @@ from app.utils.file_handling import (
 from app.utils.file_validation import validate_media_file
 from app.services.job_queue import queue
 from app.services.capabilities import ModelResolutionError, resolve_job_preferences
+from app.utils.access import should_include_all_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +172,7 @@ async def create_job(
         has_speaker_labels=diarization_active,
         diarizer_used=diarizer_used,
         diarizer_provider_used=diarizer_provider_used,
-        speaker_count=speaker_count,
+        speaker_count=speaker_count if diarization_active else None,
         created_at=datetime.utcnow(),
     )
 
@@ -212,8 +213,12 @@ async def list_jobs(
     Returns:
         JobListResponse with total count and paginated list of jobs
     """
-    # Build base query for user's jobs
-    query = select(Job).where(Job.user_id == current_user.id).options(selectinload(Job.tags))
+    include_all = await should_include_all_jobs(current_user, db)
+
+    # Build base query for user's jobs (or all jobs for admins who opted in)
+    query = select(Job).options(selectinload(Job.tags), selectinload(Job.user))
+    if not include_all:
+        query = query.where(Job.user_id == current_user.id)
 
     # Apply status filter
     if status_filter:
@@ -267,12 +272,15 @@ async def stream_jobs(current_user: User = Depends(get_current_user)):
         while True:
             try:
                 async with AsyncSessionLocal() as session:
-                    result = await session.execute(
+                    include_all = await should_include_all_jobs(current_user, session)
+                    stmt = (
                         select(Job)
-                        .where(Job.user_id == current_user.id)
-                        .options(selectinload(Job.tags))
+                        .options(selectinload(Job.tags), selectinload(Job.user))
                         .order_by(Job.created_at.desc())
                     )
+                    if not include_all:
+                        stmt = stmt.where(Job.user_id == current_user.id)
+                    result = await session.execute(stmt)
                     jobs = result.scalars().all()
 
                 items = [JobListItem.model_validate(job).model_dump(mode="json") for job in jobs]
@@ -318,11 +326,14 @@ async def get_job(
         HTTPException: 404 if job not found
     """
     # Query for the job
+    include_all = await should_include_all_jobs(current_user, db)
     query = (
         select(Job)
-        .where(Job.id == str(job_id), Job.user_id == current_user.id)
-        .options(selectinload(Job.tags))
+        .where(Job.id == str(job_id))
+        .options(selectinload(Job.tags), selectinload(Job.user))
     )
+    if not include_all:
+        query = query.where(Job.user_id == current_user.id)
     result = await db.execute(query)
     job = result.scalar_one_or_none()
 
@@ -340,9 +351,11 @@ async def rename_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Rename a job and its underlying media file."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -386,7 +399,9 @@ async def rename_job(
     job.original_filename = normalized_name
     await db.commit()
     result = await db.execute(
-        select(Job).where(Job.id == str(job_id)).options(selectinload(Job.tags))
+        select(Job)
+        .where(Job.id == str(job_id))
+        .options(selectinload(Job.tags), selectinload(Job.user))
     )
     job = result.scalar_one()
     return JobResponse.model_validate(job)
@@ -399,9 +414,11 @@ async def download_media(
     db: AsyncSession = Depends(get_db),
 ):
     """Download the original media file for a job."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -425,9 +442,11 @@ async def cancel_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel a queued or processing job."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -460,9 +479,11 @@ async def pause_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Pause a queued or processing job (checkpointed after current chunk)."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -506,9 +527,11 @@ async def resume_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Resume a paused job (re-queues with checkpoint if available)."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -539,9 +562,11 @@ async def restart_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Restart a completed, failed, or cancelled job by creating a new job record."""
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     old_job = result.scalar_one_or_none()
     if not old_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -601,11 +626,12 @@ async def assign_tag(
         )
 
     # Get the job
+    include_all = await should_include_all_jobs(current_user, db)
     stmt = (
-        select(Job)
-        .where(Job.id == job_id, Job.user_id == current_user.id)
-        .options(selectinload(Job.tags))
+        select(Job).where(Job.id == job_id).options(selectinload(Job.tags), selectinload(Job.user))
     )
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
     result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     if not job:
@@ -618,6 +644,7 @@ async def assign_tag(
 
     # Get the tags
     stmt = select(Tag).where(Tag.id.in_(tag_ids))
+    stmt = stmt.where((Tag.owner_user_id.is_(None)) | (Tag.owner_user_id == current_user.id))
     result = await db.execute(stmt)
     tags = result.scalars().all()
     if len(tags) != len(set(tag_ids)):
@@ -658,9 +685,11 @@ async def delete_job(
     import os
 
     # Get the job
-    result = await db.execute(
-        select(Job).where(Job.id == str(job_id), Job.user_id == current_user.id)
-    )
+    include_all = await should_include_all_jobs(current_user, db)
+    stmt = select(Job).where(Job.id == str(job_id))
+    if not include_all:
+        stmt = stmt.where(Job.user_id == current_user.id)
+    result = await db.execute(stmt)
     job = result.scalar_one_or_none()
 
     if not job:

@@ -18,7 +18,7 @@ describe('tag service', () => {
   it('fetchTags uses GET /tags', async () => {
     (apiGet as any).mockResolvedValue({});
     await fetchTags();
-    expect(apiGet).toHaveBeenCalledWith('/tags');
+    expect(apiGet).toHaveBeenCalledWith('/tags', undefined);
   });
 
   it('createTag posts body to /tags', async () => {

@@ -6,7 +6,15 @@
 param(
     [string]$BindIPOverride = "",
     [string[]]$AdvertiseHosts = @()
+
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 $ErrorActionPreference = "Stop"
 $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -34,3 +42,7 @@ if ($AdvertiseHosts -and $AdvertiseHosts.Count -gt 0) {
 & (Join-Path $repo 'scripts\start-selenite.ps1') -BindIPOverride $BindIPOverride @advertiseArg
 
 Write-Host "Restart complete." -ForegroundColor Green
+
+
+
+

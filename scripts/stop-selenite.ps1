@@ -3,32 +3,22 @@
     Stop all Selenite processes (backend uvicorn, frontend vite/node).
 
 .DESCRIPTION
-    Matches running processes by command line contents and known ports
-    (8100 for backend, 5173 for frontend) and stops them.
+    Matches running processes by command line contents scoped to this repo
+    and known ports (default 8100 for backend, 5173 for frontend).
 #>
+
 
 $ErrorActionPreference = "Stop"
 
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+
 Write-Host "Stopping Selenite processes..." -ForegroundColor Cyan
 
-# Collect candidate processes by command line (python/node running uvicorn/vite/npm)
+# Collect candidate processes launched from the repo path only.
 $processes = @()
 $currentPid = $PID
-try {
-    $procCim = Get-CimInstance Win32_Process | Where-Object {
-        ($_.Name -match 'python|node') -and (
-            $_.CommandLine -match 'uvicorn' -or
-            $_.CommandLine -match 'app.main:app' -or
-            $_.CommandLine -match 'vite' -or
-            $_.CommandLine -match 'npm run start:prod'
-        )
-    }
-    if ($procCim) {
-        $processes += ($procCim | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }) | Where-Object { $_ }
-    }
-} catch {}
-
-# Also include any python/node processes launched from the repo path
 try {
     $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
     $procFromRepo = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match [regex]::Escape($repoRoot) }
@@ -69,9 +59,14 @@ if (-not $processes -or $processes.Count -eq 0) {
 
 Start-Sleep -Seconds 1
 
-# Kill any listeners on known ports (8100 backend, 5173 frontend)
+# Kill any listeners on known ports
 function Stop-PortListeners {
     param([int[]]$Ports)
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
     foreach ($port in $Ports) {
         $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
         foreach ($l in $listeners) {
@@ -79,6 +74,11 @@ function Stop-PortListeners {
                 $pid = $l.OwningProcess
                 $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
                 if ($p) {
+                    $cim = Get-CimInstance Win32_Process -Filter "ProcessId=$pid" -ErrorAction SilentlyContinue
+                    $commandLine = $cim.CommandLine
+                    if (-not $commandLine -or ($commandLine -notmatch [regex]::Escape($repoRoot))) {
+                        continue
+                    }
                     Write-Host "Stopping listener PID $pid on port $port ($($p.ProcessName))..." -ForegroundColor Yellow
                     Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
                     Write-Host "  Stopped" -ForegroundColor Green
@@ -90,13 +90,13 @@ function Stop-PortListeners {
     }
 }
 
-Stop-PortListeners -Ports @(8100, 5173)
+Stop-PortListeners -Ports @($BackendPort, $FrontendPort)
 
 Start-Sleep -Seconds 2
 
 # Verify all stopped (by port and by command line)
 $remaining = @()
-try { $remaining += Get-NetTCPConnection -LocalPort 8100,5173 -State Listen -ErrorAction SilentlyContinue } catch {}
+try { $remaining += Get-NetTCPConnection -LocalPort $BackendPort,$FrontendPort -State Listen -ErrorAction SilentlyContinue } catch {}
 try {
     $remaining += (Get-CimInstance Win32_Process | Where-Object {
         ($_.Name -match 'python|node') -and (
@@ -104,7 +104,8 @@ try {
             $_.CommandLine -match 'app.main:app' -or
             $_.CommandLine -match 'vite' -or
             $_.CommandLine -match 'npm run start:prod'
-        )
+        ) 
+-and ($_.CommandLine -match [regex]::Escape($repoRoot))
     })
 } catch {}
 
@@ -125,3 +126,8 @@ if ($remaining -and $remaining.Count -gt 0) {
     Write-Host ""
     Write-Host "All Selenite processes stopped." -ForegroundColor Green
 }
+
+
+
+
+

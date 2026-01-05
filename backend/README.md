@@ -120,3 +120,5 @@ Quality gates before commit:
 - Code linted (ruff)
 - Manual smoke test
 - Documentation updated
+
+

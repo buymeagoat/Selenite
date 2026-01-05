@@ -25,8 +25,9 @@ async def test_db():
     async with AsyncSessionLocal() as session:
         admin = User(
             username="admin",
-            email="admin@example.com",
+            email="admin@selenite.local",
             hashed_password=hash_password("pass1234"),
+            is_admin=True,
         )
         user = User(
             username="member",
@@ -295,6 +296,65 @@ async def test_list_returns_sets_with_weights(
         assert len(item["weights"]) == 1
         assert item["weights"][0]["abs_path"].startswith(str((BACKEND_ROOT / "models").resolve()))
         assert item["weights"][0]["has_weights"] is True
+
+
+async def test_non_admin_list_filters_disabled_sets_and_weights(
+    test_db, admin_headers, user_headers, model_path_factory, set_path_factory
+):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        enabled_set = await client.post(
+            "/models/providers",
+            json={"type": "asr", "name": "whisper", "abs_path": set_path_factory("whisper")},
+            headers=admin_headers,
+        )
+        enabled_set_id = enabled_set.json()["id"]
+        disabled_set = await client.post(
+            "/models/providers",
+            json={"type": "asr", "name": "kaldi", "abs_path": set_path_factory("kaldi")},
+            headers=admin_headers,
+        )
+        disabled_set_id = disabled_set.json()["id"]
+
+        enabled_weight = await client.post(
+            f"/models/providers/{enabled_set_id}/weights",
+            json={
+                "name": "tiny",
+                "description": "Tiny",
+                "abs_path": model_path_factory("whisper/tiny/model.bin"),
+            },
+            headers=admin_headers,
+        )
+        enabled_weight_id = enabled_weight.json()["id"]
+        disabled_weight = await client.post(
+            f"/models/providers/{enabled_set_id}/weights",
+            json={
+                "name": "large",
+                "description": "Large",
+                "abs_path": model_path_factory("whisper/large/model.bin"),
+            },
+            headers=admin_headers,
+        )
+        disabled_weight_id = disabled_weight.json()["id"]
+
+        await client.patch(
+            f"/models/providers/weights/{disabled_weight_id}",
+            json={"enabled": False, "disable_reason": "disabled"},
+            headers=admin_headers,
+        )
+        await client.patch(
+            f"/models/providers/{disabled_set_id}",
+            json={"enabled": False, "disable_reason": "disabled"},
+            headers=admin_headers,
+        )
+
+        listing = await client.get("/models/providers", headers=user_headers)
+
+    assert listing.status_code == 200
+    data = listing.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "whisper"
+    assert len(data[0]["weights"]) == 1
+    assert data[0]["weights"][0]["id"] == enabled_weight_id
 
 
 async def test_weight_file_path_validation(

@@ -43,7 +43,7 @@ async def session_with_user():
     try:
         user = User(
             username="admin",
-            email="admin@example.com",
+            email="admin@selenite.local",
             hashed_password=hash_password("changeme"),
         )
         session.add(user)

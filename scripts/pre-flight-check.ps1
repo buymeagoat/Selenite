@@ -17,6 +17,12 @@ param(
     [switch]$Strict
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
@@ -172,3 +178,6 @@ if ($failures.Count -gt 0) {
 
 Write-Host "Pre-flight check passed." -ForegroundColor Green
 exit 0
+
+
+

@@ -21,7 +21,7 @@ async def test_db():
         admin = User(
             id=1,
             username="admin",
-            email="admin@example.com",
+            email="admin@selenite.local",
             hashed_password=hash_password("changeme"),
         )
         session.add(admin)

@@ -5,6 +5,7 @@ Revises: 20251122_progress_fields
 Create Date: 2025-11-25 05:35:31.092768
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4db27c61f220'
-down_revision: Union[str, None] = '20251122_progress_fields'
+revision: str = "4db27c61f220"
+down_revision: Union[str, None] = "20251122_progress_fields"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -27,4 +27,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("user_settings", "default_diarizer_provider")
-

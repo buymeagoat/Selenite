@@ -34,6 +34,7 @@ async def test_db():
             username="testuser",
             email="test@example.com",
             hashed_password=hash_password("testpass123"),
+            is_admin=True,
         )
         session.add(test_user)
         await session.commit()

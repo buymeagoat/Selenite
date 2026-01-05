@@ -10,6 +10,8 @@ export interface Tag {
   id: number;
   name: string;
   color: string | null;
+  scope: 'global' | 'personal';
+  owner_user_id?: number | null;
   job_count: number;
   created_at: string;
 }
@@ -22,6 +24,7 @@ export interface TagsResponse {
 export interface CreateTagParams {
   name: string;
   color: string;
+  scope?: 'global' | 'personal';
 }
 
 export interface UpdateTagParams {
@@ -32,8 +35,8 @@ export interface UpdateTagParams {
 /**
  * Fetch all tags with job counts
  */
-export async function fetchTags(): Promise<TagsResponse> {
-  return apiGet<TagsResponse>('/tags');
+export async function fetchTags(params?: { scope?: 'global' | 'personal' | 'all' }): Promise<TagsResponse> {
+  return apiGet<TagsResponse>('/tags', params);
 }
 
 /**

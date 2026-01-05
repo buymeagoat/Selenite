@@ -54,10 +54,35 @@ async def _get_or_create_settings(current_user: User, db: AsyncSession) -> UserS
     settings = result.scalar_one_or_none()
     if not settings:
         settings = UserSettings(user_id=current_user.id)
+        if current_user.is_admin:
+            settings.show_all_jobs = True
+        if not current_user.is_admin:
+            admin_settings = await _get_admin_settings(db)
+            if admin_settings:
+                settings.default_asr_provider = admin_settings.default_asr_provider
+                settings.default_model = admin_settings.default_model
+                settings.default_language = admin_settings.default_language
+                settings.default_diarizer_provider = admin_settings.default_diarizer_provider
+                settings.default_diarizer = admin_settings.default_diarizer
+                settings.diarization_enabled = admin_settings.diarization_enabled
+                settings.enable_timestamps = admin_settings.enable_timestamps
+                settings.max_concurrent_jobs = admin_settings.max_concurrent_jobs
         db.add(settings)
         await db.commit()
         await db.refresh(settings)
+    if current_user.is_admin and not settings.show_all_jobs_set and not settings.show_all_jobs:
+        settings.show_all_jobs = True
+        await db.commit()
+        await db.refresh(settings)
     return settings
+
+
+async def _get_admin_settings(db: AsyncSession) -> UserSettings | None:
+    result = await db.execute(select(User).where(User.username == "admin"))
+    admin_user = result.scalar_one_or_none()
+    if not admin_user:
+        return None
+    return await _get_or_create_settings(admin_user, db)
 
 
 async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
@@ -91,6 +116,24 @@ async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
     return prefs
 
 
+async def _resolve_provider_for_entry(
+    name: str | None,
+    provider_type: str,
+    db: AsyncSession,
+) -> str | None:
+    if not name:
+        return None
+    stmt = (
+        select(ModelSet.name)
+        .join(ModelEntry)
+        .where(ModelSet.type == provider_type)
+        .where(ModelEntry.name == name)
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
 def _validate_timezone(value: str | None) -> str | None:
     if not value:
         return None
@@ -109,18 +152,71 @@ async def get_settings(
     db: AsyncSession = Depends(get_db),
 ):
     user_settings = await _get_or_create_settings(current_user, db)
+    admin_settings = None
+    if not current_user.is_admin:
+        admin_settings = await _get_admin_settings(db)
     prefs = await _get_system_preferences(db)
+    effective_settings = admin_settings or user_settings
+    effective_allow_asr_overrides = (
+        admin_settings.allow_asr_overrides
+        if admin_settings is not None
+        else user_settings.allow_asr_overrides
+    )
+    effective_allow_diarizer_overrides = (
+        admin_settings.allow_diarizer_overrides
+        if admin_settings is not None
+        else user_settings.allow_diarizer_overrides
+    )
+    if admin_settings and effective_allow_asr_overrides:
+        effective_default_asr_provider = (
+            user_settings.default_asr_provider or admin_settings.default_asr_provider
+        )
+        effective_default_model = user_settings.default_model or admin_settings.default_model
+        effective_default_language = (
+            user_settings.default_language or admin_settings.default_language
+        )
+        effective_enable_timestamps = user_settings.enable_timestamps
+    else:
+        effective_default_asr_provider = effective_settings.default_asr_provider
+        effective_default_model = effective_settings.default_model
+        effective_default_language = effective_settings.default_language
+        effective_enable_timestamps = effective_settings.enable_timestamps
+
+    if admin_settings and effective_allow_diarizer_overrides:
+        effective_default_diarizer_provider = (
+            user_settings.default_diarizer_provider or admin_settings.default_diarizer_provider
+        )
+        effective_default_diarizer = (
+            user_settings.default_diarizer or admin_settings.default_diarizer
+        )
+    else:
+        effective_default_diarizer_provider = effective_settings.default_diarizer_provider
+        effective_default_diarizer = effective_settings.default_diarizer
+    effective_diarization_enabled = (
+        admin_settings.diarization_enabled
+        if admin_settings is not None
+        else user_settings.diarization_enabled
+    )
+    if not effective_default_asr_provider:
+        effective_default_asr_provider = await _resolve_provider_for_entry(
+            effective_default_model, "asr", db
+        )
+    if not effective_default_diarizer_provider:
+        effective_default_diarizer_provider = await _resolve_provider_for_entry(
+            effective_default_diarizer, "diarizer", db
+        )
     return SettingsResponse(
-        default_asr_provider=user_settings.default_asr_provider,
-        default_model=user_settings.default_model,
-        default_language=user_settings.default_language,
-        default_diarizer_provider=user_settings.default_diarizer_provider,
-        default_diarizer=user_settings.default_diarizer,
-        diarization_enabled=user_settings.diarization_enabled,
-        allow_asr_overrides=user_settings.allow_asr_overrides,
-        allow_diarizer_overrides=user_settings.allow_diarizer_overrides,
-        enable_timestamps=user_settings.enable_timestamps,
-        max_concurrent_jobs=user_settings.max_concurrent_jobs,
+        default_asr_provider=effective_default_asr_provider,
+        default_model=effective_default_model,
+        default_language=effective_default_language,
+        default_diarizer_provider=effective_default_diarizer_provider,
+        default_diarizer=effective_default_diarizer,
+        diarization_enabled=effective_diarization_enabled,
+        allow_asr_overrides=effective_allow_asr_overrides,
+        allow_diarizer_overrides=effective_allow_diarizer_overrides,
+        enable_timestamps=effective_enable_timestamps,
+        max_concurrent_jobs=effective_settings.max_concurrent_jobs,
+        show_all_jobs=user_settings.show_all_jobs if current_user.is_admin else False,
         time_zone=user_settings.time_zone,
         server_time_zone=prefs.server_time_zone,
         transcode_to_wav=prefs.transcode_to_wav,
@@ -137,6 +233,45 @@ async def _apply_settings(
 ) -> SettingsResponse:
     user_settings = await _get_or_create_settings(current_user, db)
     system_prefs = await _get_system_preferences(db)
+    admin_settings = None
+    if not current_user.is_admin:
+        admin_settings = await _get_admin_settings(db)
+        if payload.show_all_jobs is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update job visibility settings.",
+            )
+        if payload.allow_asr_overrides is not None or payload.allow_diarizer_overrides is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update override policy settings.",
+            )
+        if payload.max_concurrent_jobs is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update throughput limits.",
+            )
+        if admin_settings and not admin_settings.allow_asr_overrides:
+            if (
+                payload.default_asr_provider is not None
+                or payload.default_model is not None
+                or payload.default_language is not None
+                or payload.enable_timestamps is not None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="ASR overrides are disabled by the administrator.",
+                )
+        if admin_settings and not admin_settings.allow_diarizer_overrides:
+            if (
+                payload.default_diarizer_provider is not None
+                or payload.default_diarizer is not None
+                or payload.diarization_enabled is not None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Diarizer overrides are disabled by the administrator.",
+                )
 
     async def _entry_exists(name: str, provider_type: str, provider: str | None = None) -> bool:
         stmt = (
@@ -252,6 +387,9 @@ async def _apply_settings(
         if payload.max_concurrent_jobs is not None
         else user_settings.max_concurrent_jobs
     )
+    if payload.show_all_jobs is not None:
+        user_settings.show_all_jobs = payload.show_all_jobs
+        user_settings.show_all_jobs_set = True
     if payload.time_zone is not None:
         user_settings.time_zone = _validate_timezone(payload.time_zone)
     if payload.last_selected_asr_set is not None:
@@ -328,6 +466,7 @@ async def _apply_settings(
         allow_diarizer_overrides=user_settings.allow_diarizer_overrides,
         enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
+        show_all_jobs=user_settings.show_all_jobs,
         time_zone=user_settings.time_zone,
         server_time_zone=system_prefs.server_time_zone,
         transcode_to_wav=system_prefs.transcode_to_wav,
@@ -353,6 +492,7 @@ async def update_settings_asr(
         allow_asr_overrides=payload.allow_asr_overrides,
         enable_timestamps=payload.enable_timestamps,
         max_concurrent_jobs=payload.max_concurrent_jobs,
+        show_all_jobs=payload.show_all_jobs,
         default_diarizer=user_settings.default_diarizer,
         diarization_enabled=user_settings.diarization_enabled,
         last_selected_asr_set=payload.last_selected_asr_set,
@@ -381,6 +521,7 @@ async def update_settings_diarization(
         ),
         enable_timestamps=user_settings.enable_timestamps,
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
+        show_all_jobs=payload.show_all_jobs,
         default_diarizer=payload.default_diarizer,
         diarization_enabled=payload.diarization_enabled,
         default_asr_provider=user_settings.default_asr_provider,

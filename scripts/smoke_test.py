@@ -5,6 +5,18 @@ Ensures the /health endpoint is reachable and that the seed admin user can log i
 
 from __future__ import annotations
 
+
+from pathlib import Path
+
+def _ensure_dev_workspace() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    role_file = repo_root / '.workspace-role'
+    if role_file.exists():
+        role = role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
+        if role != 'dev':
+            raise RuntimeError('This script must be run from a dev workspace.')
+_ensure_dev_workspace()
+
 import argparse
 import sys
 import time
@@ -42,10 +54,10 @@ def wait_for_health(base_url: str, timeout: int) -> None:
         time.sleep(2)
 
 
-def verify_login(base_url: str, username: str, password: str) -> None:
+def verify_login(base_url: str, email: str, password: str) -> None:
     """Attempt to log in using the supplied credentials."""
     url = f"{base_url.rstrip('/')}/auth/login"
-    payload = {"username": username, "password": password}
+    payload = {"email": email, "password": password}
     response: Optional[requests.Response] = None
     try:
         response = requests.post(url, json=payload, timeout=5)
@@ -73,9 +85,9 @@ def parse_args() -> argparse.Namespace:
         help="Backend base URL (default: http://127.0.0.1:8100)",
     )
     parser.add_argument(
-        "--username",
-        default="admin",
-        help="Username to authenticate (default: admin)",
+        "--email",
+        default="admin@selenite.local",
+        help="Email to authenticate (default: admin@selenite.local)",
     )
     parser.add_argument(
         "--password",
@@ -94,7 +106,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     wait_for_health(args.base_url, args.health_timeout)
-    verify_login(args.base_url, args.username, args.password)
+    verify_login(args.base_url, args.email, args.password)
     print("[smoke] Backend smoke test completed successfully")
 
 
@@ -104,3 +116,8 @@ if __name__ == "__main__":
     except SystemExit as exc:
         print(exc, file=sys.stderr)
         raise
+
+
+
+
+

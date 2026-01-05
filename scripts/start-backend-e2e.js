@@ -10,6 +10,14 @@ const path = require('path');
 
 const backendRoot = path.resolve(__dirname, '..', 'backend');
 const repoRoot = path.resolve(__dirname, '..');
+const roleFile = path.join(repoRoot, '.workspace-role');
+if (fs.existsSync(roleFile)) {
+  const role = fs.readFileSync(roleFile, 'utf8').split(/\r?\n/)[0].trim().toLowerCase();
+  if (role !== 'dev') {
+    console.error('This script must be run from a dev workspace.');
+    process.exit(1);
+  }
+}
 const posixPython = path.join(backendRoot, '.venv', 'bin', 'python');
 const windowsPython = path.join(backendRoot, '.venv', 'Scripts', 'python.exe');
 
@@ -163,3 +171,5 @@ child.on('error', (err) => {
   console.error('[start-backend-e2e] Failed to start backend:', err);
   process.exit(1);
 });
+
+

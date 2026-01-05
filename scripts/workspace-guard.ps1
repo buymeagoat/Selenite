@@ -31,3 +31,4 @@ Write-Host "[guard] Repo root: $repoRoot" -ForegroundColor Cyan
 if ($role -eq "prod" -and $env:SELENITE_ALLOW_PROD_WRITES -ne "1") {
     throw "[guard] Production edits blocked. Set SELENITE_ALLOW_PROD_WRITES=1 to acknowledge."
 }
+

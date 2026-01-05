@@ -9,14 +9,18 @@ const mockAuthContext = vi.hoisted(() => ({
   user: {
     id: 1,
     username: 'admin',
-    email: 'admin@example.com',
+    email: 'admin@selenite.local',
     is_admin: true,
+    is_disabled: false,
+    force_password_reset: false,
+    last_login_at: null,
     created_at: new Date().toISOString(),
   },
   token: 'token',
   isLoading: false,
   login: vi.fn(),
   logout: vi.fn(),
+  refreshUser: vi.fn(),
 }));
 
 const toastSpies = vi.hoisted(() => ({
@@ -49,6 +53,7 @@ vi.mock('../services/settings', () => ({
     allow_diarizer_overrides: true,
     enable_timestamps: true,
     max_concurrent_jobs: 3,
+    show_all_jobs: false,
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,
@@ -178,6 +183,8 @@ const mockTags = vi.hoisted(() => ([
     id: 1,
     name: 'Interview',
     color: '#2D6A4F',
+    scope: 'global',
+    owner_user_id: null,
     job_count: 0,
     created_at: new Date().toISOString(),
   },
@@ -185,10 +192,12 @@ const mockTags = vi.hoisted(() => ([
 
 vi.mock('../services/tags', () => ({
   fetchTags: vi.fn().mockResolvedValue({ total: mockTags.length, items: mockTags }),
-  createTag: vi.fn().mockImplementation((payload: { name: string; color?: string }) => Promise.resolve({
+  createTag: vi.fn().mockImplementation((payload: { name: string; color?: string; scope?: string }) => Promise.resolve({
     id: 99,
     name: payload.name,
     color: payload.color ?? '#2D6A4F',
+    scope: payload.scope ?? 'global',
+    owner_user_id: null,
     job_count: 0,
     created_at: new Date().toISOString(),
   })),
@@ -222,8 +231,8 @@ describe('Admin page', () => {
     await renderAdmin();
     expect(screen.getByTestId('model-registry-section')).toBeInTheDocument();
     expect(screen.getByTestId('admin-advanced-settings')).toBeInTheDocument();
-    expect(screen.getByTestId('system-section')).toBeInTheDocument();
-    expect(screen.getByText(/admin access granted/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('admin-tab-system'));
+    expect(await screen.findByTestId('system-section')).toBeInTheDocument();
   });
 
   it('shows registry data and availability refresh', async () => {
@@ -265,7 +274,8 @@ describe('Admin page', () => {
 
   it('allows system detect refresh', async () => {
     await renderAdmin();
-    const detectButton = screen.getByTestId('system-detect');
+    fireEvent.click(screen.getByTestId('admin-tab-system'));
+    const detectButton = await screen.findByTestId('system-detect');
     await act(async () => {
       fireEvent.click(detectButton);
     });
@@ -282,7 +292,7 @@ describe('Admin page', () => {
     await act(async () => {
       fireEvent.click(createButton);
     });
-    expect(createTag).toHaveBeenCalled();
+    expect(createTag).toHaveBeenCalledWith(expect.objectContaining({ scope: 'global' }));
   });
 
   it('shows locked notice for non-admin users', async () => {
@@ -297,3 +307,4 @@ describe('Admin page', () => {
     expect(screen.getByTestId('admin-locked')).toBeInTheDocument();
   });
 });
+

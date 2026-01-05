@@ -33,8 +33,12 @@ def upgrade() -> None:
         sa.Column("abs_path", sa.String(length=1024), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("disable_reason", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
     )
     op.create_index("ix_model_sets_type_name", "model_sets", ["type", "name"], unique=True)
     op.create_index("ix_model_sets_abs_path", "model_sets", ["abs_path"], unique=True)

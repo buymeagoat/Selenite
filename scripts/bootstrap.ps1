@@ -10,6 +10,7 @@ param(
     [switch]$Seed,           # Run app.seed
     [switch]$ForceInstall,   # Force npm install even if node_modules exists
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
+
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8100,   # Backend port
     [int]$FrontendPort = 5173, # Frontend port
@@ -17,6 +18,13 @@ param(
     [string]$ApiBase = "",          # VITE_API_URL; defaults to http://<BindIP>:<BindPort> when empty
     [string[]]$AdvertiseHosts = @()  # Additional hosts/IPs to advertise for CORS + docs (e.g., LAN + Tailscale)
 )
+
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -446,6 +454,7 @@ Invoke-Step "Start frontend production preview (new window)" {
     } else {
         "if (Test-Path Env:VITE_API_URL) { Remove-Item Env:VITE_API_URL -ErrorAction SilentlyContinue }"
     }
+    $vitePortLine = "`$env:VITE_API_PORT='$BindPort'"
     $frontendCmd = @"
 cd "$FrontendDir"
 Write-Host ''
@@ -455,12 +464,12 @@ Write-Host ' \ \  __\   \ \  __<   \ \ \____  \ \  __<   \ \ \-.  \  \ \ \  \ \ 
 Write-Host '  \ \_____\  \ \_\ \_\  \ \_____\  \ \_\ \_\  \ \_\"\_\  \ \_\  \ \_\ \_\ ' -ForegroundColor Cyan
 Write-Host '   \/_____/   \/_/ /_/   \/_____/   \/_/ /_/   \/_/ \/_/   \/_/   \/_/ /_/ ' -ForegroundColor Cyan
 $viteEnvLine
+$vitePortLine
 npm run start:prod -- --host $BindIP --port $FrontendPort --strictPort
 "@
     Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $frontendCmd
     Write-Host "Frontend starting on http://$BindIP`:$FrontendPort (check new window)." -ForegroundColor Green
 }
-
 Invoke-Step "Verify backend via smoke test" {
     Set-Location $Root
     $pythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
@@ -471,3 +480,13 @@ Invoke-Step "Verify backend via smoke test" {
 Write-Section "All done"
 Write-Host "Backend and frontend processes have been launched in separate PowerShell windows."
 Write-Host "If either window reports an error, resolve it before proceeding." -ForegroundColor Yellow
+
+
+
+
+
+
+
+
+
+

@@ -26,7 +26,12 @@ def upgrade() -> None:
     op.create_table(
         "model_entries",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("set_id", sa.Integer(), sa.ForeignKey("model_sets.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "set_id",
+            sa.Integer(),
+            sa.ForeignKey("model_sets.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("type", sa.String(length=20), nullable=False),  # ASR or DIARIZER (mirrors set)
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -34,8 +39,12 @@ def upgrade() -> None:
         sa.Column("checksum", sa.String(length=128), nullable=True),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("disable_reason", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
     )
     op.create_index("ix_model_entries_set_name", "model_entries", ["set_id", "name"], unique=True)
     op.create_index("ix_model_entries_abs_path", "model_entries", ["abs_path"], unique=True)

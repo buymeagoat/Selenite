@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from sqlalchemy import select
+
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.services.auth import authenticate_user, create_token_response
@@ -36,7 +38,7 @@ async def setup_db():
 @pytest.mark.asyncio
 async def test_authenticate_user_success():
     async with AsyncSessionLocal() as session:
-        user = await authenticate_user(session, "svcuser", "StrongPass123")
+        user = await authenticate_user(session, "svc@example.com", "StrongPass123")
         assert user is not None
         assert user.username == "svcuser"
 
@@ -44,15 +46,36 @@ async def test_authenticate_user_success():
 @pytest.mark.asyncio
 async def test_authenticate_user_unknown_username():
     async with AsyncSessionLocal() as session:
-        user = await authenticate_user(session, "missing", "StrongPass123")
+        user = await authenticate_user(session, "missing@example.com", "StrongPass123")
         assert user is None
 
 
 @pytest.mark.asyncio
 async def test_authenticate_user_wrong_password():
     async with AsyncSessionLocal() as session:
-        user = await authenticate_user(session, "svcuser", "WrongPass999")
+        user = await authenticate_user(session, "svc@example.com", "WrongPass999")
         assert user is None
+
+
+@pytest.mark.asyncio
+async def test_authenticate_user_disabled_behavior():
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.email == "svc@example.com"))
+        user = result.scalar_one()
+        user.is_disabled = True
+        await session.commit()
+
+    async with AsyncSessionLocal() as session:
+        user = await authenticate_user(session, "svc@example.com", "StrongPass123")
+        assert user is None
+
+        user = await authenticate_user(
+            session,
+            "svc@example.com",
+            "StrongPass123",
+            include_disabled=True,
+        )
+        assert user is not None
 
 
 def test_create_token_response_contains_expected_fields():
@@ -61,6 +84,7 @@ def test_create_token_response_contains_expected_fields():
         id=1,
         username="admin",
         email="svc@example.com",
+        is_admin=True,
         created_at=issued_at,
     )
     token = create_token_response(user)

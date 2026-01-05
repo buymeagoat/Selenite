@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, {
   createContext,
   useCallback,
@@ -218,7 +219,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({
       inflightRef.current = { controller, promise: request };
       return request;
     },
-    [cacheKey, fetcher, state.settings]
+    [cacheKey, fetcher, state.settings, timeoutMs]
   );
 
   useEffect(() => {

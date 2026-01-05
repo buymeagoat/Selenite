@@ -29,8 +29,8 @@ async def test_db():
         await conn.run_sync(Base.metadata.drop_all)
 
 
-async def _login(client: AsyncClient, username: str, password: str) -> str:
-    resp = await client.post("/auth/login", json={"username": username, "password": password})
+async def _login(client: AsyncClient, email: str, password: str) -> str:
+    resp = await client.post("/auth/login", json={"email": email, "password": password})
     assert resp.status_code == 200
     return resp.json()["access_token"]
 
@@ -38,7 +38,7 @@ async def _login(client: AsyncClient, username: str, password: str) -> str:
 @pytest.mark.asyncio
 async def test_change_password_success(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        token = await _login(client, "changepw", "originalPassword1")
+        token = await _login(client, "changepw@example.com", "originalPassword1")
 
         resp = await client.put(
             "/auth/password",
@@ -56,13 +56,13 @@ async def test_change_password_success(test_db):
         # Verify login works with new password and fails with old
         new_token_resp = await client.post(
             "/auth/login",
-            json={"username": "changepw", "password": "newSecurePass2"},
+            json={"email": "changepw@example.com", "password": "newSecurePass2"},
         )
         assert new_token_resp.status_code == 200
 
         old_fail = await client.post(
             "/auth/login",
-            json={"username": "changepw", "password": "originalPassword1"},
+            json={"email": "changepw@example.com", "password": "originalPassword1"},
         )
         assert old_fail.status_code == 401
 
@@ -70,7 +70,7 @@ async def test_change_password_success(test_db):
 @pytest.mark.asyncio
 async def test_change_password_mismatch_returns_400(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        token = await _login(client, "changepw", "originalPassword1")
+        token = await _login(client, "changepw@example.com", "originalPassword1")
         resp = await client.put(
             "/auth/password",
             headers={"Authorization": f"Bearer {token}"},
@@ -87,7 +87,7 @@ async def test_change_password_mismatch_returns_400(test_db):
 @pytest.mark.asyncio
 async def test_change_password_invalid_current(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        token = await _login(client, "changepw", "originalPassword1")
+        token = await _login(client, "changepw@example.com", "originalPassword1")
         resp = await client.put(
             "/auth/password",
             headers={"Authorization": f"Bearer {token}"},
@@ -104,7 +104,7 @@ async def test_change_password_invalid_current(test_db):
 @pytest.mark.asyncio
 async def test_change_password_reuse_rejected(test_db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        token = await _login(client, "changepw", "originalPassword1")
+        token = await _login(client, "changepw@example.com", "originalPassword1")
         resp = await client.put(
             "/auth/password",
             headers={"Authorization": f"Bearer {token}"},

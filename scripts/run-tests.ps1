@@ -32,12 +32,22 @@ param(
     [switch]$ForceFrontendInstall
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
+
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $RepoRoot
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
 
 function Get-BackendPythonPath {
     if ($IsWindows) {
@@ -333,7 +343,7 @@ function Run-E2E {
     Write-Section "Running Playwright E2E suite"
     Push-Location $FrontendDir
     try {
-        foreach ($port in 8100, 5173) {
+        foreach ($port in $BackendPort, $FrontendPort) {
             Stop-PortListener -Port $port
         }
         npm run e2e:full
@@ -479,3 +489,8 @@ $stampPath = Join-Path $RepoRoot ".last_tests_run"
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 Set-Content -Path $stampPath -Value "last_tests_run=$timestamp" -Encoding UTF8
 Write-Host "Recorded test run timestamp at $stampPath" -ForegroundColor Green
+
+
+
+
+

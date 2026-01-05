@@ -11,6 +11,18 @@ Notes:
 
 from __future__ import annotations
 
+
+from pathlib import Path
+
+def _ensure_dev_workspace() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    role_file = repo_root / '.workspace-role'
+    if role_file.exists():
+        role = role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
+        if role != 'dev':
+            raise RuntimeError('This script must be run from a dev workspace.')
+_ensure_dev_workspace()
+
 import argparse
 import asyncio
 import sys
@@ -36,14 +48,23 @@ async def reset_password(username: str, password: str) -> None:
         result = await db.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
 
+        admin_email = "admin@selenite.local" if username == "admin" else f"{username}@selenite.local"
         if user:
             user.hashed_password = hash_password(password)
+            if username == "admin":
+                user.email = admin_email
+                user.is_admin = True
+                user.is_disabled = False
+                user.force_password_reset = False
             action = "Updated"
         else:
             user = User(
                 username=username,
-                email=f"{username}@selenite.local",
+                email=admin_email,
                 hashed_password=hash_password(password),
+                is_admin=True if username == "admin" else False,
+                is_disabled=False,
+                force_password_reset=False,
             )
             db.add(user)
             action = "Created"
@@ -78,3 +99,6 @@ if __name__ == "__main__":
     except Exception as exc:  # pragma: no cover - simple CLI
         print(f"Reset failed: {exc}", file=sys.stderr)
         raise
+
+
+

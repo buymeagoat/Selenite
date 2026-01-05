@@ -5,6 +5,7 @@ Revises: 4db27c61f220
 Create Date: 2025-11-25 12:15:00
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -26,17 +27,23 @@ def upgrade() -> None:
     if "default_diarizer" not in cols:
         op.add_column(
             "user_settings",
-            sa.Column("default_diarizer", sa.String(length=20), nullable=False, server_default="vad"),
+            sa.Column(
+                "default_diarizer", sa.String(length=20), nullable=False, server_default="vad"
+            ),
         )
     if "diarization_enabled" not in cols:
         op.add_column(
             "user_settings",
-            sa.Column("diarization_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column(
+                "diarization_enabled", sa.Boolean(), nullable=False, server_default=sa.false()
+            ),
         )
     if "allow_job_overrides" not in cols:
         op.add_column(
             "user_settings",
-            sa.Column("allow_job_overrides", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column(
+                "allow_job_overrides", sa.Boolean(), nullable=False, server_default=sa.false()
+            ),
         )
 
     if bind.dialect.name != "sqlite":

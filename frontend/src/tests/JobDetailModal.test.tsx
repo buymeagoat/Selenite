@@ -157,7 +157,7 @@ describe('JobDetailModal', () => {
     expect(screen.getByText('123')).toBeInTheDocument();
     expect(screen.getByText('whisper / medium')).toBeInTheDocument(); // Model (provider / weight)
     expect(screen.getByText(/english/i)).toBeInTheDocument(); // Language
-    expect(screen.getByText(/Requested:/i)).toBeInTheDocument(); // Speakers info
+    expect(screen.getByText(/Speakers/i)).toBeInTheDocument(); // Speakers info
     expect(screen.getByText(/15 MB/)).toBeInTheDocument(); // File size
   });
 

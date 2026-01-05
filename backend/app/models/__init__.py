@@ -7,6 +7,7 @@ from app.models.tag import Tag, job_tags
 from app.models.transcript import Transcript
 from app.models.settings import Settings
 from app.models.model_provider import ModelEntry, ModelSet
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "ModelSet",
     "ModelEntry",
     "job_tags",
+    "AuditLog",
 ]

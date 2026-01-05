@@ -14,7 +14,7 @@ from app.database import Base
 from app.config import settings
 
 # Import all models so they're registered with Base.metadata
-from app.models import User, Job, Tag, Transcript, job_tags  # noqa: F401
+from app.models import User, Job, Tag, Transcript, AuditLog, job_tags  # noqa: F401
 
 # this is the Alembic Config object
 config = context.config
@@ -56,7 +56,7 @@ async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.database_url
-    
+
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",

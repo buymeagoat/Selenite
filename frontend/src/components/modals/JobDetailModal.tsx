@@ -226,6 +226,7 @@ function parseAsUTC(value: string): Date {
   }
 
   const diarizerDisplay = (() => {
+    if (!job.has_speaker_labels) return 'Disabled';
     if (!job.diarizer_used) {
       if (defaultDiarizerHint) return `${defaultDiarizerHint} (failed)`;
       return 'None';
@@ -234,9 +235,10 @@ function parseAsUTC(value: string): Date {
     return job.diarizer_provider_used ? `${job.diarizer_provider_used} / ${weight}` : weight;
   })();
 
-  const speakerDetected =
-    job.speaker_count ?? (job.status === 'completed' ? 1 : 'Pending');
-  const speakerSummary = `Requested: ${job.has_speaker_labels ? 'Yes' : 'No'} | Detected: ${speakerDetected}`;
+  const speakerDetected = job.speaker_count ?? (job.status === 'completed' ? 1 : 'Pending');
+  const speakerSummary = job.has_speaker_labels
+    ? `Requested: Yes | Detected: ${speakerDetected}`
+    : 'Disabled';
   const jobExtension = job.original_filename.includes('.')
     ? job.original_filename.slice(job.original_filename.lastIndexOf('.'))
     : '';

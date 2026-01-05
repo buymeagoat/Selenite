@@ -17,7 +17,7 @@ import {
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/api';
-import { fetchSettings, updateAsrSettings, updateDiarizationSettings, updateSettings } from '../services/settings';
+import { fetchSettings, updateSettings } from '../services/settings';
 import {
   fetchSystemInfo,
   refreshSystemInfo,
@@ -46,6 +46,7 @@ import { createTag, deleteTag, fetchTags, updateTag, type Tag } from '../service
 import { browseFiles, type FileEntry } from '../services/fileBrowser';
 import { devError, devInfo } from '../lib/debug';
 import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
+import { UserManagement } from '../components/admin/UserManagement';
 
 type RegistryTab = ProviderType;
 
@@ -56,20 +57,6 @@ const CURATED_HELP = [
   'Diarizers: pyannote pipeline, nemo-diarizer, speechbrain ecapa, resemblyzer clustering.',
 ];
 const LAST_SET_KEY_PREFIX = 'selenite:last-registry-set';
-const PROVIDER_EXPECTATIONS: Record<string, string> = {
-  whisper: 'Place whisper .pt file (e.g., tiny.pt) inside /backend/models/whisper/<weight>/',
-  'faster-whisper': 'Place CTranslate2 model folder inside /backend/models/faster-whisper/<weight>/',
-  wav2vec2: 'Place HF checkpoint under /backend/models/wav2vec2/<weight>/',
-  transformers: 'Place HF checkpoint under /backend/models/transformers/<weight>/',
-  nemo: 'Place NeMo Conformer-CTC files under /backend/models/nemo/<weight>/',
-  vosk: 'Place Vosk model folder under /backend/models/vosk/<weight>/',
-  'coqui-stt': 'Place Coqui STT model folder under /backend/models/coqui-stt/<weight>/',
-  'nemo-diarizer': 'Place NeMo diarization pipeline files under /backend/models/nemo-diarizer/<weight>/',
-  pyannote: 'Place pyannote pipeline files under /backend/models/pyannote/<weight>/',
-  speechbrain: 'Place SpeechBrain diarization artifacts under /backend/models/speechbrain/<weight>/',
-  resemblyzer: 'Place encoder/clustering artifacts under /backend/models/resemblyzer/<weight>/',
-};
-
 interface SetFormState {
   id: number | null;
   name: string;
@@ -120,8 +107,8 @@ export const Admin: React.FC = () => {
   const [defaultDiarizerProvider, setDefaultDiarizerProvider] = useState('');
   const [enableTimestamps, setEnableTimestamps] = useState(true);
   const [diarizationEnabled, setDiarizationEnabled] = useState(false);
-    const [allowAsrOverrides, setAllowAsrOverrides] = useState(false);
-    const [allowDiarizerOverrides, setAllowDiarizerOverrides] = useState(false);
+  const [allowAsrOverrides, setAllowAsrOverrides] = useState(false);
+  const [allowDiarizerOverrides, setAllowDiarizerOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [transcodeToWav, setTranscodeToWav] = useState(true);
   const [enableEmptyWeights, setEnableEmptyWeights] = useState(false);
@@ -162,7 +149,7 @@ export const Admin: React.FC = () => {
   const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
   const [availabilityNotes, setAvailabilityNotes] = useState<string[]>([]);
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false);
-  const [fileBrowserScope, setFileBrowserScope] = useState<'models' | 'root'>('root');
+  const [fileBrowserScope] = useState<'models' | 'root'>('root');
   const [fileBrowserTarget, setFileBrowserTarget] = useState<'set' | 'weight' | null>(null);
   const [fileBrowserCwd, setFileBrowserCwd] = useState<string>('/');
   const [fileBrowserEntries, setFileBrowserEntries] = useState<FileEntry[]>([]);
@@ -179,6 +166,7 @@ export const Admin: React.FC = () => {
   const [isSavingTagEdit, setIsSavingTagEdit] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [isRefreshingTags, setIsRefreshingTags] = useState(false);
+  const [activeTab, setActiveTab] = useState<'audio' | 'system' | 'users'>('audio');
 
   const toRelativeAppPath = useCallback((pathValue: string) => {
     const normalized = normalizePath(pathValue);
@@ -225,7 +213,7 @@ export const Admin: React.FC = () => {
   );
   const enableSetBlocked = !setForm.enabled && !activeSetHasWeightFiles;
 
-  const getRegistrySetStatus = (set: ModelSetWithWeights) => {
+  const getRegistrySetStatus = useCallback((set: ModelSetWithWeights) => {
     const enabledWeights = set.weights.filter((weight: ModelWeight) => weight.enabled);
     const availableWeights = enabledWeights.filter(
       (weight: ModelWeight) => (weight.has_weights ?? false) || enableEmptyWeights
@@ -241,7 +229,7 @@ export const Admin: React.FC = () => {
       ? enabledWeights.map((weight: ModelWeight) => weight.name).join(', ')
       : 'None';
     return { enabledWeights, availableWeights, statusLabel, statusRank, weightNames };
-  };
+  }, [enableEmptyWeights]);
 
   const sortedRegistrySets = useMemo(() => {
     if (!registrySort.key) return filteredSets;
@@ -266,7 +254,7 @@ export const Admin: React.FC = () => {
       return comparison * direction;
     });
     return sorted;
-  }, [filteredSets, registrySort, enableEmptyWeights, toRelativeAppPath]);
+  }, [filteredSets, registrySort, getRegistrySetStatus, toRelativeAppPath]);
   const toggleRegistrySort = (key: 'name' | 'path' | 'status' | 'weights') => {
     setRegistrySort((prev) => {
       if (prev.key === key) {
@@ -320,15 +308,10 @@ export const Admin: React.FC = () => {
     const match = asrProviderOptions.find((provider) => provider.name === defaultAsrProvider);
     return match?.weights ?? [];
   }, [asrProviderOptions, defaultAsrProvider]);
-  const availableDiarizers = useMemo(
-    () => capabilities?.diarizers.filter((opt) => opt.available) ?? [],
-    [capabilities]
-  );
-
   const loadAdminTags = async () => {
     setIsRefreshingTags(true);
     try {
-      const tagResponse = await fetchTags();
+      const tagResponse = await fetchTags({ scope: 'global' });
       setAdminTags(tagResponse.items);
       if (!newTagName.trim()) {
         setNewTagColor(pickTagColor(tagResponse.items));
@@ -347,6 +330,18 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const buildSetForm = useCallback(
+    (set: ModelSetWithWeights): SetFormState => ({
+      id: set.id,
+      name: set.name,
+      description: set.description ?? '',
+      abs_path: toRelativeAppPath(set.abs_path),
+      enabled: set.enabled,
+      disable_reason: set.disable_reason ?? '',
+    }),
+    [toRelativeAppPath]
+  );
+
   useEffect(() => {
     if (!isAdmin) {
       setIsLoadingSettings(false);
@@ -364,7 +359,7 @@ export const Admin: React.FC = () => {
           fetchSystemInfo(),
           fetchCapabilities(),
           listModelSets(),
-          fetchTags(),
+          fetchTags({ scope: 'global' }),
         ]);
         if (cancelled) return;
         setDefaultAsrProvider(settingsData.default_asr_provider ?? '');
@@ -447,7 +442,7 @@ export const Admin: React.FC = () => {
     if (match) {
       setSetForm(buildSetForm(match));
     }
-  }, [selectedSetId, registrySets]);
+  }, [selectedSetId, registrySets, buildSetForm]);
 
   useEffect(() => {
     if (!capabilities) return;
@@ -500,15 +495,6 @@ export const Admin: React.FC = () => {
     }
     return notes;
   };
-
-  const buildSetForm = (set: ModelSetWithWeights): SetFormState => ({
-    id: set.id,
-    name: set.name,
-    description: set.description ?? '',
-    abs_path: toRelativeAppPath(set.abs_path),
-    enabled: set.enabled,
-    disable_reason: set.disable_reason ?? '',
-  });
 
   const resetWeightForm = () =>
     setWeightForm({
@@ -868,45 +854,6 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleSaveWeightAvailability = async () => {
-    if (!weightForm.id) {
-      showError('Save the model weight metadata before updating availability.');
-      return;
-    }
-    const originalWeight = activeSet?.weights?.find((weight) => weight.id === weightForm.id);
-    const weightWasEnabled = originalWeight?.enabled ?? true;
-    const togglingWeightOff = Boolean(weightWasEnabled && !weightForm.enabled);
-    const missingFiles = weightForm.enabled && !selectedWeightHasFiles;
-    if (missingFiles && !enableEmptyWeights) {
-      showError('Weight files are missing. Enable Empty Weights to allow this.');
-      return;
-    }
-    const requiresReason = togglingWeightOff && !weightForm.disable_reason.trim();
-    if (requiresReason) {
-      showError('Provide a disable reason when turning off a weight.');
-      return;
-    }
-    setIsSavingWeight(true);
-    try {
-      await updateModelWeight(weightForm.id, {
-        enabled: weightForm.enabled,
-        disable_reason: weightForm.disable_reason || null,
-      });
-      showSuccess('Model weight availability updated');
-      await refreshRegistry(true);
-      await handleAvailabilityRefresh();
-    } catch (error) {
-      devError('Failed to update weight availability', error);
-      if (error instanceof ApiError) {
-        showError(error.message);
-      } else {
-        showError('Unable to update model weight availability.');
-      }
-    } finally {
-      setIsSavingWeight(false);
-    }
-  };
-
   const handleDeleteWeight = async (weightId: number) => {
     if (!confirm('Delete this model weight?')) return;
     try {
@@ -958,52 +905,6 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleSaveAsrDefaults = async () => {
-    try {
-      const provider = defaultAsrProvider || null;
-      const model = provider ? defaultModel || null : null;
-      await updateAsrSettings({
-        default_asr_provider: provider,
-        default_model: model,
-        default_language: defaultLanguage,
-        allow_asr_overrides: allowAsrOverrides,
-        enable_timestamps: enableTimestamps,
-        max_concurrent_jobs: maxConcurrentJobs,
-      });
-      showSuccess('ASR defaults saved');
-      broadcastSettingsUpdated();
-    } catch (error) {
-      devError('Failed to save ASR settings:', error);
-      if (error instanceof ApiError) {
-        showError(`Failed to save ASR settings: ${error.message}`);
-      } else {
-        showError('Failed to save ASR settings. Please try again.');
-      }
-    }
-  };
-
-  const handleSaveDiarizationDefaults = async () => {
-    try {
-      const provider = diarizationEnabled ? defaultDiarizerProvider || null : null;
-      const weight = provider ? defaultDiarizer || null : null;
-      await updateDiarizationSettings({
-        default_diarizer_provider: provider,
-        default_diarizer: weight,
-        diarization_enabled: diarizationEnabled,
-        allow_diarizer_overrides: allowDiarizerOverrides,
-      });
-      showSuccess('Diarization defaults saved');
-      broadcastSettingsUpdated();
-    } catch (error) {
-      devError('Failed to save diarization settings:', error);
-      if (error instanceof ApiError) {
-        showError(`Failed to save diarization settings: ${error.message}`);
-      } else {
-        showError('Failed to save diarization settings. Please try again.');
-      }
-    }
-  };
-
   const handleSaveAdministrationSettings = async () => {
     setIsSavingAdminSettings(true);
     try {
@@ -1026,7 +927,7 @@ export const Admin: React.FC = () => {
         enable_empty_weights: enableEmptyWeights,
       });
 
-      showSuccess('Administration settings saved');
+      showSuccess('Audio transcription settings saved');
       broadcastSettingsUpdated();
     } catch (error) {
       devError('Failed to save administration settings:', error);
@@ -1054,7 +955,11 @@ export const Admin: React.FC = () => {
     }
     setIsCreatingTag(true);
     try {
-      const created = await createTag({ name: trimmed, color: newTagColor || pickTagColor(adminTags) });
+      const created = await createTag({
+        name: trimmed,
+        color: newTagColor || pickTagColor(adminTags),
+        scope: 'global',
+      });
       const next = [...adminTags, created].sort((a, b) => a.name.localeCompare(b.name));
       setAdminTags(next);
       setNewTagName('');
@@ -1282,7 +1187,7 @@ export const Admin: React.FC = () => {
     );
   };
 
-  const diarizerOptions = capabilities?.diarizers ?? [];
+  const diarizerOptions = useMemo(() => capabilities?.diarizers ?? [], [capabilities]);
   const diarizerOptionMap = useMemo(() => {
     const map = new Map<string, CapabilityResponse['diarizers'][number]>();
     diarizerOptions.forEach((option) => map.set(option.key, option));
@@ -1325,8 +1230,6 @@ export const Admin: React.FC = () => {
     const match = diarizerProviders.find((provider) => provider.name === defaultDiarizerProvider);
     return match?.weights ?? [];
   }, [defaultDiarizerProvider, diarizerProviders]);
-  const selectedWeightMeta = activeSet?.weights.find((weight) => weight.id === weightForm.id);
-  const selectedWeightHasFiles = Boolean(selectedWeightMeta?.has_weights);
   useEffect(() => {
     if (!diarizerProviders.length) {
       setDefaultDiarizerProvider('');
@@ -1377,7 +1280,7 @@ export const Admin: React.FC = () => {
         <div className="flex items-center gap-3 mb-6">
           <Shield className="w-7 h-7 text-terracotta" />
           <div>
-            <h1 className="text-2xl font-semibold text-pine-deep">Administration</h1>
+            <h1 className="text-2xl font-semibold text-pine-deep">Audio Transcription</h1>
             <p className="text-sm text-pine-mid">Only designated administrators can view these tools.</p>
           </div>
         </div>
@@ -1385,16 +1288,11 @@ export const Admin: React.FC = () => {
           className="p-4 border border-dusty-rose bg-terracotta/5 rounded-lg text-sm text-pine-deep"
           data-testid="admin-locked"
         >
-          Administration tools are limited to designated operators. Contact an administrator if you need access to global diarization controls or model registry management.
+          Audio transcription controls are limited to designated operators. Contact an administrator if you need access to global diarization controls or model registry management.
         </div>
       </div>
     );
   }
-
-  const storageProject = systemInfo?.storage.project;
-  const storagePercent = storageProject && storageProject.total_gb
-    ? Math.min(100, Math.max(0, ((storageProject.used_gb ?? 0) / storageProject.total_gb) * 100))
-    : null;
 
   return (
     <>
@@ -1519,15 +1417,265 @@ export const Admin: React.FC = () => {
         </div>
       )}
       <div className="p-6 max-w-5xl mx-auto flex flex-col gap-6">
-      <div className="flex items-center gap-3 order-0">
-        <Shield className="w-7 h-7 text-forest-green" />
-        <div>
-          <h1 className="text-2xl font-semibold text-pine-deep">Administration</h1>
-          <p className="text-sm text-pine-mid">Advanced ASR, diarization, and infrastructure controls</p>
+        <div className="flex items-center gap-3 order-0">
+          <Shield className="w-7 h-7 text-forest-green" />
+          <div>
+            <h1 className="text-2xl font-semibold text-pine-deep">Audio Transcription</h1>
+            <p className="text-sm text-pine-mid">Advanced ASR, diarization, and infrastructure controls</p>
+          </div>
         </div>
-      </div>
+        <div className="flex items-center gap-2 border-b border-sage-mid pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('audio')}
+            className={`px-3 py-2 text-sm rounded ${
+              activeTab === 'audio'
+                ? 'bg-sage-light text-forest-green'
+                : 'text-pine-mid hover:text-forest-green'
+            }`}
+            data-testid="admin-tab-audio"
+          >
+            Audio Transcription
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`px-3 py-2 text-sm rounded ${
+              activeTab === 'users'
+                ? 'bg-sage-light text-forest-green'
+                : 'text-pine-mid hover:text-forest-green'
+            }`}
+            data-testid="admin-tab-users"
+          >
+            Users
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('system')}
+            className={`px-3 py-2 text-sm rounded ${
+              activeTab === 'system'
+                ? 'bg-sage-light text-forest-green'
+                : 'text-pine-mid hover:text-forest-green'
+            }`}
+            data-testid="admin-tab-system"
+          >
+            System
+          </button>
+        </div>
 
-      <section className="bg-white border border-sage-mid rounded-lg p-6 order-2" data-testid="model-registry-section">
+        {activeTab === 'users' ? (
+          <UserManagement isAdmin={isAdmin} />
+        ) : activeTab === 'system' ? (
+      <section className="bg-white border border-sage-mid rounded-lg p-6 order-3" data-testid="system-section">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-medium text-pine-deep">System</h2>
+            <p className="text-sm text-pine-mid">Host hardware snapshot for administrator decisions</p>
+          </div>
+          <button
+            onClick={handleDetectSystem}
+            disabled={isDetectingSystem}
+            className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+            data-testid="system-detect"
+          >
+            {isDetectingSystem ? 'Detecting.' : 'Detect'}
+          </button>
+        </div>
+        <div className="border border-sage-mid rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-md font-semibold text-pine-deep">Time Zones</h3>
+            <span className="text-xs text-pine-mid">Server + user display</span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="server-time-zone" className="block text-sm font-medium text-pine-deep mb-1">
+                Server Time Zone (admin)
+              </label>
+              <select
+                id="server-time-zone"
+                value={serverTimeZone}
+                onChange={(e) => setServerTimeZone(e.target.value)}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              >
+                {timeZoneOptions.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-pine-mid mt-1">
+                {new Intl.DateTimeFormat(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZone: serverTimeZone || undefined,
+                  timeZoneName: 'short',
+                }).format(new Date())}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="user-time-zone" className="block text-sm font-medium text-pine-deep mb-1">
+                Your Display Time Zone
+              </label>
+              <select
+                id="user-time-zone"
+                value={userTimeZone}
+                onChange={(e) => setUserTimeZone(e.target.value)}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              >
+                <option value="">{`Use browser default (${browserTimeZone})`}</option>
+                {timeZoneOptions.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-pine-mid mt-1">
+                {new Intl.DateTimeFormat(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZone: userTimeZone || undefined,
+                  timeZoneName: 'short',
+                }).format(new Date())}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={handleSaveTimeZones}
+              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
+            >
+              Save Time Zones
+            </button>
+          </div>
+        </div>
+        {isSystemLoading ? (
+          <p className="text-sm text-pine-mid">Collecting system information.</p>
+        ) : systemInfo ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="system-summary">
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">OS</p>
+                <p className="text-sm text-pine-deep">
+                  {systemInfo.os.system} {systemInfo.os.release} ({systemInfo.os.machine})
+                </p>
+                {systemInfo.container.is_container && (
+                  <p className="text-xs text-terracotta mt-1">Running inside container</p>
+                )}
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">CPU</p>
+                <p className="text-sm text-pine-deep">
+                  {systemInfo.cpu.model || 'Unknown'} / {systemInfo.cpu.cores_physical ?? '?'}c/
+                  {systemInfo.cpu.cores_logical ?? '?'}t
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Memory</p>
+                <p className="text-sm text-pine-deep">
+                  {formatGb(systemInfo.memory.total_gb)} total / {formatGb(systemInfo.memory.available_gb)} free
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg" data-testid="system-gpu">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">GPU</p>
+                {systemInfo.gpu.has_gpu && systemInfo.gpu.devices.length > 0 ? (
+                  <ul className="text-sm text-pine-deep space-y-1">
+                    {systemInfo.gpu.devices.map((device, index) => (
+                      <li key={`${device.name}-${index}`}>
+                        {device.name} / {formatGb(device.memory_gb)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-pine-mid">No GPU detected</p>
+                )}
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg md:col-span-2 bg-sage-light/40">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Recommended defaults</p>
+                <p className="text-sm text-pine-deep">
+                  ASR: <span className="font-semibold">{systemInfo.recommendation.suggested_asr_model}</span> /
+                  Diarization:{' '}
+                  <span className="font-semibold">{systemInfo.recommendation.suggested_diarization}</span>
+                </p>
+                {systemInfo.recommendation.basis.length > 0 && (
+                  <p className="text-xs text-pine-mid mt-1">
+                    Basis: {systemInfo.recommendation.basis.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-pine-deep mb-2">Storage</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {renderDiskUsage('Database', systemInfo.storage.database)}
+                {renderDiskUsage('Media', systemInfo.storage.media)}
+                {renderDiskUsage('Transcripts', systemInfo.storage.transcripts)}
+                {renderDiskUsage('Project', systemInfo.storage.project)}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-pine-deep mb-2">Network</h3>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-sm text-pine-deep">
+                  Hostname: <span className="font-mono">{systemInfo.network.hostname}</span>
+                </p>
+                <div className="mt-2">{renderInterfaces()}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Runtime</p>
+                <p className="text-sm text-pine-deep">Python: {systemInfo.runtime.python}</p>
+                <p className="text-sm text-pine-deep">
+                  Node: {systemInfo.runtime.node ?? 'Not installed'}
+                </p>
+              </div>
+              <div className="p-3 border border-sage-mid rounded-lg">
+                <p className="text-xs uppercase text-pine-mid tracking-wide">Last detected</p>
+                <p className="text-sm text-pine-deep">
+                  {new Date(systemInfo.detected_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-pine-mid">System information unavailable.</p>
+        )}
+
+        <div className="mt-6 pt-4 border-t border-sage-mid space-y-3">
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={handleRestartServer}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+            >
+              Restart Server
+            </button>
+            <button
+              onClick={handleShutdownServer}
+              className="px-4 py-2 bg-terracotta text-white rounded-lg hover:bg-red-700 transition"
+            >
+              Shutdown Server
+            </button>
+          </div>
+          <p className="text-xs text-pine-mid">
+            Warning: System operations require administrator password and may interrupt ongoing transcriptions.
+          </p>
+          <p className="text-xs text-pine-mid">Restart runs the stop/start scripts on the host.</p>
+        </div>
+      </section>
+        ) : (
+        <>
+        <section className="bg-white border border-sage-mid rounded-lg p-6 order-2" data-testid="model-registry-section">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-pine-mid">Model Registry</p>
@@ -1953,7 +2101,7 @@ export const Admin: React.FC = () => {
                   </thead>
                   <tbody>
                     {sortedRegistrySets.map((set) => {
-                      const { enabledWeights, availableWeights, statusLabel, weightNames } = getRegistrySetStatus(set);
+                      const { availableWeights, statusLabel, weightNames } = getRegistrySetStatus(set);
                       const statusClass =
                         set.enabled && availableWeights.length
                           ? 'bg-forest-green/10 text-forest-green'
@@ -1987,7 +2135,7 @@ export const Admin: React.FC = () => {
       <section className="bg-white border border-sage-mid rounded-lg p-6 order-1" data-testid="admin-advanced-settings">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-xs uppercase tracking-wide text-pine-mid">Administration</p>
+            <p className="text-xs uppercase tracking-wide text-pine-mid">Audio Transcription</p>
             <h2 className="text-lg font-medium text-pine-deep">Advanced ASR & Diarization</h2>
             <p className="text-sm text-pine-mid">
               Manage global diarization policy, model registry availability, and per-job overrides.
@@ -2361,213 +2509,8 @@ export const Admin: React.FC = () => {
       </section>
 
 
-      <section className="bg-white border border-sage-mid rounded-lg p-6 order-3" data-testid="system-section">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-medium text-pine-deep">System</h2>
-            <p className="text-sm text-pine-mid">Host hardware snapshot for administrator decisions</p>
-          </div>
-          <button
-            onClick={handleDetectSystem}
-            disabled={isDetectingSystem}
-            className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
-            data-testid="system-detect"
-          >
-            {isDetectingSystem ? 'Detecting.' : 'Detect'}
-          </button>
-        </div>
-        <div className="border border-sage-mid rounded-lg p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-md font-semibold text-pine-deep">Time Zones</h3>
-            <span className="text-xs text-pine-mid">Server + user display</span>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="server-time-zone" className="block text-sm font-medium text-pine-deep mb-1">
-                Server Time Zone (admin)
-              </label>
-              <select
-                id="server-time-zone"
-                value={serverTimeZone}
-                onChange={(e) => setServerTimeZone(e.target.value)}
-                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
-              >
-                {timeZoneOptions.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-pine-mid mt-1">
-                {new Intl.DateTimeFormat(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  timeZone: serverTimeZone || undefined,
-                  timeZoneName: 'short',
-                }).format(new Date())}
-              </p>
-            </div>
-            <div>
-              <label htmlFor="user-time-zone" className="block text-sm font-medium text-pine-deep mb-1">
-                Your Display Time Zone
-              </label>
-              <select
-                id="user-time-zone"
-                value={userTimeZone}
-                onChange={(e) => setUserTimeZone(e.target.value)}
-                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
-              >
-                <option value="">{`Use browser default (${browserTimeZone})`}</option>
-                {timeZoneOptions.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-pine-mid mt-1">
-                {new Intl.DateTimeFormat(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  timeZone: userTimeZone || undefined,
-                  timeZoneName: 'short',
-                }).format(new Date())}
-              </p>
-            </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <button
-              onClick={handleSaveTimeZones}
-              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
-            >
-              Save Time Zones
-            </button>
-          </div>
-        </div>
-        {isSystemLoading ? (
-          <p className="text-sm text-pine-mid">Collecting system information.</p>
-        ) : systemInfo ? (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="system-summary">
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">OS</p>
-                <p className="text-sm text-pine-deep">
-                  {systemInfo.os.system} {systemInfo.os.release} ({systemInfo.os.machine})
-                </p>
-                {systemInfo.container.is_container && (
-                  <p className="text-xs text-terracotta mt-1">Running inside container</p>
-                )}
-              </div>
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">CPU</p>
-                <p className="text-sm text-pine-deep">
-                  {systemInfo.cpu.model || 'Unknown'} · {systemInfo.cpu.cores_physical ?? '?'}c/
-                  {systemInfo.cpu.cores_logical ?? '?'}t
-                </p>
-              </div>
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">Memory</p>
-                <p className="text-sm text-pine-deep">
-                  {formatGb(systemInfo.memory.total_gb)} total · {formatGb(systemInfo.memory.available_gb)} free
-                </p>
-              </div>
-              <div className="p-3 border border-sage-mid rounded-lg" data-testid="system-gpu">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">GPU</p>
-                {systemInfo.gpu.has_gpu && systemInfo.gpu.devices.length > 0 ? (
-                  <ul className="text-sm text-pine-deep space-y-1">
-                    {systemInfo.gpu.devices.map((device, index) => (
-                      <li key={`${device.name}-${index}`}>
-                        {device.name} · {formatGb(device.memory_gb)}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-pine-mid">No GPU detected</p>
-                )}
-              </div>
-              <div className="p-3 border border-sage-mid rounded-lg md:col-span-2 bg-sage-light/40">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">Recommended defaults</p>
-                <p className="text-sm text-pine-deep">
-                  ASR: <span className="font-semibold">{systemInfo.recommendation.suggested_asr_model}</span> ·
-                  Diarization:{' '}
-                  <span className="font-semibold">{systemInfo.recommendation.suggested_diarization}</span>
-                </p>
-                {systemInfo.recommendation.basis.length > 0 && (
-                  <p className="text-xs text-pine-mid mt-1">
-                    Basis: {systemInfo.recommendation.basis.join(', ')}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-pine-deep mb-2">Storage</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {renderDiskUsage('Database', systemInfo.storage.database)}
-                {renderDiskUsage('Media', systemInfo.storage.media)}
-                {renderDiskUsage('Transcripts', systemInfo.storage.transcripts)}
-                {renderDiskUsage('Project', systemInfo.storage.project)}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-pine-deep mb-2">Network</h3>
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-sm text-pine-deep">
-                  Hostname: <span className="font-mono">{systemInfo.network.hostname}</span>
-                </p>
-                <div className="mt-2">{renderInterfaces()}</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">Runtime</p>
-                <p className="text-sm text-pine-deep">Python: {systemInfo.runtime.python}</p>
-                <p className="text-sm text-pine-deep">
-                  Node: {systemInfo.runtime.node ?? 'Not installed'}
-                </p>
-              </div>
-              <div className="p-3 border border-sage-mid rounded-lg">
-                <p className="text-xs uppercase text-pine-mid tracking-wide">Last detected</p>
-                <p className="text-sm text-pine-deep">
-                  {new Date(systemInfo.detected_at).toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-pine-mid">System information unavailable.</p>
+        </>
         )}
-
-        <div className="mt-6 pt-4 border-t border-sage-mid space-y-3">
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={handleRestartServer}
-              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
-            >
-              Restart Server
-            </button>
-            <button
-              onClick={handleShutdownServer}
-              className="px-4 py-2 bg-terracotta text-white rounded-lg hover:bg-red-700 transition"
-            >
-              Shutdown Server
-            </button>
-          </div>
-          <p className="text-xs text-pine-mid">
-            Warning: System operations require administrator password and may interrupt ongoing transcriptions.
-          </p>
-          <p className="text-xs text-pine-mid">Restart runs the stop/start scripts on the host.</p>
-        </div>
-      </section>
     </div>
     </>
   );

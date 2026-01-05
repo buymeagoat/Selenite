@@ -59,9 +59,13 @@ def upgrade() -> None:
                 set_path = (models_root / provider).resolve()
                 set_path.mkdir(parents=True, exist_ok=True)
 
-                model_set = session.execute(
-                    select(ModelSet).where(ModelSet.name == provider, ModelSet.type == ptype)
-                ).scalars().first()
+                model_set = (
+                    session.execute(
+                        select(ModelSet).where(ModelSet.name == provider, ModelSet.type == ptype)
+                    )
+                    .scalars()
+                    .first()
+                )
                 if not model_set:
                     model_set = ModelSet(
                         type=ptype,
@@ -78,11 +82,15 @@ def upgrade() -> None:
                     entry_path = (set_path / entry).resolve()
                     entry_path.mkdir(parents=True, exist_ok=True)
 
-                    existing_entry = session.execute(
-                        select(ModelEntry).where(
-                            ModelEntry.set_id == model_set.id, ModelEntry.name == entry
+                    existing_entry = (
+                        session.execute(
+                            select(ModelEntry).where(
+                                ModelEntry.set_id == model_set.id, ModelEntry.name == entry
+                            )
                         )
-                    ).scalars().first()
+                        .scalars()
+                        .first()
+                    )
                     if existing_entry:
                         continue
 

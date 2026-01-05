@@ -96,6 +96,7 @@ const baseContext: SettingsContextValue = {
     allow_diarizer_overrides: true,
     enable_timestamps: true,
     max_concurrent_jobs: 3,
+    show_all_jobs: false,
     time_zone: 'UTC',
     server_time_zone: 'UTC',
     transcode_to_wav: true,

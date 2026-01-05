@@ -21,6 +21,7 @@ from app.routes import system as system_module
 from app.routes import diagnostics as diagnostics_module
 from app.routes import model_registry as model_registry_module
 from app.routes import file_browser as file_browser_module
+from app.routes import users as users_module
 from app.services.job_queue import (
     queue,
     resolve_queue_concurrency,
@@ -44,6 +45,7 @@ system_router = system_module.router
 diagnostics_router = diagnostics_module.router
 model_registry_router = model_registry_module.router
 file_browser_router = file_browser_module.router
+users_router = users_module.router
 
 
 @asynccontextmanager
@@ -140,7 +142,7 @@ async def ensure_cors_headers(request, call_next):
         except HTTPException:
             # Let FastAPI render HTTPException statuses cleanly
             raise
-        except Exception:  # noqa: B902
+        except Exception:
             from fastapi.responses import PlainTextResponse
 
             # Preserve stack in server logs while still sending CORS headers
@@ -203,6 +205,7 @@ app.include_router(system_router)
 app.include_router(diagnostics_router)
 app.include_router(model_registry_router)
 app.include_router(file_browser_router)
+app.include_router(users_router)
 
 
 @app.get("/health")

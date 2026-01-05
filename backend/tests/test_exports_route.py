@@ -133,7 +133,7 @@ async def test_export_unauthorized_user(tmp_path, test_db, auth_headers_user2):
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"/jobs/{job.id}/export", headers=auth_headers_user2)
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 @pytest.mark.anyio
@@ -419,7 +419,7 @@ async def test_export_transcript_unauthorized_direct(tmp_path, test_db):
             await export_transcript(
                 "job-unauth-direct", "txt", current_user=user2, db=session  # type: ignore[arg-type]
             )
-        assert exc.value.status_code == 403
+        assert exc.value.status_code == 404
 
 
 @pytest.mark.anyio

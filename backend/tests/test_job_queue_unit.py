@@ -245,7 +245,7 @@ async def test_resolve_queue_concurrency_prefers_admin():
 
     try:
         async with AsyncSessionLocal() as session:
-            admin = User(username="admin", email="admin@example.com", hashed_password="hashed")
+            admin = User(username="admin", email="admin@selenite.local", hashed_password="hashed")
             other = User(username="member", email="member@example.com", hashed_password="hashed")
             session.add_all([admin, other])
             await session.flush()
@@ -274,7 +274,7 @@ async def test_finalize_incomplete_jobs_marks_cancelled():
 
     async with AsyncSessionLocal() as session:
         user = User(
-            username="cancel_admin", email="cancel_admin@example.com", hashed_password="hashed"
+            username="cancel_admin", email="cancel_admin@selenite.local", hashed_password="hashed"
         )
         session.add(user)
         await session.flush()

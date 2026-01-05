@@ -165,7 +165,22 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         }
       }
     };
+    loadCapabilities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const loadRegistry = async () => {
+      setRegistryLoading(true);
+      if (!allowAsrOverrides && !allowDiarizerOverrides) {
+        setRegistrySets([]);
+        setRegistryError(null);
+        setRegistryLoading(false);
+        return;
+      }
       try {
         const data = await listModelSets();
         if (cancelled) return;
@@ -180,12 +195,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
         }
       }
     };
-    loadCapabilities();
     loadRegistry();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [allowAsrOverrides, allowDiarizerOverrides]);
 
   const diarizerCapabilities = useMemo(() => capabilities?.diarizers ?? [], [capabilities]);
   const diarizerCapabilityMap = useMemo(() => {
@@ -230,9 +244,32 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     () => diarizerProviderGroups.flatMap((group) => group.weights.filter((weight) => weight.available)),
     [diarizerProviderGroups]
   );
-  const supportsDiarization = adminAllowsDiarization && availableDiarizerWeights.length > 0;
-  const detectSpeakersDisabled =
-    capabilitiesLoading || !supportsDiarization || !allowDiarizerOverrides;
+  const capabilityDiarizerAvailable = useMemo(
+    () => diarizerCapabilities.some((option) => option.available),
+    [diarizerCapabilities]
+  );
+  const supportsDiarization = adminAllowsDiarization && (
+    allowDiarizerOverrides ? availableDiarizerWeights.length > 0 : capabilityDiarizerAvailable
+  );
+  const detectSpeakersDisabled = capabilitiesLoading || !supportsDiarization;
+  const diarizationSummary = useMemo(() => {
+    const diarizerLabel = [resolvedDefaults.diarizerProvider, resolvedDefaults.diarizer]
+      .filter(Boolean)
+      .join(' / ');
+    let status = 'Off';
+    if (!supportsDiarization) {
+      status = adminAllowsDiarization ? 'Unavailable' : 'Disabled by admin';
+    } else if (enableSpeakerDetection) {
+      status = 'On';
+    }
+    return diarizerLabel ? `${status} (${diarizerLabel})` : status;
+  }, [
+    resolvedDefaults.diarizerProvider,
+    resolvedDefaults.diarizer,
+    supportsDiarization,
+    adminAllowsDiarization,
+    enableSpeakerDetection,
+  ]);
 
   const asrProviders = useMemo(() => registrySets.filter((set) => set.type === 'asr'), [registrySets]);
   const providerOptions = useMemo(
@@ -290,7 +327,11 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
   const providerReady = Boolean(activeProvider?.isUsable);
   const weightReady = Boolean(selectedWeightOption?.isUsable);
   const hasEnabledAsrModels = providerReady && weightOptions.some((opt) => opt.isUsable);
-  const canSubmit = Boolean(selectedFile && providerReady && weightReady && !isSubmitting);
+  const canSubmit = Boolean(
+    selectedFile &&
+      !isSubmitting &&
+      (allowAsrOverrides ? providerReady && weightReady : true)
+  );
 
   const detectSpeakersHelpText = useMemo(() => {
     if (capabilitiesLoading) {
@@ -420,6 +461,7 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     isInitialized,
     initializedDefaultsKey,
     hasUserChanges,
+    allowEmptyWeights,
   ]);
 
   useEffect(() => {
@@ -525,25 +567,27 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
 
     const selectedWeight = weightOptions.find((opt) => opt.value === model);
 
-    if (!selectedProvider) {
-      setError('Select a model set before starting a job.');
-      return;
-    }
-    if (!providerReady) {
-      setError('Selected model set is unavailable. Choose an enabled set.');
-      return;
-    }
-    if (!hasEnabledAsrModels) {
-      setError('No ASR weights available. Contact admin to register a weight.');
-      return;
-    }
-    if (!selectedWeight) {
-      setError('Select a model weight before starting a job.');
-      return;
-    }
-    if (!selectedWeight.isUsable) {
-      setError('Selected model weight is unavailable. Choose an enabled weight.');
-      return;
+    if (allowAsrOverrides) {
+      if (!selectedProvider) {
+        setError('Select a model set before starting a job.');
+        return;
+      }
+      if (!providerReady) {
+        setError('Selected model set is unavailable. Choose an enabled set.');
+        return;
+      }
+      if (!hasEnabledAsrModels) {
+        setError('No ASR weights available. Contact admin to register a weight.');
+        return;
+      }
+      if (!selectedWeight) {
+        setError('Select a model weight before starting a job.');
+        return;
+      }
+      if (!selectedWeight.isUsable) {
+        setError('Selected model weight is unavailable. Choose an enabled weight.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -553,15 +597,15 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
     const extraFlagsValue = extraFlags.trim();
 
     // Always send the selected values so the backend reflects the UI selection.
-    const modelSelection = model || undefined;
-    const languageSelection = language || undefined;
+    const modelSelection = allowAsrOverrides ? model || undefined : undefined;
+    const languageSelection = allowAsrOverrides ? language || undefined : undefined;
     const diarizerSelection = diarizer || undefined;
 
     try {
       await onSubmit({
         file: selectedFile,
         jobName: jobName.trim() || undefined,
-        provider: selectedProvider,
+        provider: allowAsrOverrides ? selectedProvider : undefined,
         model: modelSelection,
         language: languageSelection,
         enableTimestamps,
@@ -676,19 +720,19 @@ export const NewJobModal: React.FC<NewJobModalProps> = ({
               Language: <span className="font-medium">{language || resolvedDefaults.language || 'auto'}</span>
             </div>
             <div className="text-sm text-pine-deep">
-              Diarization: <span className="font-medium">{supportsDiarization ? (enableSpeakerDetection ? 'On' : 'Off') : (adminAllowsDiarization ? 'Unavailable' : 'Disabled by admin')}</span>
+              Diarization: <span className="font-medium">{diarizationSummary}</span>
             </div>
             <div className="text-sm text-pine-deep">
-              Overrides: <span className="font-medium">ASR {allowAsrOverrides ? 'On' : 'Off'} · Diarizer {allowDiarizerOverrides ? 'On' : 'Off'}</span>
+              Overrides: <span className="font-medium">ASR {allowAsrOverrides ? 'On' : 'Off'} | Diarizer {allowDiarizerOverrides ? 'On' : 'Off'}</span>
             </div>
             {(allowAsrOverrides || allowDiarizerOverrides) ? (
               <p className="text-xs text-pine-mid mt-2">Adjust these in Advanced options.</p>
             ) : (
               <p className="text-xs text-pine-mid mt-2">Per-job overrides are disabled by the administrator.</p>
             )}
-            {(!providerReady || !weightReady) && (
+            {(allowAsrOverrides && (!providerReady || !weightReady)) && (
               <p className="text-xs text-terracotta mt-2">
-                Default model is unavailable; open Advanced options to select an enabled weight.
+                Default ASR model weight is unavailable; open Advanced options to select an enabled weight.
               </p>
             )}
           </div>

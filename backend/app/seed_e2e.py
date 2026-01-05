@@ -55,6 +55,9 @@ async def seed_e2e_database():
                 username="admin",
                 email="admin@selenite.local",
                 hashed_password=hash_password("changeme"),
+                is_admin=True,
+                is_disabled=False,
+                force_password_reset=False,
             )
             db.add(admin_user)
             await db.commit()
@@ -63,6 +66,14 @@ async def seed_e2e_database():
         else:
             # Always reset admin password for deterministic E2E runs
             setattr(admin_user, "hashed_password", hash_password("changeme"))
+            if admin_user.email != "admin@selenite.local":
+                admin_user.email = "admin@selenite.local"
+            if not admin_user.is_admin:
+                admin_user.is_admin = True
+            if admin_user.is_disabled:
+                admin_user.is_disabled = False
+            if admin_user.force_password_reset:
+                admin_user.force_password_reset = False
             await db.commit()
             await db.refresh(admin_user)
             print("Reset admin user password to default for E2E")

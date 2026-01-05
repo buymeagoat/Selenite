@@ -38,6 +38,14 @@ param(
     [switch]$ShowAll
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
+
 $ErrorActionPreference = "Stop"
 
 $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -127,3 +135,7 @@ if ($Follow) {
     $logLines = Get-Content -Path $logPath -Tail $Lines
     Show-Logs $logLines
 }
+
+
+
+

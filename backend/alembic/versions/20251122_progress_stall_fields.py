@@ -4,6 +4,7 @@ Revision ID: 20251122_progress_fields
 Revises: 20251117_add_user_settings
 Create Date: 2025-11-22 00:00:00
 """
+
 from typing import Sequence, Union
 
 from alembic import op

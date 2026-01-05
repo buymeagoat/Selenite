@@ -5,6 +5,19 @@ param(
     [string]$HostIp
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
+
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$backendDir = Join-Path $repoRoot 'backend'
+
 function Get-DefaultHostIp {
     $candidates = Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual,Dhcp |
         Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
@@ -21,8 +34,8 @@ if (-not $HostIp -or $HostIp.Trim() -eq "") {
     $HostIp = Get-DefaultHostIp
 }
 
-$origin = "http://$HostIp:5173"
-$url = "http://$HostIp:8100/health"
+$origin = "http://$HostIp:$FrontendPort"
+$url = "http://$HostIp:$BackendPort/health"
 
 Write-Host "`n=== Testing CORS Configuration ===" -ForegroundColor Cyan
 Write-Host "Origin: $origin"
@@ -50,8 +63,17 @@ catch {
 }
 
 Write-Host "`n=== backend/.env CORS snippet ===" -ForegroundColor Cyan
-Push-Location "d:\Dev\projects\Selenite\backend"
-Get-Content .env | Select-String -Pattern "CORS"
+Push-Location $backendDir
+if (Test-Path .env) {
+    Get-Content .env | Select-String -Pattern "CORS"
+} else {
+    Write-Host "No backend/.env found." -ForegroundColor Yellow
+}
 Pop-Location
 
 Write-Host "`nTip: after editing backend/.env, run .\scripts\start-selenite.ps1 so uvicorn reloads the new CORS list." -ForegroundColor Yellow
+
+
+
+
+

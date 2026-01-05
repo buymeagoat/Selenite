@@ -87,6 +87,28 @@ class ModelRegistryService:
 
         return sets
 
+    @classmethod
+    async def list_visible_model_sets(cls, session: AsyncSession) -> list[ModelSet]:
+        sets = await cls.list_model_sets(session)
+        allow_empty_weights = await cls._get_enable_empty_weights(session)
+        visible_sets: list[ModelSet] = []
+        for model_set in sets:
+            if not model_set.enabled:
+                continue
+            visible_entries = []
+            for entry in model_set.entries:
+                has_weights = bool(getattr(entry, "has_weights", False))
+                force_enabled = bool(getattr(entry, "force_enabled", False))
+                if not entry.enabled:
+                    continue
+                if has_weights or allow_empty_weights or force_enabled:
+                    visible_entries.append(entry)
+            if not visible_entries:
+                continue
+            model_set.entries = visible_entries
+            visible_sets.append(model_set)
+        return visible_sets
+
     @staticmethod
     async def get_set_by_id(
         session: AsyncSession, set_id: int, *, include_entries: bool = False

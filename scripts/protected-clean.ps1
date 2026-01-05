@@ -5,6 +5,14 @@ param(
     [switch]$ForceProtected
 )
 
+$guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
+if (Test-Path $guardScript) { . $guardScript }
+
+
+
+
+
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -73,3 +81,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[protected-clean] Complete." -ForegroundColor Green
+
+
+
+

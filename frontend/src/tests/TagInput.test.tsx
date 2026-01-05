@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { act } from 'react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

@@ -1,7 +1,7 @@
 """Tag management routes."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -26,19 +26,42 @@ from app.schemas.tag import (
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 
+def _scope_filter(scope: str | None, current_user: User):
+    if scope == "global":
+        return Tag.owner_user_id.is_(None)
+    if scope == "personal":
+        return Tag.owner_user_id == current_user.id
+    return (Tag.owner_user_id.is_(None)) | (Tag.owner_user_id == current_user.id)
+
+
+def _tag_scope(tag: Tag) -> str:
+    return "global" if tag.owner_user_id is None else "personal"
+
+
 @router.get("", response_model=TagListResponse)
 async def list_tags(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
+    scope: str | None = Query(default=None, pattern="^(global|personal|all)$"),
 ):
     """List all tags with job counts."""
     # Get all tags with job counts
-    stmt = (
-        select(Tag, func.count(job_tags.c.job_id).label("job_count"))
-        .outerjoin(job_tags, Tag.id == job_tags.c.tag_id)
-        .group_by(Tag.id)
-        .order_by(Tag.created_at.desc())
+    join_clause = job_tags
+    job_join = Job
+    if current_user.is_admin:
+        join_condition = Job.id == job_tags.c.job_id
+    else:
+        join_condition = (Job.id == job_tags.c.job_id) & (Job.user_id == current_user.id)
+
+    stmt = select(Tag, func.count(Job.id).label("job_count")).select_from(Tag)
+    stmt = stmt.outerjoin(join_clause, Tag.id == job_tags.c.tag_id).outerjoin(
+        job_join, join_condition
     )
+    if scope != "all":
+        stmt = stmt.where(_scope_filter(scope, current_user))
+    else:
+        stmt = stmt.where(_scope_filter(None, current_user))
+    stmt = stmt.group_by(Tag.id).order_by(Tag.created_at.desc())
     result = await db.execute(stmt)
     rows = result.all()
 
@@ -49,6 +72,8 @@ async def list_tags(
                 id=tag.id,
                 name=tag.name,
                 color=tag.color,
+                scope=_tag_scope(tag),
+                owner_user_id=tag.owner_user_id,
                 job_count=job_count,
                 created_at=tag.created_at,
             )
@@ -64,8 +89,20 @@ async def create_tag(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Create a new tag."""
-    # Check if tag with same name exists
+    scope = tag_data.scope
+    if not current_user.is_admin:
+        scope = "personal"
+    elif scope is None:
+        scope = "global"
+
+    owner_user_id = None if scope == "global" else current_user.id
+
+    # Check if tag with same name exists in scope
     stmt = select(Tag).where(Tag.name == tag_data.name)
+    if owner_user_id is None:
+        stmt = stmt.where(Tag.owner_user_id.is_(None))
+    else:
+        stmt = stmt.where(Tag.owner_user_id == owner_user_id)
     result = await db.execute(stmt)
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -73,7 +110,7 @@ async def create_tag(
             detail=f"Tag with name '{tag_data.name}' already exists",
         )
 
-    tag = Tag(name=tag_data.name, color=tag_data.color)
+    tag = Tag(name=tag_data.name, color=tag_data.color, owner_user_id=owner_user_id)
     db.add(tag)
     await db.commit()
     await db.refresh(tag)
@@ -82,6 +119,8 @@ async def create_tag(
         id=tag.id,
         name=tag.name,
         color=tag.color,
+        scope=_tag_scope(tag),
+        owner_user_id=tag.owner_user_id,
         job_count=0,
         created_at=tag.created_at,
     )
@@ -101,10 +140,28 @@ async def update_tag(
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    if tag.owner_user_id is None and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can modify global tags",
+        )
+    if (
+        tag.owner_user_id is not None
+        and tag.owner_user_id != current_user.id
+        and not current_user.is_admin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the tag owner can modify this tag",
+        )
 
     # Check if new name conflicts with existing tag
     if tag_data.name and tag_data.name != tag.name:
         stmt = select(Tag).where(Tag.name == tag_data.name)
+        if tag.owner_user_id is None:
+            stmt = stmt.where(Tag.owner_user_id.is_(None))
+        else:
+            stmt = stmt.where(Tag.owner_user_id == tag.owner_user_id)
         result = await db.execute(stmt)
         if result.scalar_one_or_none():
             raise HTTPException(
@@ -128,6 +185,8 @@ async def update_tag(
         id=tag.id,
         name=tag.name,
         color=tag.color,
+        scope=_tag_scope(tag),
+        owner_user_id=tag.owner_user_id,
         job_count=job_count,
         created_at=tag.created_at,
     )
@@ -146,6 +205,20 @@ async def delete_tag(
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    if tag.owner_user_id is None and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can delete global tags",
+        )
+    if (
+        tag.owner_user_id is not None
+        and tag.owner_user_id != current_user.id
+        and not current_user.is_admin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the tag owner can delete this tag",
+        )
 
     # Count affected jobs before deletion
     stmt = select(func.count(job_tags.c.job_id)).where(job_tags.c.tag_id == tag_id)
@@ -204,6 +277,7 @@ async def assign_tags_to_job(
         return JobTagsResponse(job_id=job.id, tags=[])
 
     stmt = select(Tag).where(Tag.id.in_(tag_ids))
+    stmt = stmt.where((Tag.owner_user_id.is_(None)) | (Tag.owner_user_id == current_user.id))
     result = await db.execute(stmt)
     tags = result.scalars().all()
     if len(tags) != len(set(tag_ids)):

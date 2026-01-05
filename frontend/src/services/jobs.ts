@@ -39,6 +39,9 @@ export interface Job {
     name: string;
     color: string | null;
   }>;
+  owner_user_id?: number | null;
+  owner_username?: string | null;
+  owner_email?: string | null;
   created_at: string;
   updated_at?: string;
   started_at: string | null;

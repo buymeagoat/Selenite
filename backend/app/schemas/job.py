@@ -65,6 +65,9 @@ class JobResponse(BaseModel):
     transcript_path: Optional[str] = None
     error_message: Optional[str] = None
     tags: List[TagResponse] = []
+    owner_user_id: Optional[int] = None
+    owner_username: Optional[str] = None
+    owner_email: Optional[str] = None
     available_exports: List[str] = ["txt", "md", "srt", "vtt", "json", "docx"]
     created_at: datetime
     updated_at: datetime
@@ -107,6 +110,9 @@ class JobListItem(BaseModel):
     has_timestamps: bool
     has_speaker_labels: bool
     tags: List[TagResponse] = []
+    owner_user_id: Optional[int] = None
+    owner_username: Optional[str] = None
+    owner_email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     started_at: Optional[datetime] = None

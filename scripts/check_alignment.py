@@ -20,6 +20,8 @@ def _ensure_dev_workspace() -> None:
     if role_file.exists():
         role = role_file.read_text(encoding="utf-8").splitlines()[0].strip().lower()
         if role != "dev":
+            if os.getenv("SELENITE_AI_SESSION") != "1":
+                return
             if os.getenv("SELENITE_ALLOW_PROD_WRITES") == "1":
                 return
             raise RuntimeError("This script must be run from a dev workspace.")

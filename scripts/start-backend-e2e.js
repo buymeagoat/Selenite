@@ -13,7 +13,9 @@ const repoRoot = path.resolve(__dirname, '..');
 const roleFile = path.join(repoRoot, '.workspace-role');
 if (fs.existsSync(roleFile)) {
   const role = fs.readFileSync(roleFile, 'utf8').split(/\r?\n/)[0].trim().toLowerCase();
-  if (role !== 'dev') {
+  const aiSession = process.env.SELENITE_AI_SESSION === '1';
+  const allowProd = process.env.SELENITE_ALLOW_PROD_WRITES === '1';
+  if (role !== 'dev' && aiSession && !allowProd) {
     console.error('This script must be run from a dev workspace.');
     process.exit(1);
   }

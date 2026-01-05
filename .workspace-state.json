@@ -1,0 +1,7 @@
+{
+  "role": "prod",
+  "state": "writeable",
+  "canonical_owner": "dev",
+  "note": "Prod writeable for promotion",
+  "updated_at": "2026-01-05T20:59:26Z"
+}

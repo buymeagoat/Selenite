@@ -46,7 +46,7 @@ Each promotion entry must include:
 | 2026-01-02-multi-user | Multi-user auth, admin user management, per-user settings, audit logging, job scoping | Pending | Codex | `run-tests.ps1 -SkipE2E` passed 20260105-150330; manual UI verification in dev pending |
 | 2026-01-02-dashboard-tests | Fix Dashboard test settings mocks (`max_concurrent_jobs`) | Pending | Codex | Blocked by test run |
 | 2026-01-04-commit-gates | Commit gate guardrails + dev/prod diff tooling updates | Pending | Codex | `scripts/diff-dev-prod.ps1` optimized; COMMIT_GATES.md added |
-| 2026-01-05-promotion-hardening | Promotion safeguards: workspace state, data inventory, schema snapshot/config capture, manual verification checklist | Pending | Codex | New promotion process codified; ready to promote with next milestone |
+| 2026-01-05-promotion-hardening | Promotion safeguards: workspace state, data inventory, schema snapshot/config capture, manual verification checklist | Pending | Codex | Backup `D:\Dev\projects\Selenite\storage\backups\system-20260105-151041`; config `D:\Dev\projects\Selenite\scratch\config\20260105-211111`; schema pre `D:\Dev\projects\Selenite\scratch\schema\20260105-212004-pre-upgrade.sql`; schema post rehearsal `D:\Dev\projects\Selenite\scratch\schema\20260105-212023-post-upgrade-rehearsal.sql`; rehearsal restore cleaned; rollback: stop services -> restore backup -> restart -> re-verify; state: prod writeable/dev canonical (2026-01-05T20:59:26Z, Codex); prod smoke OK 2026-01-06T12:06:46-06:00 (Codex) |
 
 ## Dev-only (Do Not Promote)
 | ID | Summary | Status | Owner | Notes |

@@ -1,7 +1,7 @@
 {
   "role": "prod",
-  "state": "provisional",
-  "canonical_owner": "dev",
-  "note": "Manual verification complete; prod gates in progress",
-  "updated_at": "2026-01-06T21:26:03Z"
+  "state": "canonical",
+  "canonical_owner": "prod",
+  "note": "Prod canonical after promotion gates",
+  "updated_at": "2026-01-06T21:37:16Z"
 }

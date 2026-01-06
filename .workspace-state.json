@@ -1,7 +1,7 @@
 {
   "role": "prod",
-  "state": "writeable",
+  "state": "provisional",
   "canonical_owner": "dev",
-  "note": "Prod writeable for promotion",
-  "updated_at": "2026-01-05T20:59:26Z"
+  "note": "Manual verification complete; prod gates in progress",
+  "updated_at": "2026-01-06T21:26:03Z"
 }

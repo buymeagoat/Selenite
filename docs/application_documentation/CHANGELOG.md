@@ -1,3 +1,4 @@
 # Changelog
 
+- 2026-01-06: Promoted multi-user support (admin user management, per-user settings, audit logging, job scoping); hardened prod/dev separation checks; aligned prod/dev port documentation (prod 8100/5173, dev 8201/5174); prod backup verified at `storage/backups/system-20260106-153411`.
 - 2025-11-23: Added PR template and automation agents plan; introduced timestamp timezone/format options; improved deletion of transcript metadata; hardened elapsed timer parsing; added CI agent workflows (hygiene, docs/API, security, quality, tests, migrations, memorialization), bundle-size check, env sample check, migration upgrade verification, gitleaks config, perf probe script, default budgets (4 MB bundle, 200 ms /health), PR bundle report, PR coverage report, nightly audit (pip/npm + perf probe), branch protection checklist, and contributing quickstart.

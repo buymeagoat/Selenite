@@ -5,6 +5,7 @@ in `docs/build/DEV_TO_PROD_PROMOTION.md`.
 
 ## Core Runtime
 - Login as admin succeeds (email + password).
+- Login request targets prod API base (check Network tab for `/auth/login` -> prod port).
 - Dashboard loads with jobs list.
 - New job submission works (upload + start).
 - Job transitions: queued → processing → completed.

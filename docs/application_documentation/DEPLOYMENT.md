@@ -5,8 +5,8 @@ This guide provides step-by-step instructions for deploying Selenite to a produc
 ## Quick Production Setup
 
 ### Port Convention (Prod vs Dev)
-- **Production**: backend `8200`, frontend `5173`
-- **Development**: backend `8100`, frontend `5173`
+- **Production**: backend `8100`, frontend `5173`
+- **Development**: backend `8201`, frontend `5174`
 
 ### 1. Generate Secure Credentials
 ```bash
@@ -60,7 +60,7 @@ alembic upgrade head
 
 ```bash
 # Start the server
-uvicorn app.main:app --host 0.0.0.0 --port 8200
+uvicorn app.main:app --host 0.0.0.0 --port 8100
 
 # In another terminal, check health
 curl http://localhost:8100/health
@@ -186,7 +186,7 @@ DEFAULT_LANGUAGE=auto
 
 # Server configuration
 HOST=0.0.0.0
-PORT=8200
+PORT=8100
 CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
 
 # Logging

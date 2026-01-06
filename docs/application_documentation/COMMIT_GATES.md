@@ -15,7 +15,7 @@ This is the single source of truth for what must pass before a commit is allowed
 
 ## Dev Commit Gates (Required)
 1) Pre-flight: run `./scripts/pre-flight-check.ps1` and resolve failures.
-2) Repo hygiene: `./scripts/check_repo_hygiene.ps1` (or `run-tests.ps1` which invokes it).
+2) Repo hygiene: `python scripts/check_repo_hygiene.py` (or `run-tests.ps1` which invokes it).
 3) Lint + format:
    - Backend: `black --check backend` and `ruff check backend`.
    - Frontend: `npm run lint`.
@@ -28,12 +28,21 @@ This is the single source of truth for what must pass before a commit is allowed
 10) Dev/prod separation: confirm no protected paths were modified unless explicitly required.
 11) Promotion log prep: run `./scripts/diff-dev-prod.ps1` and update
     `docs/build/DEV_TO_PROD_PROMOTION.md` with the delta.
+12) **Dev/prod separation audit (hard check)**: run
+    `rg -n "Selenite-dev|/Selenite-dev|\\\\Selenite-dev|:8200|:8201|:5174" -S`
+    and verify no prod artifacts reference dev paths or dev ports. Record
+    results in the promotion log before continuing.
 
 ## Update Prod From Dev (Required)
 0) **Prod health pre-check**: in prod, verify `git status -sb` is clean and `scripts/pre-flight-check.ps1`, `python scripts/check_migrations.py`, `python scripts/run_migrations_upgrade.py` all pass. If prod is dirty, the AI must commit the outstanding prod fixes first (with a clear process-oriented message), record the reason in the promotion log, and then re-run the pre-check.
 1) Ensure dev commit is clean (all gates above satisfied).
 2) Use the promotion log to apply changes to prod in a controlled, auditable order.
 3) **Prod readiness pass**: review every dev change for prod compatibility (ports, paths, env flags, dev-only scripts/docs/artifacts) and tailor or exclude items so prod startup, migrations, and runbooks succeed.
+3a) **Hard separation audit (required)**: in prod, run
+    `rg -n "Selenite-dev|/Selenite-dev|\\\\Selenite-dev|:8200|:8201|:5174" -S` and
+    verify prod uses prod ports/paths. Also verify runtime config/env values
+    (`VITE_API_URL`, `VITE_API_PORT`, `SELENITE_BACKEND_PORT`) align with prod.
+    Record findings and any required adjustments in the promotion log.
 4) **Migration hardening check**: verify new migrations are idempotent (safe on partially applied prod DBs) and do not drop/reset user/admin configuration unless explicitly required.
 5) **Pre-upgrade backup verify (prod)**: run `./scripts/backup-verify.ps1` and record the backup path.
 6) **Backup scope check**: ensure the backup includes DB + storage + required config (`.env*`). If config is not included by the script, capture it via `scripts/capture-config.ps1` and record the path.
@@ -51,7 +60,7 @@ This is the single source of truth for what must pass before a commit is allowed
 
 ## Prod Commit Gates (Required)
 1) Pre-flight: `./scripts/pre-flight-check.ps1`.
-2) Repo hygiene: `./scripts/check_repo_hygiene.ps1`.
+2) Repo hygiene: `python scripts/check_repo_hygiene.py`.
 3) Lint + format: as required for prod scope (backend + frontend).
 4) Type/build: `npm run build` (frontend).
 5) Tests: `./scripts/run-tests.ps1 -SkipE2E` (or stricter).

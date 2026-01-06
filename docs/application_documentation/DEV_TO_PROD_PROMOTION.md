@@ -9,6 +9,11 @@ This log tracks every dev change intended for production promotion. It is the si
 3) When AI + human agree the dev milestone is complete, mark dev as **temporarily canonical** and set prod to **writeable** for promotion.
 4) Run `scripts/diff-dev-prod.ps1` to confirm file deltas match the entry.
 5) Perform a **prod readiness pass**: verify each change is safe/compatible for prod (ports, paths, env flags, dev-only scripts/docs/artifacts) and tailor or exclude as needed.
+5a) **Hard separation audit (required)**: run
+    `rg -n "Selenite-dev|/Selenite-dev|\\\\Selenite-dev|:8200|:8201|:5174" -S` and
+    verify prod does not reference dev paths/ports. Validate runtime config/env
+    (`VITE_API_URL`, `VITE_API_PORT`, `SELENITE_BACKEND_PORT`) align with prod.
+    Record findings and required fixes before proceeding.
 6) Verify migrations are idempotent and do not reset admin/user configuration unless explicitly required.
 7) Run `./scripts/backup-verify.ps1` on prod and record the backup path.
 8) Capture config via `./scripts/capture-config.ps1` if `.env*` is not in the backup; record the path.
@@ -43,7 +48,7 @@ Each promotion entry must include:
 ## Pending Promotion
 | ID | Summary | Status | Owner | Notes |
 | --- | --- | --- | --- | --- |
-| 2026-01-02-multi-user | Multi-user auth, admin user management, per-user settings, audit logging, job scoping | Pending | Codex | `run-tests.ps1 -SkipE2E` passed 20260105-150330; manual UI verification in dev pending |
+| 2026-01-02-multi-user | Multi-user auth, admin user management, per-user settings, audit logging, job scoping | Approved | Codex | `run-tests.ps1 -SkipE2E` passed 20260105-150330 (dev); manual verification complete (admin login, jobs, exports, admin console, model registry, user management, defaults, overrides, existing data) 2026-01-06; prod test run `docs/memorialization/test-runs/20260106-152758-backend+frontend`; backup verify `storage/backups/system-20260106-153411` (restore cleaned); hard separation audit: references to `Selenite-dev` in `BOOTSTRAP.md` and `scripts/start-selenite.ps1` comments; prod ports are 8100/5173 and dev ports are 8201/5174 in `docs/application_documentation/DEPLOYMENT.md`; fixed `frontend/.env.local` to use 8100 |
 | 2026-01-02-dashboard-tests | Fix Dashboard test settings mocks (`max_concurrent_jobs`) | Pending | Codex | Blocked by test run |
 | 2026-01-04-commit-gates | Commit gate guardrails + dev/prod diff tooling updates | Pending | Codex | `scripts/diff-dev-prod.ps1` optimized; COMMIT_GATES.md added |
 | 2026-01-05-promotion-hardening | Promotion safeguards: workspace state, data inventory, schema snapshot/config capture, manual verification checklist | Pending | Codex | Backup `D:\Dev\projects\Selenite\storage\backups\system-20260105-151041`; config `D:\Dev\projects\Selenite\scratch\config\20260105-211111`; schema pre `D:\Dev\projects\Selenite\scratch\schema\20260105-212004-pre-upgrade.sql`; schema post rehearsal `D:\Dev\projects\Selenite\scratch\schema\20260105-212023-post-upgrade-rehearsal.sql`; rehearsal restore cleaned; rollback: stop services -> restore backup -> restart -> re-verify; state: prod writeable/dev canonical (2026-01-05T20:59:26Z, Codex); prod smoke OK 2026-01-06T12:06:46-06:00 (Codex) |

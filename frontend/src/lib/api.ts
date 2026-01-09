@@ -39,6 +39,9 @@ const parseUrl = (value?: string | null): URL | null => {
   if (!value || value.length === 0) {
     return null;
   }
+  if (value.startsWith('/')) {
+    return null;
+  }
   try {
     return new URL(value);
   } catch (error) {

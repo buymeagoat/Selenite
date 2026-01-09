@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.logging_config import setup_logging
 from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.middleware.api_prefix import ApiPrefixMiddleware
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
 from app.routes import transcripts as transcripts_module
@@ -172,6 +173,9 @@ app.add_middleware(
 
 # Add security middleware
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Support /api prefix for reverse-proxy/tunnel routing.
+app.add_middleware(ApiPrefixMiddleware)
 
 # Add rate limiting middleware
 if not settings.is_testing:

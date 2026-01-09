@@ -13,6 +13,7 @@ $ErrorActionPreference = "Stop"
 $BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
 $FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$repoRootPattern = '(?i)(^|\\s|\"|'')' + [regex]::Escape($repoRoot) + '(\\|/|\"|\\s|$)'
 
 Write-Host "Stopping Selenite processes..." -ForegroundColor Cyan
 
@@ -21,7 +22,7 @@ $processes = @()
 $currentPid = $PID
 try {
     $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-    $procFromRepo = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match [regex]::Escape($repoRoot) }
+    $procFromRepo = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $repoRootPattern }
     if ($procFromRepo) {
         $processes += ($procFromRepo | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }) | Where-Object { $_ }
     }
@@ -76,7 +77,7 @@ if (Test-Path $guardScript) { . $guardScript }
                 if ($p) {
                     $cim = Get-CimInstance Win32_Process -Filter "ProcessId=$pid" -ErrorAction SilentlyContinue
                     $commandLine = $cim.CommandLine
-                    if (-not $commandLine -or ($commandLine -notmatch [regex]::Escape($repoRoot))) {
+                    if (-not $commandLine -or ($commandLine -notmatch $repoRootPattern)) {
                         continue
                     }
                     Write-Host "Stopping listener PID $pid on port $port ($($p.ProcessName))..." -ForegroundColor Yellow
@@ -104,8 +105,8 @@ try {
             $_.CommandLine -match 'app.main:app' -or
             $_.CommandLine -match 'vite' -or
             $_.CommandLine -match 'npm run start:prod'
-        ) 
--and ($_.CommandLine -match [regex]::Escape($repoRoot))
+        )
+        -and ($_.CommandLine -match $repoRootPattern)
     })
 } catch {}
 

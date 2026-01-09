@@ -290,7 +290,7 @@ if (-not $SkipPreflight) {
         }
 
         # Stop Selenite-related processes by command line (uvicorn/vite/node launched from repo)
-        $repoPattern = [regex]::Escape($Root)
+        $repoPattern = '(?i)(^|\\s|\"|'')' + [regex]::Escape($Root) + '(\\|/|\"|\\s|$)'
         $procQuery = Get-CimInstance Win32_Process | Where-Object {
             ($_."CommandLine" -match "uvicorn" -or $_."CommandLine" -match "vite" -or $_."CommandLine" -match "npm run start:prod" -or $_."CommandLine" -match "python.exe.*app.main" -or $_."CommandLine" -match "vite preview") -and
             ($_.CommandLine -match $repoPattern)

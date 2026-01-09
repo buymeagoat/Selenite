@@ -20,6 +20,11 @@ export default defineConfig({
     port: 5173,
     proxy: proxyConfig,
   },
+  preview: {
+    host: '127.0.0.1',
+    port: 5173,
+    allowedHosts: ['selenite.tonykapinos.com', 'dev.selenite.tonykapinos.com'],
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',

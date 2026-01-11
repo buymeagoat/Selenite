@@ -29,7 +29,7 @@ if (Test-Path $stateFile) {
 }
 $isProd = $wsRole -eq 'prod'
 
-if ($isProd -and $env:SELENITE_ALLOW_PROD_START -ne '1') {
+if ($isProd -and $env:SELENITE_AI_SESSION -eq '1' -and $env:SELENITE_ALLOW_PROD_START -ne '1') {
     $stateLabel = if ($wsState) { $wsState.state } else { 'unknown' }
     throw "Prod start blocked (state=$stateLabel). Set SELENITE_ALLOW_PROD_START=1 after aligning ports/hosts per release runbook."
 }

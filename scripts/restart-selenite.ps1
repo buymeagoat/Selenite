@@ -31,7 +31,7 @@ if ($isProd) {
     if ($AllowProdStart) { $env:SELENITE_ALLOW_PROD_START = '1' }
 
     # Prod restart only requires start consent; writes are optional for ancillary tasks.
-    if ($env:SELENITE_ALLOW_PROD_START -ne '1') {
+    if ($env:SELENITE_AI_SESSION -eq '1' -and $env:SELENITE_ALLOW_PROD_START -ne '1') {
         throw "Prod restart blocked: set SELENITE_ALLOW_PROD_START=1 or pass -AllowProdStart after aligning ports/hosts."
     }
 }

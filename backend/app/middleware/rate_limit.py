@@ -10,6 +10,7 @@ DEFAULT_LIMIT = {"max_tokens": 100, "refill_rate": 100 / 60}
 SPECIAL_LIMITS: Dict[Tuple[str, str], Dict[str, float]] = {
     ("POST", "/auth/login"): {"max_tokens": 5, "refill_rate": 5 / 60},
     ("POST", "/jobs/upload"): {"max_tokens": 10, "refill_rate": 10 / 60},
+    ("POST", "/feedback"): {"max_tokens": 5, "refill_rate": 5 / 60},
 }
 
 

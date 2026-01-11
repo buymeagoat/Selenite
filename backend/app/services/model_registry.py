@@ -463,7 +463,10 @@ class ModelRegistryService:
             resolved = candidate.resolve(strict=False)
         except OSError as exc:  # pragma: no cover - permission error etc.
             raise ValueError("invalid_path") from exc
-        return cls._coerce_legacy_models_path(resolved)
+
+        resolved = cls._coerce_legacy_models_path(resolved)
+        resolved = cls._rebase_foreign_models_path(resolved)
+        return resolved
 
     @classmethod
     def _has_weights(cls, raw_path: str) -> bool:
@@ -526,3 +529,27 @@ class ModelRegistryService:
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
         return target
+
+    @classmethod
+    def _rebase_foreign_models_path(cls, resolved: Path) -> Path:
+        """Re-anchor absolute model paths from other clones onto the current repo."""
+
+        models_root = cls._MODELS_ROOT
+        try:
+            resolved.relative_to(models_root)
+            return resolved
+        except ValueError:
+            pass
+
+        lowered = [part.lower() for part in resolved.parts]
+        for idx, part in enumerate(lowered):
+            if part != "backend":
+                continue
+            if idx + 1 >= len(lowered) or lowered[idx + 1] != "models":
+                continue
+            tail = Path(*resolved.parts[idx + 2 :])
+            target = (models_root / tail).resolve()
+            # Do not create files here; callers manage creation/validation
+            return target
+
+        return resolved

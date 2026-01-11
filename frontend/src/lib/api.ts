@@ -39,9 +39,6 @@ const parseUrl = (value?: string | null): URL | null => {
   if (!value || value.length === 0) {
     return null;
   }
-  if (value.startsWith('/')) {
-    return null;
-  }
   try {
     return new URL(value);
   } catch (error) {
@@ -54,7 +51,7 @@ const parseUrl = (value?: string | null): URL | null => {
 };
 
 const runtimeHostInfo = getRuntimeHostInfo();
-const runtimeApiPort = import.meta.env.VITE_API_PORT?.trim() || '8100';
+const runtimeApiPort = import.meta.env.VITE_API_PORT?.trim() || '8201';
 const runtimeApiBase = `${runtimeHostInfo.protocol}//${runtimeHostInfo.hostname}:${runtimeApiPort}`;
 const envApiUrl = parseUrl(envApiBase);
 
@@ -332,4 +329,28 @@ export async function apiUpload<T>(endpoint: string, formData: FormData): Promis
   }
 }
 
+/**
+ * Fetch binary content with authentication.
+ */
+export async function apiFetchBlob(endpoint: string): Promise<Blob> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, { method: 'GET', headers });
+  if (!response.ok) {
+    let errorData: any;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`;
+    throw new ApiError(errorMessage, response.status, errorData);
+  }
+  return response.blob();
+}
 

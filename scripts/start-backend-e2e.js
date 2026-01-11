@@ -13,9 +13,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const roleFile = path.join(repoRoot, '.workspace-role');
 if (fs.existsSync(roleFile)) {
   const role = fs.readFileSync(roleFile, 'utf8').split(/\r?\n/)[0].trim().toLowerCase();
-  const aiSession = process.env.SELENITE_AI_SESSION === '1';
-  const allowProd = process.env.SELENITE_ALLOW_PROD_WRITES === '1';
-  if (role !== 'dev' && aiSession && !allowProd) {
+  if (role !== 'dev') {
     console.error('This script must be run from a dev workspace.');
     process.exit(1);
   }
@@ -33,7 +31,7 @@ if (process.platform === 'win32') {
 }
 
 const host = process.env.BACKEND_HOST || '127.0.0.1';
-const port = process.env.BACKEND_PORT || '8100';
+const port = process.env.BACKEND_PORT || '8201';
 const timeoutMs = Number(process.env.BACKEND_TIMEOUT || 900_000);
 const testMediaPath = path.join(repoRoot, 'storage', 'test-media');
 const testTranscriptPath = path.join(repoRoot, 'storage', 'test-transcripts');
@@ -173,5 +171,4 @@ child.on('error', (err) => {
   console.error('[start-backend-e2e] Failed to start backend:', err);
   process.exit(1);
 });
-
 

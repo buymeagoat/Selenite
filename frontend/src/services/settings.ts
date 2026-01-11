@@ -24,6 +24,28 @@ export interface UserSettings {
   enable_empty_weights: boolean;
   last_selected_asr_set: string | null;
   last_selected_diarizer_set: string | null;
+  feedback_store_enabled: boolean;
+  feedback_email_enabled: boolean;
+  feedback_webhook_enabled: boolean;
+  feedback_destination_email: string | null;
+  feedback_webhook_url: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_username: string | null;
+  smtp_from_email: string | null;
+  smtp_use_tls: boolean;
+  smtp_password_set: boolean;
+  session_timeout_minutes: number;
+  allow_self_signup: boolean;
+  require_signup_verification: boolean;
+  require_signup_captcha: boolean;
+  signup_captcha_provider: string | null;
+  signup_captcha_site_key: string | null;
+  password_min_length: number;
+  password_require_uppercase: boolean;
+  password_require_lowercase: boolean;
+  password_require_number: boolean;
+  password_require_special: boolean;
 }
 
 export interface UpdateSettingsParams {
@@ -44,6 +66,28 @@ export interface UpdateSettingsParams {
   enable_empty_weights?: boolean;
   last_selected_asr_set?: string | null;
   last_selected_diarizer_set?: string | null;
+  feedback_store_enabled?: boolean;
+  feedback_email_enabled?: boolean;
+  feedback_webhook_enabled?: boolean;
+  feedback_destination_email?: string | null;
+  feedback_webhook_url?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_username?: string | null;
+  smtp_password?: string | null;
+  smtp_from_email?: string | null;
+  smtp_use_tls?: boolean;
+  session_timeout_minutes?: number;
+  allow_self_signup?: boolean;
+  require_signup_verification?: boolean;
+  require_signup_captcha?: boolean;
+  signup_captcha_provider?: string | null;
+  signup_captcha_site_key?: string | null;
+  password_min_length?: number;
+  password_require_uppercase?: boolean;
+  password_require_lowercase?: boolean;
+  password_require_number?: boolean;
+  password_require_special?: boolean;
 }
 
 export interface UpdateAsrSettingsParams {

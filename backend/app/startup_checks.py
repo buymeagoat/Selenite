@@ -200,6 +200,7 @@ def validate_configuration() -> list[str]:
     for path_name, path_value in [
         ("MEDIA_STORAGE_PATH", settings.media_storage_path),
         ("TRANSCRIPT_STORAGE_PATH", settings.transcript_storage_path),
+        ("FEEDBACK_STORAGE_PATH", settings.feedback_storage_path),
     ]:
         path = Path(path_value)
         if not path.exists():

@@ -15,8 +15,8 @@ if (Test-Path $guardScript) { . $guardScript }
 
 $ErrorActionPreference = "Stop"
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
 
 Write-Host "=== Selenite Backend Network Test ===" -ForegroundColor Cyan
 
@@ -87,7 +87,6 @@ Write-Host "Frontend UI : http://${testIP}:$FrontendPort/" -ForegroundColor Cyan
 Write-Host "Health check: http://${testIP}:$BackendPort/health" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "If the tester reports failures, capture the Technical Details drawer in the UI and review docs/application_documentation/USER_GUIDE.md under Troubleshooting." -ForegroundColor Yellow
-
 
 
 

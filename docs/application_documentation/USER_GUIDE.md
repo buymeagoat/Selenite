@@ -28,7 +28,7 @@ Selenite is a personal transcription application that runs entirely on your comp
 
 ## Logging In
 
-1. Open Selenite in your web browser (default: `http://localhost:5173`)
+1. Open Selenite in your web browser (default: `http://localhost:5174`)
 2. Enter your credentials:
    - **Username**: `admin` (default)
    - **Password**: Your configured password (change default on first login!)
@@ -438,5 +438,4 @@ To free up disk space:
 For operational documentation, see:
 - `docs/application_documentation/DEPLOYMENT.md` - Production deployment guide
 - `docs/application_documentation/RELEASE_RUNBOOK.md` - Release procedures
-
 

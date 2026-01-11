@@ -11,7 +11,7 @@ npm run start:prod
 
 ## Available Scripts
 
-- `npm run start:prod` - Build and serve the production bundle on http://127.0.0.1:5173
+- `npm run start:prod` - Build and serve the production bundle on http://127.0.0.1:5174
 - `npm run build` - Build for production  
 - `npm test` - Run tests with Vitest
 - `npm run test:watch` - Run tests in watch mode
@@ -50,5 +50,4 @@ src/
 ├── router.tsx
 └── index.css
 ```
-
 

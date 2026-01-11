@@ -20,7 +20,7 @@ if (Test-Path $guardScript) { . $guardScript }
 
 $ErrorActionPreference = "Stop"
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
 
 # Check if running as admin
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -76,7 +76,6 @@ try {
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
 }
-
 
 
 

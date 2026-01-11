@@ -4,10 +4,6 @@ This guide provides step-by-step instructions for deploying Selenite to a produc
 
 ## Quick Production Setup
 
-### Port Convention (Prod vs Dev)
-- **Production**: backend `8100`, frontend `5173`
-- **Development**: backend `8201`, frontend `5174`
-
 ### 1. Generate Secure Credentials
 ```bash
 # Generate a secure secret key (32+ characters)
@@ -28,6 +24,7 @@ cp .env.production.example .env
 - `SECRET_KEY=<paste-your-generated-key>`
 - `DATABASE_URL=postgresql+asyncpg://user:password@localhost/selenite`
 - `CORS_ORIGINS=https://yourdomain.com`
+- `REQUIRE_HTTPS=true` and `ALLOW_HTTP_DEV=false`
 - Storage paths to absolute paths (e.g., `/var/lib/selenite/media`)
 
 > Storage is canonicalized to a single root (`./storage` in repo clones or an absolute path you set via `MEDIA_STORAGE_PATH`/`TRANSCRIPT_STORAGE_PATH`). Legacy `backend/storage` is deprecated; keep media/transcripts together under one `storage` directory to avoid split data.
@@ -60,10 +57,10 @@ alembic upgrade head
 
 ```bash
 # Start the server
-uvicorn app.main:app --host 0.0.0.0 --port 8100
+uvicorn app.main:app --host 0.0.0.0 --port 8201
 
 # In another terminal, check health
-curl http://localhost:8100/health
+curl http://localhost:8201/health
 ```
 
 **Expected Response**:
@@ -85,6 +82,7 @@ curl http://localhost:8100/health
 - [Configuration](#configuration)
 - [Building](#building)
 - [Running](#running)
+- [Edge / Cloudflare / Tunnels](#edge--cloudflare--tunnels)
 - [Docker Deployment](#docker-deployment)
 - [Monitoring](#monitoring)
 - [Troubleshooting](#troubleshooting)
@@ -186,8 +184,11 @@ DEFAULT_LANGUAGE=auto
 
 # Server configuration
 HOST=0.0.0.0
-PORT=8100
+PORT=8201
 CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
+# HTTPS enforcement (production)
+REQUIRE_HTTPS=true
+ALLOW_HTTP_DEV=false
 
 # Logging
 LOG_LEVEL=INFO  # Use ERROR for production if high volume
@@ -246,7 +247,7 @@ npm run preview
 Use the bootstrap script to mimic the deployment configuration on a workstation:
 
 ```powershell
-cd D:\Dev\projects\Selenite
+cd D:\Dev\projects\Selenite-dev
 .\scripts\bootstrap.ps1
 ```
 
@@ -263,15 +264,15 @@ python -m app.seed
 export DISABLE_FILE_LOGS=1
 export ENVIRONMENT=production
 export ALLOW_LOCALHOST_CORS=1
-uvicorn app.main:app --host 127.0.0.1 --port 8100 --app-dir app
+uvicorn app.main:app --host 127.0.0.1 --port 8201 --app-dir app
 
 # Frontend
 cd frontend
 npm install
-npm run start:prod -- --host 127.0.0.1 --port 5173
+npm run start:prod -- --host 127.0.0.1 --port 5174
 
 # Smoke test from repo root to verify backend readiness
-python scripts/smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
+python scripts/smoke_test.py --base-url http://127.0.0.1:8201 --health-timeout 90
 ```
 
 > Providers and model files are never auto-installed. Install the desired packages into the backend venv, stage checkpoints under `backend/models/<set>/<weight>/...`, then register + enable them in the Admin UI before creating jobs.
@@ -290,7 +291,7 @@ pip install gunicorn
 gunicorn app.main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8100 \
+  --bind 0.0.0.0:8201 \
   --timeout 300 \
   --access-logfile /var/log/selenite/access.log \
   --error-logfile /var/log/selenite/error.log
@@ -319,7 +320,7 @@ server {
 
     # API proxy
     location /api {
-        proxy_pass http://localhost:8100;
+        proxy_pass http://localhost:8201;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -342,6 +343,8 @@ server {
     }
 }
 ```
+
+Ensure `X-Forwarded-Proto` is forwarded as shown so HTTPS-only mode can verify TLS termination.
 
 3. **Enable site and reload**:
 ```bash
@@ -372,7 +375,7 @@ Environment="PATH=/opt/selenite/backend/venv/bin"
 ExecStart=/opt/selenite/backend/venv/bin/gunicorn app.main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8100 \
+  --bind 0.0.0.0:8201 \
   --timeout 300
 Restart=always
 RestartSec=10
@@ -388,6 +391,43 @@ sudo systemctl enable selenite-backend
 sudo systemctl start selenite-backend
 sudo systemctl status selenite-backend
 ```
+
+## Edge / Cloudflare / Tunnels
+
+### Current zone (tonykapinos.com)
+- Registrar: GoDaddy; nameservers delegated to Cloudflare (`aragorn.ns.cloudflare.com`, `raina.ns.cloudflare.com`).
+- SSL/TLS mode: **Full**. Universal SSL certificates active for `*.tonykapinos.com, tonykapinos.com` (managed, expiring 2026-04-07). Always Use HTTPS recently enabled.
+- Proxied records relevant to Selenite: `selenite` and `devselenite` CNAMEs → `68343d5a-a26a-42ef-863d-ac4b5e02dd47.cfargotunnel.com` (proxied), apex `A tonykapinos.com -> 216.69.141.67` (proxied), `www -> tonykapinos.com` (proxied). Service CNAMEs (autodiscover/mail/calendar/etc.) are proxied; MX/SRV/TXT remain DNS-only as required for email/verification.
+- Cloudflare warning: Avoid DNS-only `A/AAAA/CNAME` that point to proxied targets; keep only MX/SRV/TXT as DNS-only to prevent origin leakage. Re-proxy any hostnames that should traverse the tunnel.
+
+### Tunnel inspection (local host)
+- Cloudflare Tunnel is installed locally; the CNAME above targets tunnel ID `68343d5a-a26a-42ef-863d-ac4b5e02dd47`.
+- Read-only checks to confirm routing and origin targets:
+  - `cloudflared tunnel list`
+  - `cloudflared tunnel info 68343d5a-a26a-42ef-863d-ac4b5e02dd47`
+  - `cloudflared tunnel ingress 68343d5a-a26a-42ef-863d-ac4b5e02dd47` (shows ingress rules if config is found)
+  - `cloudflared tunnel connections 68343d5a-a26a-42ef-863d-ac4b5e02dd47`
+- Current status (2026-01-09): tunnel `selenite` active with connectors on `1xord06, 2xord11, 1xord14`; cloudflared version 2025.8.1 (upgrade recommended to 2025.11.1). Ingress rules not yet enumerated—check the local config file (see below).
+- Likely config locations on Windows for cloudflared tunnels:
+  - `%USERPROFILE%\.cloudflared\config.yml` (per-user)
+  - `C:\Windows\System32\config\systemprofile\.cloudflared\config.yml` (service/global)
+  - If running as a service: `Get-Service *cloudflared*` then inspect the `PathName` to find `--config`.
+- To view ingress rules safely: `Get-Content <path-to-config.yml>` and confirm hostnames map to expected local ports before edits.
+- Ingress (active config from `%USERPROFILE%\.cloudflared\config.yml`):
+  - `selenite.tonykapinos.com/api` → `http://localhost:8100` (backend) **[prod]**
+  - `selenite.tonykapinos.com` → `http://localhost:5173` (frontend) **[prod]**
+  - `devselenite.tonykapinos.com/api` → `http://localhost:8201` (backend) **[dev]**
+  - `devselenite.tonykapinos.com` → `http://localhost:5174` (frontend) **[dev]**
+  - Fallback: `http_status:404`
+  - Credentials file: `C:\Windows\System32\config\systemprofile\.cloudflared\68343d5a-a26a-42ef-863d-ac4b5e02dd47.json`; service `Cloudflared` is running.
+  - If a service upgrade is needed, run the upgrade on the host; the current version is 2025.8.1 (Cloudflare recommends 2025.11.1).
+
+### HTTPS and app settings
+- Backend enforces HTTPS in production: set `REQUIRE_HTTPS=true`, `ALLOW_HTTP_DEV=false`, and ensure `X-Forwarded-Proto` is forwarded by Cloudflare/tunnel (Cloudflare sets it by default).
+- Set `CORS_ORIGINS` to the Cloudflare hostnames you expose (e.g., `https://selenite.tonykapinos.com,https://devselenite.tonykapinos.com`). Frontend `VITE_API_URL` should point at the tunneled API hostname.
+- Turnstile (signup CAPTCHA) envs: `TURNSTILE_SITE_KEY` (frontend/admin) and `TURNSTILE_SECRET_KEY` (backend verification). If the provider is set to `turnstile` without keys, signup shows a misconfiguration warning and submit is disabled.
+- Turnstile setup (Cloudflare dashboard): open the global search, go to **Turnstile → Add Widget**, choose **Managed** mode, add hostnames `selenite.tonykapinos.com` (prod) and `devselenite.tonykapinos.com` (dev) plus `localhost` if you need local testing; then copy the **Site Key** and **Secret Key** into `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`.
+- Email (Resend): verify sending domain (e.g., `tonykapinos.com`) in Resend by adding the provided DNS records in Cloudflare (DNS-only). After verification, create an API key with Permission **Sending Access** scoped to that domain, place it in `RESEND_API_KEY`, and send from an address on the verified domain (e.g., `no-reply@tonykapinos.com`).
 
 ## Docker Deployment
 
@@ -416,7 +456,7 @@ docker build -t selenite-frontend -f frontend/Dockerfile frontend/
 # Run backend
 docker run -d \
   --name selenite-backend \
-  -p 8100:8100 \
+  -p 8201:8201 \
   -v $(pwd)/storage:/app/storage \
   -v $(pwd)/backend/models:/app/models \
   --env-file backend/.env \
@@ -434,7 +474,7 @@ docker run -d \
 ### Health Checks
 The backend exposes a health check endpoint:
 ```bash
-curl http://localhost:8100/health
+curl http://localhost:8201/health
 # Expected response: {"status":"healthy","version":"1.0.0"}
 ```
 
@@ -470,7 +510,7 @@ df -h
 du -sh /var/selenite/*
 
 # Active connections
-netstat -tuln | grep :8100
+netstat -tuln | grep :8201
 ```
 
 ### Prometheus + Grafana (Advanced)
@@ -485,7 +525,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 Instrumentator().instrument(app).expose(app)
 ```
-4. Configure Prometheus to scrape `http://localhost:8100/metrics`
+4. Configure Prometheus to scrape `http://localhost:8201/metrics`
 5. Import Grafana dashboards for FastAPI metrics
 
 ## Troubleshooting
@@ -516,7 +556,7 @@ pip show faster-whisper
 ls -lh backend/models/<model_set>/<model_weight>/
 
 # Confirm the registry advertises the entry
-curl http://localhost:8100/system/availability
+curl http://localhost:8201/system/availability
 ```
 
 **Worker Process Crashes**:
@@ -560,7 +600,7 @@ docker logs selenite-backend
 docker logs selenite-frontend
 
 # Verify port availability
-sudo netstat -tuln | grep :8100
+sudo netstat -tuln | grep :8201
 
 # Check resource limits
 docker stats
@@ -623,7 +663,8 @@ Use the formal release process before merging to `main`:
 
 1. **Change default admin password immediately** after first login
 2. **Enable HTTPS** with Let's Encrypt certificates (see Nginx section)
-3. **Configure firewall**:
+3. **Enforce HTTPS-only** by setting `REQUIRE_HTTPS=true` and `ALLOW_HTTP_DEV=false` in production, and ensure your reverse proxy forwards `X-Forwarded-Proto`.
+4. **Configure firewall**:
 ```bash
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
@@ -682,7 +723,6 @@ For issues or questions:
 - [ ] Backups scheduled
 - [ ] Default admin password changed
 - [ ] Firewall rules applied
-
 
 
 

@@ -60,6 +60,28 @@ vi.mock('../services/settings', () => ({
     enable_empty_weights: false,
     last_selected_asr_set: 'whisper',
     last_selected_diarizer_set: 'pyannote',
+    feedback_store_enabled: true,
+    feedback_email_enabled: false,
+    feedback_webhook_enabled: false,
+    feedback_destination_email: null,
+    feedback_webhook_url: null,
+    smtp_host: null,
+    smtp_port: null,
+    smtp_username: null,
+    smtp_from_email: null,
+    smtp_use_tls: true,
+    smtp_password_set: false,
+    session_timeout_minutes: 30,
+    allow_self_signup: false,
+    require_signup_verification: false,
+    require_signup_captcha: false,
+    signup_captcha_provider: null,
+    signup_captcha_site_key: null,
+    password_min_length: 12,
+    password_require_uppercase: true,
+    password_require_lowercase: true,
+    password_require_number: true,
+    password_require_special: false,
   }),
   updateSettings: vi.fn().mockResolvedValue({}),
   updateAsrSettings,
@@ -204,6 +226,28 @@ vi.mock('../services/tags', () => ({
   deleteTag: vi.fn().mockResolvedValue({ message: 'deleted', id: 1, jobs_affected: 0 }),
 }));
 
+vi.mock('../services/feedback', () => ({
+  fetchFeedback: vi.fn().mockResolvedValue({ total: 0, limit: 50, offset: 0, items: [] }),
+  fetchFeedbackAttachment: vi.fn().mockResolvedValue(new Blob(['file'])),
+  replyToFeedback: vi.fn().mockResolvedValue({ status: 'sent' }),
+  deleteFeedback: vi.fn().mockResolvedValue(undefined),
+  fetchMessages: vi.fn().mockResolvedValue({ total: 0, limit: 50, offset: 0, items: [] }),
+  fetchMessageDetail: vi.fn().mockResolvedValue({ message: null, thread: [] }),
+  bulkMessageAction: vi.fn().mockResolvedValue({ status: 'ok' }),
+  deleteMessage: vi.fn().mockResolvedValue({}),
+  restoreMessage: vi.fn().mockResolvedValue({}),
+  sendMessage: vi.fn().mockResolvedValue({}),
+  saveDraft: vi.fn().mockResolvedValue({}),
+  updateDraft: vi.fn().mockResolvedValue({}),
+  sendDraft: vi.fn().mockResolvedValue({}),
+  replyToMessage: vi.fn().mockResolvedValue({}),
+  archiveMessage: vi.fn().mockResolvedValue({}),
+  unarchiveMessage: vi.fn().mockResolvedValue({}),
+  markMessageRead: vi.fn().mockResolvedValue({}),
+  markMessageUnread: vi.fn().mockResolvedValue({}),
+  purgeMessage: vi.fn().mockResolvedValue({ status: 'purged' }),
+}));
+
 const renderAdmin = async () => {
   let utils: ReturnType<typeof render>;
   await act(async () => {
@@ -215,6 +259,8 @@ const renderAdmin = async () => {
 
 describe('Admin page', () => {
   beforeEach(() => {
+    localStorage.removeItem('selenite.admin.active_tab');
+    window.history.replaceState(null, '', '/');
     refreshSpy.mockResolvedValue(mockSystemInfo);
     mockAuthContext.user = {
       ...mockAuthContext.user,

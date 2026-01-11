@@ -7,28 +7,27 @@ moves unexpected copies into storage/backups with a timestamped filename.
 
 from __future__ import annotations
 
-import argparse
-import os
-import shutil
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List
 
+from pathlib import Path
+import os
 
 def _ensure_dev_workspace() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    role_file = repo_root / ".workspace-role"
+    role_file = repo_root / '.workspace-role'
     if role_file.exists():
-        role = role_file.read_text(encoding="utf-8").splitlines()[0].strip().lower()
-        if role != "dev":
-            if os.getenv("SELENITE_AI_SESSION") != "1":
-                return
-            if os.getenv("SELENITE_ALLOW_PROD_WRITES") == "1":
-                return
-            raise RuntimeError("This script must be run from a dev workspace.")
-
-
+        role = role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
+        if role != 'dev':
+            allow_prod = os.getenv("SELENITE_ALLOW_PROD_WRITES") == "1"
+            allow_gates = os.getenv("SELENITE_ALLOW_COMMIT_GATES") == "1"
+            if not (allow_prod and allow_gates):
+                raise RuntimeError('This script must be run from a dev workspace.')
 _ensure_dev_workspace()
+
+import argparse
+from datetime import datetime
+from pathlib import Path
+import shutil
+from typing import Dict, List
 
 
 def _should_skip(path: Path, repo_root: Path) -> bool:

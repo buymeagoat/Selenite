@@ -5,7 +5,9 @@
 
 param(
     [string]$BindIPOverride = "",
-    [string[]]$AdvertiseHosts = @()
+    [string[]]$AdvertiseHosts = @(),
+    [switch]$AllowProdStart,
+    [switch]$AllowProdWrites
 
 )
 
@@ -19,6 +21,20 @@ if (Test-Path $guardScript) { . $guardScript }
 $ErrorActionPreference = "Stop"
 $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $repo
+
+$roleFile = Join-Path $repo '.workspace-role'
+$workspaceRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $workspaceRole -eq 'prod'
+
+if ($isProd) {
+    if ($AllowProdWrites) { $env:SELENITE_ALLOW_PROD_WRITES = '1' }
+    if ($AllowProdStart) { $env:SELENITE_ALLOW_PROD_START = '1' }
+
+    # Prod restart only requires start consent; writes are optional for ancillary tasks.
+    if ($env:SELENITE_ALLOW_PROD_START -ne '1') {
+        throw "Prod restart blocked: set SELENITE_ALLOW_PROD_START=1 or pass -AllowProdStart after aligning ports/hosts."
+    }
+}
 
 Write-Host "Restarting Selenite from $repo..." -ForegroundColor Cyan
 

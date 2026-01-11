@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { TranscriptView } from './pages/TranscriptView';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { SettingsProvider } from './context/SettingsContext';
+import { Signup } from './pages/Signup';
 
 const ProtectedApp: React.FC = () => (
   <ProtectedRoute>
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/signup',
+    element: <Signup />,
   },
   {
     path: '/',

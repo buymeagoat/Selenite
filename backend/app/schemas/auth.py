@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 
 
 class LoginRequest(BaseModel):
@@ -33,10 +33,17 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_disabled: bool
     force_password_reset: bool
+    is_email_verified: bool = False
     last_login_at: Optional[datetime] = None
     created_at: datetime
 
-    @field_validator("is_admin", "is_disabled", "force_password_reset", mode="before")
+    @field_validator(
+        "is_admin",
+        "is_disabled",
+        "force_password_reset",
+        "is_email_verified",
+        mode="before",
+    )
     @classmethod
     def coerce_bool_defaults(cls, value: Optional[bool]) -> bool:
         if value is None:
@@ -60,3 +67,27 @@ class PasswordChangeResponse(BaseModel):
     """Response for successful password change."""
 
     detail: str = Field(..., example="Password changed successfully")
+
+
+class PasswordPolicyResponse(BaseModel):
+    min_length: int
+    require_uppercase: bool
+    require_lowercase: bool
+    require_number: bool
+    require_special: bool
+
+
+class SignupConfigResponse(BaseModel):
+    allow_self_signup: bool
+    require_email_verification: bool
+    require_signup_captcha: bool
+    signup_captcha_provider: str | None = None
+    signup_captcha_site_key: str | None = None
+    password_policy: PasswordPolicyResponse
+
+
+class SignupRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=32)
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=256)
+    captcha_token: Optional[str] = Field(default=None, min_length=1, max_length=2048)

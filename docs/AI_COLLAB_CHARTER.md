@@ -20,7 +20,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - If distress is evident, offer a quick reset check ("want to pause or keep going?").
 
 ## Process Mandates
-- Manual checkpoints: after substantial changes (e.g., system probe, ASR/diarization, model work), pause and prompt for admin/manual evaluation before proceeding.
+- Manual checkpoints: after substantial changes (e.g., system probe, ASR/diarization, model work), pause and prompt for admin/manual evaluation before proceeding, and enumerate the exact manual tests/UX checks the admin should run to close the checkpoint, including explicit step-by-step (click-by-click) instructions.
 - No silent downloads: never auto-download models. Only advertise backends/models if installed. Downloads (including "fetch on use") require explicit admin choice and strong warnings.
 - Fallbacks: if a chosen ASR/diarizer/backend is unavailable, log and fall back to a viable option; do not fail the job solely for that reason.
 - Admin gating: user-facing "advanced" options (ASR/diarization/speaker count/extra flags) must respect admin settings; defaults stay simple for regular users.
@@ -34,7 +34,9 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Workspace state enforcement: `.workspace-state.json` defines whether a repo is `writeable`, `provisional`, or `canonical`. AI sessions must set `SELENITE_AI_SESSION=1` so guards apply. AI may only change `provisional`/`canonical` repos when running commit gates (`SELENITE_ALLOW_COMMIT_GATES=1`). AI changes in prod also require `SELENITE_ALLOW_PROD_WRITES=1`.
 - Data inventory: update `docs/application_documentation/DATA_INVENTORY.md` for any change that affects persisted data (DB schema, storage paths, or durable settings).
 - Session startup: read/acknowledge this charter (and `AGENTS.md` if present) at the start of each collaboration.
+- End-of-phase handoff: always report status + what changed + next steps/owner in the final message for any phase or major task.
 - When a blocker appears that needs a decision, propose a remedy in plain language before pausing.
+- Blocker protocol: when halted by a guard/failure, pause and give a brief kid-friendly summary of what failed and why, then list the next safe options before proceeding.
 
 ## Execution Order (per interaction)
 1) Restate the command. 2) Check for ambiguity; stop if unclear. 3) List assumptions/uncertainties. 4) Apply role/posture and mandates. 5) Provide solution plus brief lay explanation and safer alternatives. 6) Suggest the next step or manual checkpoint if warranted.

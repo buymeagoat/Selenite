@@ -10,7 +10,8 @@
     "allowed_subdirectories": [
       "media",
       "transcripts",
-      "backups"
+      "backups",
+      "feedback"
     ],
     "test_subdirectories": [
       "test-media",

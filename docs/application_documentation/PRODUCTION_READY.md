@@ -6,16 +6,6 @@
 
 ---
 
-## Verification Snapshot (Jan 6, 2026)
-- `./scripts/backup-verify.ps1`
-  - Backup path: `storage/backups/system-20260106-153411`
-- `./scripts/run-tests.ps1 -SkipE2E`
-  - Backend: pytest suite passed (see `docs/memorialization/test-runs/20260106-152758-backend+frontend/backend.pytest.log`).
-  - Frontend: Vitest coverage summary written (see `docs/memorialization/test-runs/20260106-152758-backend+frontend/run-tests.log`).
-- Manual verification (admin login, jobs, exports, admin console, model registry, user management, defaults, overrides, existing data) completed by administrator.
-
----
-
 ## Verification Snapshot (Dec 30, 2025)
 - `./scripts/backup-verify.ps1`
   - Backup path: `storage/backups/system-20251230-095309`
@@ -167,10 +157,10 @@ Supporting evidence:
 
 ---
 
-## Testing (Latest: 2026-01-06)
+## Testing (Latest: 2025-12-29)
 
-- Backend: pytest suite passed (see `docs/memorialization/test-runs/20260106-152758-backend+frontend/backend.pytest.log`).
-- Frontend: Vitest coverage summary generated (see `docs/memorialization/test-runs/20260106-152758-backend+frontend/run-tests.log`).
+- Backend: pytest suite passed (see `docs/memorialization/test-runs/20251229-160347-backend+frontend/backend.pytest.log`).
+- Frontend: Vitest coverage summary generated (see `frontend/coverage/coverage-summary.json`).
 - E2E: last full run Nov 21, 2025 (85/85 passing across Chromium/Firefox/WebKit); not re-run in the latest snapshot.
 
 ---
@@ -648,7 +638,7 @@ python -c "from app.config import settings; print(f'Environment: {settings.envir
 alembic upgrade head
 
 # 3. Check health
-curl http://localhost:8100/health
+curl http://localhost:8201/health
 
 # 4. Verify backup + restore
 pwsh ./scripts/backup-verify.ps1
@@ -738,7 +728,6 @@ pwsh ./scripts/run-tests.ps1    # add -SkipE2E when Playwright already executed 
 **Signed**: AI Development Assistant
 **Date**: November 17, 2025
 **Version**: 0.1.0
-
 
 
 

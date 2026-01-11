@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 #!/usr/bin/env python3
@@ -15,15 +14,12 @@ def _ensure_dev_workspace() -> None:
     if role_file.exists():
         role = role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
         if role != 'dev':
-            if os.getenv("SELENITE_AI_SESSION") != "1":
-                return
-            if os.getenv("SELENITE_ALLOW_PROD_WRITES") == "1":
-                return
             raise RuntimeError('This script must be run from a dev workspace.')
 _ensure_dev_workspace()
 
 import subprocess
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOC_TARGETS = {"docs/application_documentation/CHANGELOG.md"}

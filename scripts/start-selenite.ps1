@@ -16,15 +16,41 @@ param(
 $guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
 if (Test-Path $guardScript) { . $guardScript }
 
-
-
-
-
 $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $repo
 
-$env:SELENITE_BACKEND_PORT = '8100'
-$env:SELENITE_FRONTEND_PORT = '5173'
+# Detect workspace role/state early to block dev-style starts in prod.
+$roleFile = Join-Path $repo '.workspace-role'
+$stateFile = Join-Path $repo '.workspace-state.json'
+$wsRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$wsState = $null
+if (Test-Path $stateFile) {
+    try { $wsState = Get-Content -Path $stateFile -Raw | ConvertFrom-Json } catch { $wsState = $null }
+}
+$isProd = $wsRole -eq 'prod'
+
+if ($isProd -and $env:SELENITE_ALLOW_PROD_START -ne '1') {
+    $stateLabel = if ($wsState) { $wsState.state } else { 'unknown' }
+    throw "Prod start blocked (state=$stateLabel). Set SELENITE_ALLOW_PROD_START=1 after aligning ports/hosts per release runbook."
+}
+
+$envFile = Join-Path $repo '.env'
+$envPort = $null
+$envFrontendPort = $null
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envPort = $portMatch.Matches[0].Groups[1].Value }
+
+    $frontendMatch = Select-String -Path $envFile -Pattern '^\s*FRONTEND_URL\s*=\s*.+:(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($frontendMatch) { $envFrontendPort = $frontendMatch.Matches[0].Groups[1].Value }
+}
+
+$env:SELENITE_BACKEND_PORT = if ($env:SELENITE_BACKEND_PORT) { $env:SELENITE_BACKEND_PORT } elseif ($envPort) { $envPort } else { '8201' }
+$env:SELENITE_FRONTEND_PORT = if ($env:SELENITE_FRONTEND_PORT) { $env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } else { '5174' }
+
+if ($isProd -and (-not $envPort -or -not $envFrontendPort)) {
+    throw "Prod start blocked: .env must define PORT and FRONTEND_URL with prod ports before starting."
+}
 
 $bind = $BindIPOverride
 if (-not $bind -or $bind -eq "") {
@@ -48,13 +74,16 @@ try {
 }
 
 # Invoke bootstrap directly so parameters are passed safely
-& (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth -BindIP $bind -BindPort 8100 -FrontendPort 5173 -AdvertiseHosts $AdvertiseHosts
+if ($isProd) {
+    & (Join-Path $repo 'scripts\bootstrap.ps1') -BindPort ([int]$env:SELENITE_BACKEND_PORT) -FrontendPort ([int]$env:SELENITE_FRONTEND_PORT) -BindIP $bind -AdvertiseHosts $AdvertiseHosts
+} else {
+    & (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth -BindPort ([int]$env:SELENITE_BACKEND_PORT) -FrontendPort ([int]$env:SELENITE_FRONTEND_PORT) -BindIP $bind -AdvertiseHosts $AdvertiseHosts
+}
 
 # Example usage for Task Scheduler Action:
 # Program/script: pwsh
 # Arguments: -NoLogo -NoProfile -Command "& 'D:\Dev\projects\Selenite-dev\scripts\start-selenite.ps1'"
 # Start in: D:\Dev\projects\Selenite-dev
-
 
 
 

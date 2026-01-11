@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.logging_config import setup_logging
-from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.middleware import RateLimitMiddleware, RequireHTTPSMiddleware, SecurityHeadersMiddleware
 from app.middleware.api_prefix import ApiPrefixMiddleware
 from app.routes import auth as auth_module
 from app.routes import jobs as jobs_module
@@ -23,6 +23,8 @@ from app.routes import diagnostics as diagnostics_module
 from app.routes import model_registry as model_registry_module
 from app.routes import file_browser as file_browser_module
 from app.routes import users as users_module
+from app.routes import feedback as feedback_module
+from app.routes import messages as messages_module
 from app.services.job_queue import (
     queue,
     resolve_queue_concurrency,
@@ -47,6 +49,8 @@ diagnostics_router = diagnostics_module.router
 model_registry_router = model_registry_module.router
 file_browser_router = file_browser_module.router
 users_router = users_module.router
+feedback_router = feedback_module.router
+messages_router = messages_module.router
 
 
 @asynccontextmanager
@@ -64,8 +68,10 @@ async def lifespan(app: FastAPI):
     await run_startup_checks()
 
     # Initialize database and check migrations
+    from datetime import datetime
     from app.database import engine, AsyncSessionLocal
     from app.migrations_utils import check_migration_status
+    from app.models.system_preferences import SystemPreferences
     from app.services.provider_manager import ProviderManager
 
     current_rev, head_rev = await check_migration_status(engine)
@@ -76,6 +82,17 @@ async def lifespan(app: FastAPI):
             "Database migrations are not up to date. "
             "Run 'alembic upgrade head' before starting in production."
         )
+
+    try:
+        async with AsyncSessionLocal() as session:
+            prefs = await session.get(SystemPreferences, 1)
+            if not prefs:
+                prefs = SystemPreferences(id=1)
+                session.add(prefs)
+            prefs.auth_token_not_before = datetime.utcnow()
+            await session.commit()
+    except Exception as exc:
+        logger.warning("Auth token reset failed during startup: %s", exc)
 
     # Prime the provider manager cache so availability endpoints surface registry entries immediately
     try:
@@ -171,6 +188,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Enforce HTTPS when required
+app.add_middleware(
+    RequireHTTPSMiddleware,
+    require_https=settings.require_https,
+    allow_http_dev=settings.allow_http_dev,
+    environment=settings.environment,
+)
+
 # Add security middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -210,6 +235,8 @@ app.include_router(diagnostics_router)
 app.include_router(model_registry_router)
 app.include_router(file_browser_router)
 app.include_router(users_router)
+app.include_router(feedback_router)
+app.include_router(messages_router)
 
 
 @app.get("/health")

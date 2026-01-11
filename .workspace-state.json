@@ -2,6 +2,6 @@
   "role": "prod",
   "state": "canonical",
   "canonical_owner": "prod",
-  "note": "Prod canonical after promotion gates",
-  "updated_at": "2026-01-06T21:37:16Z"
+  "note": "Prod canonical after dev/prod reconciliation",
+  "updated_at": "2026-01-11T05:19:14Z"
 }

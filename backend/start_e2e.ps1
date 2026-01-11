@@ -14,7 +14,6 @@ python -m app.seed_e2e > $null
 Write-Host "[E2E] Seed complete. Starting uvicorn..."
 
 # Start uvicorn (no reload for test stability)
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
 python -m uvicorn app.main:app --port $BackendPort --log-level warning
-
 

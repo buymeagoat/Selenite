@@ -23,69 +23,35 @@ def upgrade() -> None:
     table_names = inspector.get_table_names()
 
     if "users" not in table_names:
-        op.create_table(
-            "users",
-            sa.Column("id", sa.Integer(), nullable=False),
-            sa.Column("username", sa.String(length=255), nullable=False),
-            sa.Column("email", sa.String(length=255), nullable=True),
-            sa.Column("hashed_password", sa.String(length=255), nullable=False),
-            sa.Column("created_at", sa.DateTime(), nullable=False),
-            sa.Column("updated_at", sa.DateTime(), nullable=False),
-            sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-            sa.Column("is_disabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-            sa.Column(
-                "force_password_reset",
-                sa.Boolean(),
-                nullable=False,
-                server_default=sa.text("0"),
-            ),
-            sa.Column("last_login_at", sa.DateTime(), nullable=True),
-            sa.PrimaryKeyConstraint("id"),
-            sa.UniqueConstraint("email"),
-        )
-        op.create_index(op.f("ix_users_id"), "users", ["id"], unique=False)
-        op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
-        op.create_index("ix_users_email", "users", ["email"], unique=False)
-        user_cols = {
-            "id",
-            "username",
-            "email",
-            "hashed_password",
-            "created_at",
-            "updated_at",
-            "is_admin",
-            "is_disabled",
-            "force_password_reset",
-            "last_login_at",
-        }
-    else:
-        user_cols = {col["name"] for col in inspector.get_columns("users")}
-        with op.batch_alter_table("users") as batch_op:
-            if "is_admin" not in user_cols:
-                batch_op.add_column(
-                    sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("0"))
-                )
-            if "is_disabled" not in user_cols:
-                batch_op.add_column(
-                    sa.Column("is_disabled", sa.Boolean(), nullable=False, server_default=sa.text("0"))
-                )
-            if "force_password_reset" not in user_cols:
-                batch_op.add_column(
-                    sa.Column(
-                        "force_password_reset",
-                        sa.Boolean(),
-                        nullable=False,
-                        server_default=sa.text("0"),
-                    )
-                )
-            if "last_login_at" not in user_cols:
-                batch_op.add_column(sa.Column("last_login_at", sa.DateTime(), nullable=True))
-            # Normalize username length for email-based login.
-            batch_op.alter_column("username", type_=sa.String(255))
+        raise RuntimeError("Missing required table 'users'. Cannot add admin fields.")
 
-        existing_indexes = {idx["name"] for idx in inspector.get_indexes("users")}
-        if "ix_users_email" not in existing_indexes:
-            op.create_index("ix_users_email", "users", ["email"], unique=False)
+    user_cols = {col["name"] for col in inspector.get_columns("users")}
+    with op.batch_alter_table("users") as batch_op:
+        if "is_admin" not in user_cols:
+            batch_op.add_column(
+                sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("0"))
+            )
+        if "is_disabled" not in user_cols:
+            batch_op.add_column(
+                sa.Column("is_disabled", sa.Boolean(), nullable=False, server_default=sa.text("0"))
+            )
+        if "force_password_reset" not in user_cols:
+            batch_op.add_column(
+                sa.Column(
+                    "force_password_reset",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.text("0"),
+                )
+            )
+        if "last_login_at" not in user_cols:
+            batch_op.add_column(sa.Column("last_login_at", sa.DateTime(), nullable=True))
+        # Normalize username length for email-based login.
+        batch_op.alter_column("username", type_=sa.String(255))
+
+    existing_indexes = {idx["name"] for idx in inspector.get_indexes("users")}
+    if "ix_users_email" not in existing_indexes:
+        op.create_index("ix_users_email", "users", ["email"], unique=False)
 
     if "jobs" not in table_names:
         raise RuntimeError("Missing required table 'jobs'. Cannot adjust user ownership.")

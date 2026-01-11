@@ -30,10 +30,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440  # 24 hours
     admin_default_password: str | None = None
+    turnstile_secret_key: str | None = None
+    turnstile_site_key: str | None = None
+    resend_api_key: str | None = None
 
     # Storage
     media_storage_path: str = str(STORAGE_ROOT / "media")
     transcript_storage_path: str = str(STORAGE_ROOT / "transcripts")
+    feedback_storage_path: str = str(STORAGE_ROOT / "feedback")
     model_storage_path: str = str(BACKEND_ROOT / "models")
     nginx_ssl_cert_path: str | None = None
     nginx_ssl_key_path: str | None = None
@@ -58,13 +62,15 @@ class Settings(BaseSettings):
 
     # Server
     host: str = "0.0.0.0"
-    port: int = 8100
+    port: int = 8201
     allow_localhost_cors: bool = False
+    require_https: bool = False
+    allow_http_dev: bool = True
     frontend_url: str | None = None
     cors_origins: str = (
-        "http://localhost:5173,"
+        "http://localhost:5174,"
         "http://localhost:3000,"
-        "http://127.0.0.1:5173,"
+        "http://127.0.0.1:5174,"
         "http://127.0.0.1:3000"
     )
     # Optional regex to allow private-network origins (LAN + Tailscale/CGNAT) without enumerating every IP
@@ -167,8 +173,14 @@ class Settings(BaseSettings):
         self.media_storage_path = _normalize(self.media_storage_path)
         self.transcript_storage_path = _normalize(self.transcript_storage_path)
         self.model_storage_path = _normalize(self.model_storage_path)
+        self.feedback_storage_path = _normalize(self.feedback_storage_path)
 
-        for path_attr in ["media_storage_path", "transcript_storage_path", "model_storage_path"]:
+        for path_attr in [
+            "media_storage_path",
+            "transcript_storage_path",
+            "model_storage_path",
+            "feedback_storage_path",
+        ]:
             path = Path(getattr(self, path_attr))
             path.mkdir(parents=True, exist_ok=True)
         return self

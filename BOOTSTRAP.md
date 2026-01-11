@@ -10,7 +10,7 @@ This file is the single source of truth for getting the Selenite dev stack runni
    .\scripts\bootstrap.ps1
    ```
    This performs the pre-flight cleanup, installs dependencies, and launches backend + frontend production servers (the frontend command builds before serving). Watch those windows for live logs.
-   - Default binding is now `0.0.0.0` (all interfaces). The script picks an advertised API host automatically (prefers Tailscale IP, then LAN). Ensure Windows Firewall allows inbound 8100/5173 if you want LAN/Tailscale access.
+   - Default binding is now `0.0.0.0` (all interfaces). The script picks an advertised API host automatically (prefers Tailscale IP, then LAN). Ensure Windows Firewall allows inbound 8201/5174 if you want LAN/Tailscale access.
   - To advertise multiple hosts (e.g., `127.0.0.1`, your LAN IP, and a Tailscale IP), pass `-AdvertiseHosts 127.0.0.1,<LAN-IP>,100.x.y.z` (or use `scripts/start-selenite.ps1 -AdvertiseHosts ...`). Bootstrap will add each host to CORS, and the frontend falls back to whichever host you used to load it.
 
 If you cannot run PowerShell scripts (policy, different shell, etc.), follow the manual steps below.
@@ -52,21 +52,21 @@ $env:DISABLE_FILE_LOGS = '1'
 $env:ENVIRONMENT = 'production'
 $env:ALLOW_LOCALHOST_CORS = '1'
 .\.venv\Scripts\python.exe -m uvicorn app.main:app `
-  --host 127.0.0.1 --port 8100 --app-dir app
+  --host 127.0.0.1 --port 8201 --app-dir app
 ```
 
-You should see `Uvicorn running on http://127.0.0.1:8100`.
+You should see `Uvicorn running on http://127.0.0.1:8201`.
 
 **If uvicorn exits immediately:**
 - *PermissionError on `selenite.log`*: delete `backend\logs\selenite.log` (if present) and retry with `DISABLE_FILE_LOGS=1`.
-- *Port already in use*: `netstat -ano | findstr 8100`, then `Stop-Process -Id <PID> -Force`.
+- *Port already in use*: `netstat -ano | findstr 8201`, then `Stop-Process -Id <PID> -Force`.
 
 ### Automated smoke test
 After the backend window reports it is up, run the built-in backend smoke test to ensure `/health` and `/auth/login` behave correctly (this waits for readiness automatically):
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe ..\scripts\smoke_test.py --base-url http://127.0.0.1:8100 --health-timeout 90
+.\.venv\Scripts\python.exe ..\scripts\smoke_test.py --base-url http://127.0.0.1:8201 --health-timeout 90
 ```
 
 The script will exit with a non-zero status if the API is unhealthy or the `admin/changeme` seed account fails to log in.
@@ -86,7 +86,7 @@ npm install
 npm run start:prod
 ```
 
-You should see Vite output with `Local: http://127.0.0.1:5173/`.
+You should see Vite output with `Local: http://127.0.0.1:5174/`.
 
 **If npm install fails with EACCES / permission errors:**
 - Close editors/terminals touching `node_modules`.
@@ -98,8 +98,8 @@ You should see Vite output with `Local: http://127.0.0.1:5173/`.
   ```
 - Ensure PowerShell is “Run as Administrator” if corporate AV enforces ACLs.
 
-**If Vite cannot bind 5173:**
-- `netstat -ano | findstr 5173` and kill the listed PID (`Stop-Process -Id ...`).
+**If Vite cannot bind 5174:**
+- `netstat -ano | findstr 5174` and kill the listed PID (`Stop-Process -Id ...`).
 
 ---
 
@@ -113,7 +113,7 @@ npm install
 npm run e2e:wait-and-run
 ```
 
-This runs `scripts/start-backend-e2e.js` (with virtualenv detection, DB seeding, and log suppression), launches the production preview server on `127.0.0.1:5173`, waits for `/health`, and then executes Playwright. Hit `Ctrl+C` once to stop all processes.
+This runs `scripts/start-backend-e2e.js` (with virtualenv detection, DB seeding, and log suppression), launches the production preview server on `127.0.0.1:5174`, waits for `/health`, and then executes Playwright. Hit `Ctrl+C` once to stop all processes.
 
 ---
 
@@ -136,5 +136,4 @@ When done testing:
 - Clear env vars if desired (`Remove-Item Env:DISABLE_FILE_LOGS`).
 
 This leaves the workspace clean for the next run (human or AI).
-
 

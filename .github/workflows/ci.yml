@@ -15,7 +15,7 @@ jobs:
       DISABLE_FILE_LOGS: "1"
       ALLOW_LOCALHOST_CORS: "1"
       NODE_ENV: production
-      VITE_API_URL: http://127.0.0.1:8100
+      VITE_API_URL: http://127.0.0.1:8200
     steps:
       - uses: actions/checkout@v4
 

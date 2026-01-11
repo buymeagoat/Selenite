@@ -12,8 +12,8 @@ param(
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
 
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
-    [int]$BindPort = 8100,   # Backend port
-    [int]$FrontendPort = 5173, # Frontend port
+    [int]$BindPort = 8201,   # Backend port
+    [int]$FrontendPort = 5174, # Frontend port
     [string]$BindIP = "0.0.0.0",  # Bind address for backend/frontend (0.0.0.0 listens on all)
     [string]$ApiBase = "",          # VITE_API_URL; defaults to http://<BindIP>:<BindPort> when empty
     [string[]]$AdvertiseHosts = @()  # Additional hosts/IPs to advertise for CORS + docs (e.g., LAN + Tailscale)
@@ -21,6 +21,16 @@ param(
 
 $guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
 if (Test-Path $guardScript) { . $guardScript }
+
+# Detect workspace role so we can avoid running dev-only safeguards in prod
+$WorkspaceRole = 'dev'
+$workspaceRoleFile = Join-Path (Split-Path -Parent $PSScriptRoot) '.workspace-role'
+if (Test-Path $workspaceRoleFile) {
+    try {
+        $WorkspaceRole = (Get-Content -Path $workspaceRoleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant()
+    } catch {}
+}
+$IsProdWorkspace = $WorkspaceRole -eq 'prod'
 
 
 
@@ -38,6 +48,26 @@ $StorageRoot = Join-Path $Root 'storage'
 $MediaDir = Join-Path $StorageRoot 'media'
 $TranscriptDir = Join-Path $StorageRoot 'transcripts'
 $BackupDir = Join-Path $StorageRoot 'backups'
+$EnvFile = Join-Path $Root '.env'
+$EnvSecretKey = $null
+$secretMatch = $null
+if (Test-Path $EnvFile) {
+    $secretMatch = Select-String -Path $EnvFile -Pattern '^\s*SECRET_KEY\s*=\s*(.+)$' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($secretMatch) {
+        $EnvSecretKey = $secretMatch.Matches[0].Groups[1].Value.Trim()
+    }
+}
+if ($IsProdWorkspace) {
+    if (-not $EnvSecretKey -or $EnvSecretKey -eq 'dev-secret-key-change-in-production' -or $EnvSecretKey.Length -lt 32) {
+        throw "Prod start blocked: SECRET_KEY must be set in .env to a value >=32 chars and not the default."
+    }
+}
+if (-not $EnvSecretKey) {
+    # Generate a strong default for non-prod if none supplied
+    $bytes = New-Object byte[] 48
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $EnvSecretKey = [Convert]::ToBase64String($bytes)
+}
 $ApiBaseResolved = $null
 New-Item -ItemType Directory -Force -Path $BackendLogDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
@@ -325,7 +355,11 @@ if (-not $SkipPreflight) {
             try { $_.Kill() | Out-Null } catch {}
         }
 
-        Invoke-SqliteGuard -RepoRoot $Root
+        if (-not $IsProdWorkspace) {
+            Invoke-SqliteGuard -RepoRoot $Root
+        } else {
+            Write-Host "Skipping sqlite guard in prod workspace." -ForegroundColor Yellow
+        }
 
         # Ensure we only have one authoritative SQLite DB
         $primaryDb = Join-Path $BackendDir 'selenite.db'
@@ -404,6 +438,10 @@ Invoke-Step "Database migrations (and seed if requested)" {
 }
 
 Invoke-Step "Reset admin credentials (sanity)" {
+    if ($IsProdWorkspace) {
+        Write-Host "Skipping admin credential reset in prod workspace." -ForegroundColor Yellow
+        return
+    }
     # Run in backend directory so SQLite path resolves to backend/selenite.db
     Set-Location $BackendDir
     $resetScript = Join-Path $Root 'scripts\reset_admin_password.py'
@@ -438,6 +476,7 @@ Set-Location "$BackendDir"
 `$env:ALLOW_LOCALHOST_CORS = '1'
 `$env:DISABLE_FILE_LOGS = '0'
 `$env:LOG_LEVEL = 'DEBUG'
+`$env:SECRET_KEY = '$EnvSecretKey'
 `$env:MEDIA_STORAGE_PATH = '$MediaDir'
 `$env:TRANSCRIPT_STORAGE_PATH = '$TranscriptDir'
 `$env:CORS_ORIGINS = '$CorsOrigins'
@@ -471,6 +510,10 @@ npm run start:prod -- --host $BindIP --port $FrontendPort --strictPort
     Write-Host "Frontend starting on http://$BindIP`:$FrontendPort (check new window)." -ForegroundColor Green
 }
 Invoke-Step "Verify backend via smoke test" {
+    if ($IsProdWorkspace) {
+        Write-Host "Skipping smoke test in prod workspace." -ForegroundColor Yellow
+        return
+    }
     Set-Location $Root
     $pythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
     $smokeScript = Join-Path $Root 'scripts\smoke_test.py'
@@ -480,7 +523,6 @@ Invoke-Step "Verify backend via smoke test" {
 Write-Section "All done"
 Write-Host "Backend and frontend processes have been launched in separate PowerShell windows."
 Write-Host "If either window reports an error, resolve it before proceeding." -ForegroundColor Yellow
-
 
 
 

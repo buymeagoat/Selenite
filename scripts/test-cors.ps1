@@ -13,8 +13,8 @@ if (Test-Path $guardScript) { . $guardScript }
 
 
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $backendDir = Join-Path $repoRoot 'backend'
 
@@ -72,7 +72,6 @@ if (Test-Path .env) {
 Pop-Location
 
 Write-Host "`nTip: after editing backend/.env, run .\scripts\start-selenite.ps1 so uvicorn reloads the new CORS list." -ForegroundColor Yellow
-
 
 
 

@@ -16,6 +16,7 @@ const AuthPreset: React.FC<{ children: React.ReactNode; isAdmin?: boolean }> = (
       is_admin: isAdmin,
       is_disabled: false,
       force_password_reset: false,
+      is_email_verified: true,
       last_login_at: null,
       created_at: new Date().toISOString()
     });

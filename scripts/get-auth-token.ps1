@@ -1,7 +1,7 @@
 param(
     [string]$Username = "admin",
     [string]$Password,
-    [string]$ApiBaseUrl = "http://127.0.0.1:8100",
+    [string]$ApiBaseUrl = "http://127.0.0.1:8201",
     [switch]$ShowExample
 )
 
@@ -57,7 +57,6 @@ curl -H "Authorization: Bearer $token" ${ApiBaseUrl}system/availability
 "@
     Write-Host "`n$example"
 }
-
 
 
 

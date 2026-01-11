@@ -2,6 +2,9 @@
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import settings
+from app.middleware.https_only import is_https_request
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
@@ -49,11 +52,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "accelerometer=()"
         )
 
-        # HSTS - force HTTPS in production
-        # Note: Only enable this when deployed with HTTPS
-        # Commented out for local development
-        # response.headers["Strict-Transport-Security"] = (
-        #     "max-age=31536000; includeSubDomains; preload"
-        # )
+        if settings.require_https and is_https_request(request):
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
 
         return response

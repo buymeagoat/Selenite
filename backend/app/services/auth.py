@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.auth import TokenResponse, UserResponse
+from datetime import timedelta
+
 from app.utils.security import verify_password, create_access_token
-from app.config import settings
 
 
 async def authenticate_user(
@@ -44,7 +45,7 @@ async def authenticate_user(
     return user if verify_password(password, user.hashed_password) else None
 
 
-def create_token_response(user: User) -> TokenResponse:
+def create_token_response(user: User, *, expires_minutes: int) -> TokenResponse:
     """
     Create a JWT token response for an authenticated user.
 
@@ -60,11 +61,11 @@ def create_token_response(user: User) -> TokenResponse:
         "user_id": user.id,
     }
 
-    access_token = create_access_token(token_data)
+    access_token = create_access_token(token_data, expires_delta=timedelta(minutes=expires_minutes))
 
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
-        expires_in=settings.access_token_expire_minutes * 60,  # Convert to seconds
+        expires_in=expires_minutes * 60,
         user=UserResponse.model_validate(user),
     )

@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: production
-      VITE_API_URL: http://127.0.0.1:8100
+      VITE_API_URL: http://127.0.0.1:8200
       ALLOW_LOCALHOST_CORS: "1"
     strategy:
       matrix:

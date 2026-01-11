@@ -1,19 +1,19 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Base URL: use Vite dev by default; can override via BASE_URL env.
-const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+const baseURL = process.env.BASE_URL || 'http://localhost:5174';
 const shouldStartServers = !process.env.SKIP_WEB_SERVER;
 const webServer = shouldStartServers
   ? [
       {
         command: 'node ../scripts/start-backend-e2e.js',
-        port: 8100,
+        port: 8201,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000
       },
       {
         command: 'npm run start:prod',
-        port: 5173,
+        port: 5174,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000
       }
@@ -67,5 +67,4 @@ export default defineConfig({
   ],
   outputDir: 'test-results'
 });
-
 

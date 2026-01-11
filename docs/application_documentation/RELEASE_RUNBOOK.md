@@ -49,6 +49,7 @@ Breaking changes require a staged rollout or a migration that preserves old data
    - Existing jobs and tags visible.
    - New job can be created.
    - Export works.
+   - HTTPS-only enforcement verified (HTTP blocked, HTTPS works).
 7. **Record evidence**:
    - Update `docs/application_documentation/PRODUCTION_READY.md`.
    - Log the release in `docs/application_documentation/CHANGELOG.md`.

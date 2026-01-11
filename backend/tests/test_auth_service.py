@@ -10,7 +10,6 @@ from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 from app.services.auth import authenticate_user, create_token_response
 from app.utils.security import hash_password, decode_access_token
-from app.config import settings
 
 
 @pytest.fixture(autouse=True)
@@ -87,9 +86,9 @@ def test_create_token_response_contains_expected_fields():
         is_admin=True,
         created_at=issued_at,
     )
-    token = create_token_response(user)
+    token = create_token_response(user, expires_minutes=42)
     assert token.token_type == "bearer"
-    assert token.expires_in == settings.access_token_expire_minutes * 60
+    assert token.expires_in == 42 * 60
 
     payload = decode_access_token(token.access_token)
     assert payload["user_id"] == 1

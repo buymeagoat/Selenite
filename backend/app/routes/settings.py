@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+from datetime import datetime
 from zoneinfo import ZoneInfo
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -109,6 +111,18 @@ async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
             transcode_to_wav=True,
             enable_empty_weights=False,
             default_tags_seeded=False,
+            session_timeout_minutes=30,
+            auth_token_not_before=datetime.utcnow(),
+            allow_self_signup=False,
+            require_signup_verification=False,
+            require_signup_captcha=True,
+            signup_captcha_provider="turnstile",
+            signup_captcha_site_key=None,
+            password_min_length=12,
+            password_require_uppercase=True,
+            password_require_lowercase=True,
+            password_require_number=True,
+            password_require_special=False,
         )
         db.add(prefs)
         await db.commit()
@@ -144,6 +158,29 @@ def _validate_timezone(value: str | None) -> str | None:
         logger.warning("Timezone validation fallback for '%s': %s", value, exc)
         return value
     return value
+
+
+def _normalize_optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed if trimmed else None
+
+
+def _validate_webhook_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook URL must be a valid http(s) URL.",
+        )
+    return value
+
+
+def _has_smtp_config(prefs: SystemPreferences) -> bool:
+    return bool(prefs.smtp_host and prefs.smtp_port and prefs.smtp_from_email)
 
 
 @router.get("", response_model=SettingsResponse)
@@ -223,6 +260,28 @@ async def get_settings(
         enable_empty_weights=prefs.enable_empty_weights,
         last_selected_asr_set=user_settings.last_selected_asr_set,
         last_selected_diarizer_set=user_settings.last_selected_diarizer_set,
+        feedback_store_enabled=prefs.feedback_store_enabled,
+        feedback_email_enabled=prefs.feedback_email_enabled,
+        feedback_webhook_enabled=prefs.feedback_webhook_enabled,
+        feedback_destination_email=prefs.feedback_destination_email,
+        feedback_webhook_url=prefs.feedback_webhook_url,
+        smtp_host=prefs.smtp_host,
+        smtp_port=prefs.smtp_port,
+        smtp_username=prefs.smtp_username,
+        smtp_from_email=prefs.smtp_from_email,
+        smtp_use_tls=prefs.smtp_use_tls,
+        smtp_password_set=bool(prefs.smtp_password),
+        session_timeout_minutes=prefs.session_timeout_minutes,
+        allow_self_signup=prefs.allow_self_signup,
+        require_signup_verification=prefs.require_signup_verification,
+        require_signup_captcha=prefs.require_signup_captcha,
+        signup_captcha_provider=prefs.signup_captcha_provider,
+        signup_captcha_site_key=prefs.signup_captcha_site_key,
+        password_min_length=prefs.password_min_length,
+        password_require_uppercase=prefs.password_require_uppercase,
+        password_require_lowercase=prefs.password_require_lowercase,
+        password_require_number=prefs.password_require_number,
+        password_require_special=prefs.password_require_special,
     )
 
 
@@ -250,6 +309,34 @@ async def _apply_settings(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admins may update throughput limits.",
+            )
+        if (
+            payload.feedback_store_enabled is not None
+            or payload.feedback_email_enabled is not None
+            or payload.feedback_webhook_enabled is not None
+            or payload.feedback_destination_email is not None
+            or payload.feedback_webhook_url is not None
+            or payload.smtp_host is not None
+            or payload.smtp_port is not None
+            or payload.smtp_username is not None
+            or payload.smtp_password is not None
+            or payload.smtp_from_email is not None
+            or payload.smtp_use_tls is not None
+            or payload.session_timeout_minutes is not None
+            or payload.allow_self_signup is not None
+            or payload.require_signup_verification is not None
+            or payload.require_signup_captcha is not None
+            or payload.signup_captcha_provider is not None
+            or payload.signup_captcha_site_key is not None
+            or payload.password_min_length is not None
+            or payload.password_require_uppercase is not None
+            or payload.password_require_lowercase is not None
+            or payload.password_require_number is not None
+            or payload.password_require_special is not None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update system-level settings.",
             )
         if admin_settings and not admin_settings.allow_asr_overrides:
             if (
@@ -442,6 +529,193 @@ async def _apply_settings(
             )
         system_prefs.enable_empty_weights = bool(payload.enable_empty_weights)
         system_prefs.touch()
+    if payload.feedback_store_enabled is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update feedback retention settings.",
+            )
+        system_prefs.feedback_store_enabled = bool(payload.feedback_store_enabled)
+        system_prefs.touch()
+    if payload.feedback_email_enabled is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update feedback delivery settings.",
+            )
+        system_prefs.feedback_email_enabled = bool(payload.feedback_email_enabled)
+        system_prefs.touch()
+    if payload.feedback_webhook_enabled is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update feedback delivery settings.",
+            )
+        system_prefs.feedback_webhook_enabled = bool(payload.feedback_webhook_enabled)
+        system_prefs.touch()
+    if payload.feedback_destination_email is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update feedback delivery settings.",
+            )
+        system_prefs.feedback_destination_email = _normalize_optional(
+            payload.feedback_destination_email
+        )
+        system_prefs.touch()
+    if payload.feedback_webhook_url is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update feedback delivery settings.",
+            )
+        system_prefs.feedback_webhook_url = _normalize_optional(
+            _validate_webhook_url(payload.feedback_webhook_url)
+        )
+        system_prefs.touch()
+    if payload.smtp_host is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_host = _normalize_optional(payload.smtp_host)
+        system_prefs.touch()
+    if payload.smtp_port is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_port = payload.smtp_port
+        system_prefs.touch()
+    if payload.smtp_username is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_username = _normalize_optional(payload.smtp_username)
+        system_prefs.touch()
+    if payload.smtp_password is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_password = _normalize_optional(payload.smtp_password)
+        system_prefs.touch()
+    if payload.smtp_from_email is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_from_email = _normalize_optional(payload.smtp_from_email)
+        system_prefs.touch()
+    if payload.smtp_use_tls is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update SMTP settings.",
+            )
+        system_prefs.smtp_use_tls = bool(payload.smtp_use_tls)
+        system_prefs.touch()
+    if payload.session_timeout_minutes is not None:
+        if not current_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins may update session timeout settings.",
+            )
+        if payload.session_timeout_minutes < 5 or payload.session_timeout_minutes > 1440:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session timeout must be between 5 and 1440 minutes.",
+            )
+        system_prefs.session_timeout_minutes = payload.session_timeout_minutes
+        system_prefs.touch()
+
+    if payload.allow_self_signup is not None:
+        system_prefs.allow_self_signup = bool(payload.allow_self_signup)
+        system_prefs.touch()
+
+    if payload.require_signup_verification is not None:
+        system_prefs.require_signup_verification = bool(payload.require_signup_verification)
+        system_prefs.touch()
+
+    if payload.require_signup_captcha is not None:
+        system_prefs.require_signup_captcha = bool(payload.require_signup_captcha)
+        system_prefs.touch()
+
+    if payload.signup_captcha_provider is not None:
+        provider_value = (
+            payload.signup_captcha_provider.strip().lower()
+            if payload.signup_captcha_provider
+            else None
+        )
+        if provider_value and provider_value not in {"turnstile"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported CAPTCHA provider. Only 'turnstile' is supported currently.",
+            )
+        system_prefs.signup_captcha_provider = provider_value
+        system_prefs.touch()
+
+    if payload.signup_captcha_site_key is not None:
+        system_prefs.signup_captcha_site_key = _normalize_optional(payload.signup_captcha_site_key)
+        system_prefs.touch()
+
+    if payload.password_min_length is not None:
+        system_prefs.password_min_length = payload.password_min_length
+        system_prefs.touch()
+
+    if payload.password_require_uppercase is not None:
+        system_prefs.password_require_uppercase = bool(payload.password_require_uppercase)
+        system_prefs.touch()
+
+    if payload.password_require_lowercase is not None:
+        system_prefs.password_require_lowercase = bool(payload.password_require_lowercase)
+        system_prefs.touch()
+
+    if payload.password_require_number is not None:
+        system_prefs.password_require_number = bool(payload.password_require_number)
+        system_prefs.touch()
+
+    if payload.password_require_special is not None:
+        system_prefs.password_require_special = bool(payload.password_require_special)
+        system_prefs.touch()
+
+    if system_prefs.feedback_email_enabled:
+        if not system_prefs.feedback_destination_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Feedback email delivery requires a destination email.",
+            )
+        if not _has_smtp_config(system_prefs):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Feedback email delivery requires SMTP host, port, and from address.",
+            )
+    if system_prefs.feedback_webhook_enabled and not system_prefs.feedback_webhook_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Feedback webhook delivery requires a webhook URL.",
+        )
+
+    if system_prefs.allow_self_signup and system_prefs.require_signup_captcha:
+        if not system_prefs.signup_captcha_provider:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA provider must be configured when signup CAPTCHA is required.",
+            )
+        if (
+            system_prefs.signup_captcha_provider == "turnstile"
+            and not system_prefs.signup_captcha_site_key
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Turnstile site key is required when signup CAPTCHA is enabled.",
+            )
 
     user_settings.touch()
     await db.commit()
@@ -473,6 +747,28 @@ async def _apply_settings(
         enable_empty_weights=system_prefs.enable_empty_weights,
         last_selected_asr_set=user_settings.last_selected_asr_set,
         last_selected_diarizer_set=user_settings.last_selected_diarizer_set,
+        feedback_store_enabled=system_prefs.feedback_store_enabled,
+        feedback_email_enabled=system_prefs.feedback_email_enabled,
+        feedback_webhook_enabled=system_prefs.feedback_webhook_enabled,
+        feedback_destination_email=system_prefs.feedback_destination_email,
+        feedback_webhook_url=system_prefs.feedback_webhook_url,
+        smtp_host=system_prefs.smtp_host,
+        smtp_port=system_prefs.smtp_port,
+        smtp_username=system_prefs.smtp_username,
+        smtp_from_email=system_prefs.smtp_from_email,
+        smtp_use_tls=system_prefs.smtp_use_tls,
+        smtp_password_set=bool(system_prefs.smtp_password),
+        session_timeout_minutes=system_prefs.session_timeout_minutes,
+        allow_self_signup=system_prefs.allow_self_signup,
+        require_signup_verification=system_prefs.require_signup_verification,
+        require_signup_captcha=system_prefs.require_signup_captcha,
+        signup_captcha_provider=system_prefs.signup_captcha_provider,
+        signup_captcha_site_key=system_prefs.signup_captcha_site_key,
+        password_min_length=system_prefs.password_min_length,
+        password_require_uppercase=system_prefs.password_require_uppercase,
+        password_require_lowercase=system_prefs.password_require_lowercase,
+        password_require_number=system_prefs.password_require_number,
+        password_require_special=system_prefs.password_require_special,
     )
 
 

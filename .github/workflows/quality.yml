@@ -37,4 +37,4 @@ jobs:
       - name: Playwright smokes (accessibility/perf/flow)
         run: |
           cd frontend
-          BASE_URL=http://localhost:5173 npm run test:e2e -- --grep "Accessibility smokes|Health endpoint responds quickly|Create → Complete → Export → Delete flow"
+          BASE_URL=http://localhost:5273 npm run test:e2e -- --grep "Accessibility smokes|Health endpoint responds quickly|Create → Complete → Export → Delete flow"

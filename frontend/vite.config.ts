@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import type { ProxyOptions } from 'vite';
 
-const apiProxyTarget = process.env.BACKEND_URL || 'http://127.0.0.1:8100';
+const apiProxyTarget = process.env.BACKEND_URL || 'http://127.0.0.1:8201';
 
 const proxyConfig: Record<string, string | ProxyOptions> = {
   '/api': {
@@ -17,13 +17,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '127.0.0.1',
-    port: 5173,
+    port: 5174,
     proxy: proxyConfig,
   },
   preview: {
     host: '127.0.0.1',
-    port: 5173,
-    allowedHosts: ['selenite.tonykapinos.com', 'dev.selenite.tonykapinos.com'],
+    port: 5174,
+    allowedHosts: ['devselenite.tonykapinos.com', 'selenite.tonykapinos.com'],
   },
   test: {
     environment: 'jsdom',
@@ -35,5 +35,4 @@ export default defineConfig({
     isolate: true,
   },
 });
-
 

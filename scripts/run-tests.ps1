@@ -46,8 +46,8 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $RepoRoot
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
 
 function Get-BackendPythonPath {
     if ($IsWindows) {
@@ -489,7 +489,6 @@ $stampPath = Join-Path $RepoRoot ".last_tests_run"
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 Set-Content -Path $stampPath -Value "last_tests_run=$timestamp" -Encoding UTF8
 Write-Host "Recorded test run timestamp at $stampPath" -ForegroundColor Green
-
 
 
 

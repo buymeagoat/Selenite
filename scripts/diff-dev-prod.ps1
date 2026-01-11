@@ -34,17 +34,17 @@ if (-not (Test-Path $ProdPath)) {
 
 function Get-TrackedFiles {
     param([string]$Repo)
-    return (git -C $Repo ls-files) | Where-Object { $_ -and $_.Trim().Length -gt 0 }
+    return @((git -C $Repo ls-files) | Where-Object { $_ -and $_.Trim().Length -gt 0 })
 }
 
 function Get-UntrackedFiles {
     param([string]$Repo)
-    return (git -C $Repo ls-files --others --exclude-standard) | Where-Object { $_ -and $_.Trim().Length -gt 0 }
+    return @((git -C $Repo ls-files --others --exclude-standard) | Where-Object { $_ -and $_.Trim().Length -gt 0 })
 }
 
 function Get-TrackedFileHashes {
     param([string]$Repo)
-    $files = Get-TrackedFiles -Repo $Repo
+    $files = @(Get-TrackedFiles -Repo $Repo)
     $hashes = @{}
     if (-not $files -or $files.Count -eq 0) {
         return @{ Files = @(); Hashes = $hashes }
@@ -113,8 +113,8 @@ $onlyInProd | Sort-Object | ForEach-Object { Write-Host " - $_" }
 Write-Host ""
 
 if ($IncludeUntracked) {
-    Write-Host ("Untracked in dev ({0})" -f $untracked.Count) -ForegroundColor Yellow
-    $untracked | Sort-Object | ForEach-Object { Write-Host " ? $_" }
+    Write-Host ("Untracked in dev ({0})" -f @($untracked).Count) -ForegroundColor Yellow
+    @($untracked) | Sort-Object | ForEach-Object { Write-Host " ? $_" }
     Write-Host ""
 }
 

@@ -4,16 +4,29 @@
 
 .DESCRIPTION
     Matches running processes by command line contents scoped to this repo
-    and known ports (default 8100 for backend, 5173 for frontend).
+    and known ports (default 8201 for backend, 5174 for frontend).
 #>
 
 
 $ErrorActionPreference = "Stop"
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8100 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5173 }
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$repoRootPattern = '(?i)(^|\\s|\"|'')' + [regex]::Escape($repoRoot) + '(\\|/|\"|\\s|$)'
+$repoRootPattern = '(?i)(^|\\s|\"|\'')' + [regex]::Escape($repoRoot) + '(\\|/|\"|\\s|$)'
+
+$envFile = Join-Path $repoRoot '.env'
+$envBackendPort = $null
+$envFrontendPort = $null
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+
+    $frontendMatch = Select-String -Path $envFile -Pattern '^\s*FRONTEND_URL\s*=\s*.+:(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($frontendMatch) { $envFrontendPort = [int]$frontendMatch.Matches[0].Groups[1].Value }
+}
+
+$backendPorts = @($env:SELENITE_BACKEND_PORT, $envBackendPort, 8201, 8100) | Where-Object { $_ } | Sort-Object -Unique
+$frontendPorts = @($env:SELENITE_FRONTEND_PORT, $envFrontendPort, 5174, 5173) | Where-Object { $_ } | Sort-Object -Unique
+$allPorts = ($backendPorts + $frontendPorts) | Sort-Object -Unique
 
 Write-Host "Stopping Selenite processes..." -ForegroundColor Cyan
 
@@ -91,13 +104,13 @@ if (Test-Path $guardScript) { . $guardScript }
     }
 }
 
-Stop-PortListeners -Ports @($BackendPort, $FrontendPort)
+Stop-PortListeners -Ports $allPorts
 
 Start-Sleep -Seconds 2
 
 # Verify all stopped (by port and by command line)
 $remaining = @()
-try { $remaining += Get-NetTCPConnection -LocalPort $BackendPort,$FrontendPort -State Listen -ErrorAction SilentlyContinue } catch {}
+try { $remaining += Get-NetTCPConnection -LocalPort $allPorts -State Listen -ErrorAction SilentlyContinue } catch {}
 try {
     $remaining += (Get-CimInstance Win32_Process | Where-Object {
         ($_.Name -match 'python|node') -and (
@@ -127,7 +140,6 @@ if ($remaining -and $remaining.Count -gt 0) {
     Write-Host ""
     Write-Host "All Selenite processes stopped." -ForegroundColor Green
 }
-
 
 
 

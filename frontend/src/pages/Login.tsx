@@ -3,7 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { apiPost, ApiError } from '../lib/api';
 import { devInfo, devError } from '../lib/debug';
-import type { CurrentUserResponse } from '../services/auth';
+import type { AuthTokenResponse, SignupConfigResponse } from '../services/auth';
+import { fetchSignupConfig } from '../services/auth';
+import { FeedbackModal } from '../components/modals/FeedbackModal';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -12,12 +14,17 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [errorDetails, setErrorDetails] = useState<any>(null);
+  const [httpsRequiredUrl, setHttpsRequiredUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [signupConfig, setSignupConfig] = useState<SignupConfigResponse | null>(null);
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setErrorDetails(null);
+    setHttpsRequiredUrl(null);
     setIsLoading(true);
 
     devInfo('[LOGIN ATTEMPT]', {
@@ -27,12 +34,7 @@ export const Login: React.FC = () => {
     });
 
     try {
-      const data = await apiPost<{
-        access_token: string;
-        token_type: string;
-        expires_in: number;
-        user: CurrentUserResponse;
-      }>('/auth/login', {
+      const data = await apiPost<AuthTokenResponse>('/auth/login', {
         email,
         password
       });
@@ -43,7 +45,15 @@ export const Login: React.FC = () => {
     } catch (err) {
       devError('[LOGIN FAILED]', err);
       if (err instanceof ApiError) {
-        setError(err.message);
+        if (err.status === 426 && typeof err.data?.detail === 'string') {
+          const upgradeUrl = typeof err.data?.upgrade_url === 'string'
+            ? err.data.upgrade_url
+            : `https://${window.location.host}`;
+          setHttpsRequiredUrl(upgradeUrl);
+          setError('HTTPS is required to sign in.');
+        } else {
+          setError(err.message);
+        }
         setErrorDetails({
           status: err.status,
           data: err.data,
@@ -65,10 +75,44 @@ export const Login: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadConfig = async () => {
+      setIsSignupLoading(true);
+      try {
+        const config = await fetchSignupConfig();
+        if (!cancelled) {
+          setSignupConfig(config);
+        }
+      } catch (err) {
+        devError('[SIGNUP CONFIG FAILED]', err);
+      } finally {
+        if (!cancelled) {
+          setIsSignupLoading(false);
+        }
+      }
+    };
+    loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-sage-light">
       <form onSubmit={handleSubmit} className="bg-white shadow rounded p-6 w-full max-w-sm space-y-4">
         <h1 className="text-2xl font-semibold text-pine-deep">Selenite Login</h1>
+        {httpsRequiredUrl && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-sm">
+            <div className="font-semibold">HTTPS required</div>
+            <div>
+              Open the secure URL to continue:{' '}
+              <a className="underline" href={httpsRequiredUrl}>
+                {httpsRequiredUrl}
+              </a>
+            </div>
+          </div>
+        )}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
             <div className="font-semibold">{error}</div>
@@ -114,7 +158,25 @@ export const Login: React.FC = () => {
         >
           {isLoading ? 'Logging in...' : 'Login'}
         </button>
+        {signupConfig?.allow_self_signup && (
+          <button
+            type="button"
+            onClick={() => navigate('/signup')}
+            className="w-full text-sm text-pine-mid underline"
+            disabled={isSignupLoading}
+          >
+            Create an account
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setIsFeedbackOpen(true)}
+          className="w-full text-sm text-pine-mid underline"
+        >
+          Send feedback without signing in
+        </button>
       </form>
+      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </div>
   );
 };

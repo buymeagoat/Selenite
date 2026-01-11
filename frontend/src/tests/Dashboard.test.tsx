@@ -247,6 +247,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     renderDashboard();
@@ -285,6 +296,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     jsZipMock.mockImplementation(() => ({
@@ -335,6 +357,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     jsZipMock.mockImplementation(() => ({
@@ -403,6 +436,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
     renameJobMock.mockResolvedValue({ ...job, original_filename: 'Updated.mp3' });
 
@@ -442,6 +486,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     renderDashboard();
@@ -498,6 +553,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     renderDashboard();
@@ -552,6 +618,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     renderDashboard();
@@ -585,6 +662,17 @@ describe('Dashboard', () => {
       enable_empty_weights: false,
       last_selected_asr_set: null,
       last_selected_diarizer_set: null,
+      feedback_store_enabled: true,
+      feedback_email_enabled: false,
+      feedback_webhook_enabled: false,
+      feedback_destination_email: null,
+      feedback_webhook_url: null,
+      smtp_host: null,
+      smtp_port: null,
+      smtp_username: null,
+      smtp_from_email: null,
+      smtp_use_tls: true,
+      smtp_password_set: false,
     });
 
     renderDashboard();

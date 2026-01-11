@@ -40,6 +40,7 @@ import {
   type ModelSetWithWeights,
   type ProviderType,
 } from '../services/modelRegistry';
+import { resetSessions } from '../services/auth';
 import { TagList } from '../components/tags/TagList';
 import { TAG_COLOR_PALETTE, pickTagColor } from '../components/tags/tagColors';
 import { createTag, deleteTag, fetchTags, updateTag, type Tag } from '../services/tags';
@@ -47,10 +48,12 @@ import { browseFiles, type FileEntry } from '../services/fileBrowser';
 import { devError, devInfo } from '../lib/debug';
 import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
 import { UserManagement } from '../components/admin/UserManagement';
+import { MessagesPanel } from '../components/admin/MessagesPanel';
 
 type RegistryTab = ProviderType;
 
 const MODELS_ROOT = '/backend/models';
+const ADMIN_TAB_STORAGE_KEY = 'selenite.admin.active_tab';
 const CURATED_HELP = [
   'Providers are pre-seeded (disabled) with folders under /backend/models/<provider>/<weight>/. Drop weights there and enable model sets.',
   'ASR: whisper, faster-whisper, wav2vec2/transformers, nemo conformer-ctc, vosk, coqui-stt.',
@@ -90,6 +93,22 @@ function pathStartsWith(base: string, candidate: string): boolean {
   const normBase = canonicalPath(base);
   const normCandidate = canonicalPath(candidate);
   return normCandidate.startsWith(normBase);
+}
+
+function resolveInitialAdminTab(): 'audio' | 'system' | 'users' | 'messages' {
+  const allowedTabs = new Set(['audio', 'system', 'users', 'messages']);
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && allowedTabs.has(tabParam)) {
+      return tabParam as 'audio' | 'system' | 'users' | 'messages';
+    }
+    const stored = localStorage.getItem(ADMIN_TAB_STORAGE_KEY);
+    if (stored && allowedTabs.has(stored)) {
+      return stored as 'audio' | 'system' | 'users' | 'messages';
+    }
+  }
+  return 'audio';
 }
 
 export const Admin: React.FC = () => {
@@ -166,7 +185,46 @@ export const Admin: React.FC = () => {
   const [isSavingTagEdit, setIsSavingTagEdit] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [isRefreshingTags, setIsRefreshingTags] = useState(false);
-  const [activeTab, setActiveTab] = useState<'audio' | 'system' | 'users'>('audio');
+  const [activeTab, setActiveTab] = useState<'audio' | 'system' | 'users' | 'messages'>(
+    resolveInitialAdminTab()
+  );
+  const messagesTimeZone = userTimeZone || serverTimeZone || null;
+  const [feedbackStoreEnabled, setFeedbackStoreEnabled] = useState(true);
+  const [feedbackEmailEnabled, setFeedbackEmailEnabled] = useState(false);
+  const [feedbackWebhookEnabled, setFeedbackWebhookEnabled] = useState(false);
+  const [feedbackDestinationEmail, setFeedbackDestinationEmail] = useState('');
+  const [feedbackWebhookUrl, setFeedbackWebhookUrl] = useState('');
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(30);
+  const [allowSelfSignup, setAllowSelfSignup] = useState(false);
+  const [requireSignupVerification, setRequireSignupVerification] = useState(false);
+  const [requireSignupCaptcha, setRequireSignupCaptcha] = useState(true);
+  const [signupCaptchaProvider, setSignupCaptchaProvider] = useState('turnstile');
+  const [signupCaptchaSiteKey, setSignupCaptchaSiteKey] = useState('');
+  const [passwordMinLength, setPasswordMinLength] = useState(12);
+  const [passwordRequireUppercase, setPasswordRequireUppercase] = useState(true);
+  const [passwordRequireLowercase, setPasswordRequireLowercase] = useState(true);
+  const [passwordRequireNumber, setPasswordRequireNumber] = useState(true);
+  const [passwordRequireSpecial, setPasswordRequireSpecial] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(ADMIN_TAB_STORAGE_KEY, activeTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', activeTab);
+    window.history.replaceState(null, '', url.toString());
+  }, [activeTab]);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('');
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpPasswordSet, setSmtpPasswordSet] = useState(false);
+  const [smtpClearPassword, setSmtpClearPassword] = useState(false);
+  const [smtpFromEmail, setSmtpFromEmail] = useState('');
+  const [smtpUseTls, setSmtpUseTls] = useState(true);
+  const [isSavingFeedbackSettings, setIsSavingFeedbackSettings] = useState(false);
+  const [isSavingSignupSettings, setIsSavingSignupSettings] = useState(false);
+  const [isSavingSessionSettings, setIsSavingSessionSettings] = useState(false);
+  const [isResettingSessions, setIsResettingSessions] = useState(false);
 
   const toRelativeAppPath = useCallback((pathValue: string) => {
     const normalized = normalizePath(pathValue);
@@ -375,6 +433,30 @@ export const Admin: React.FC = () => {
         setUserTimeZone(settingsData.time_zone || browserTimeZone);
         setServerTimeZone(settingsData.server_time_zone || 'UTC');
         setTranscodeToWav(settingsData.transcode_to_wav ?? true);
+        setFeedbackStoreEnabled(settingsData.feedback_store_enabled ?? true);
+        setFeedbackEmailEnabled(settingsData.feedback_email_enabled ?? false);
+        setFeedbackWebhookEnabled(settingsData.feedback_webhook_enabled ?? false);
+        setFeedbackDestinationEmail(settingsData.feedback_destination_email ?? '');
+        setFeedbackWebhookUrl(settingsData.feedback_webhook_url ?? '');
+        setSessionTimeoutMinutes(settingsData.session_timeout_minutes ?? 30);
+        setAllowSelfSignup(settingsData.allow_self_signup ?? false);
+        setRequireSignupVerification(settingsData.require_signup_verification ?? false);
+        setRequireSignupCaptcha(settingsData.require_signup_captcha ?? false);
+        setSignupCaptchaProvider(settingsData.signup_captcha_provider ?? 'turnstile');
+        setSignupCaptchaSiteKey(settingsData.signup_captcha_site_key ?? '');
+        setPasswordMinLength(settingsData.password_min_length ?? 12);
+        setPasswordRequireUppercase(settingsData.password_require_uppercase ?? true);
+        setPasswordRequireLowercase(settingsData.password_require_lowercase ?? true);
+        setPasswordRequireNumber(settingsData.password_require_number ?? true);
+        setPasswordRequireSpecial(settingsData.password_require_special ?? false);
+        setSmtpHost(settingsData.smtp_host ?? '');
+        setSmtpPort(settingsData.smtp_port ? String(settingsData.smtp_port) : '');
+        setSmtpUsername(settingsData.smtp_username ?? '');
+        setSmtpFromEmail(settingsData.smtp_from_email ?? '');
+        setSmtpUseTls(settingsData.smtp_use_tls ?? true);
+        setSmtpPasswordSet(Boolean(settingsData.smtp_password_set));
+        setSmtpPassword('');
+        setSmtpClearPassword(false);
         setSystemInfo(systemData);
         setCapabilities(capabilityData);
         setRegistrySets(registry);
@@ -939,6 +1021,136 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const handleSaveFeedbackSettings = async () => {
+    setIsSavingFeedbackSettings(true);
+    try {
+      const trimmedPort = smtpPort.trim();
+      const parsedPort = trimmedPort ? Number(trimmedPort) : null;
+      if (trimmedPort && Number.isNaN(parsedPort)) {
+        showError('SMTP port must be a number.');
+        return;
+      }
+      const payload: Record<string, string | number | boolean | null> = {
+        feedback_store_enabled: feedbackStoreEnabled,
+        feedback_email_enabled: feedbackEmailEnabled,
+        feedback_webhook_enabled: feedbackWebhookEnabled,
+        feedback_destination_email: feedbackDestinationEmail.trim() || null,
+        feedback_webhook_url: feedbackWebhookUrl.trim() || null,
+        smtp_host: smtpHost.trim() || null,
+        smtp_port: parsedPort,
+        smtp_username: smtpUsername.trim() || null,
+        smtp_from_email: smtpFromEmail.trim() || null,
+        smtp_use_tls: smtpUseTls,
+      };
+      if (smtpClearPassword) {
+        payload.smtp_password = '';
+      } else if (smtpPassword.trim()) {
+        payload.smtp_password = smtpPassword.trim();
+      }
+      const updated = await updateSettings(payload);
+      setFeedbackStoreEnabled(updated.feedback_store_enabled);
+      setFeedbackEmailEnabled(updated.feedback_email_enabled);
+      setFeedbackWebhookEnabled(updated.feedback_webhook_enabled);
+      setFeedbackDestinationEmail(updated.feedback_destination_email ?? '');
+      setFeedbackWebhookUrl(updated.feedback_webhook_url ?? '');
+      setSmtpHost(updated.smtp_host ?? '');
+      setSmtpPort(updated.smtp_port ? String(updated.smtp_port) : '');
+      setSmtpUsername(updated.smtp_username ?? '');
+      setSmtpFromEmail(updated.smtp_from_email ?? '');
+      setSmtpUseTls(updated.smtp_use_tls);
+      setSmtpPasswordSet(Boolean(updated.smtp_password_set));
+      setSmtpPassword('');
+      setSmtpClearPassword(false);
+      broadcastSettingsUpdated();
+      showSuccess('Feedback settings saved');
+    } catch (error) {
+      devError('Failed to save feedback settings:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to save feedback settings: ${error.message}`);
+      } else {
+        showError('Failed to save feedback settings.');
+      }
+    } finally {
+      setIsSavingFeedbackSettings(false);
+    }
+  };
+
+  const handleSaveSessionSettings = async () => {
+    setIsSavingSessionSettings(true);
+    try {
+      const updated = await updateSettings({
+        session_timeout_minutes: sessionTimeoutMinutes,
+      });
+      setSessionTimeoutMinutes(updated.session_timeout_minutes ?? 30);
+      showSuccess('Session timeout saved');
+    } catch (error) {
+      devError('Failed to save session timeout:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to save session timeout: ${error.message}`);
+      } else {
+        showError('Failed to save session timeout.');
+      }
+    } finally {
+      setIsSavingSessionSettings(false);
+    }
+  };
+
+  const handleSaveSignupSettings = async () => {
+    setIsSavingSignupSettings(true);
+    try {
+      const updated = await updateSettings({
+        allow_self_signup: allowSelfSignup,
+        require_signup_verification: requireSignupVerification,
+        require_signup_captcha: requireSignupCaptcha,
+        signup_captcha_provider: signupCaptchaProvider || null,
+        signup_captcha_site_key: signupCaptchaSiteKey.trim() || null,
+        password_min_length: passwordMinLength,
+        password_require_uppercase: passwordRequireUppercase,
+        password_require_lowercase: passwordRequireLowercase,
+        password_require_number: passwordRequireNumber,
+        password_require_special: passwordRequireSpecial,
+      });
+
+      setAllowSelfSignup(updated.allow_self_signup);
+      setRequireSignupVerification(updated.require_signup_verification);
+      setRequireSignupCaptcha(updated.require_signup_captcha);
+      setSignupCaptchaProvider(updated.signup_captcha_provider ?? 'turnstile');
+      setSignupCaptchaSiteKey(updated.signup_captcha_site_key ?? '');
+      setPasswordMinLength(updated.password_min_length ?? 12);
+      setPasswordRequireUppercase(updated.password_require_uppercase ?? true);
+      setPasswordRequireLowercase(updated.password_require_lowercase ?? true);
+      setPasswordRequireNumber(updated.password_require_number ?? true);
+      setPasswordRequireSpecial(updated.password_require_special ?? false);
+      showSuccess('Signup and password policy saved');
+    } catch (error) {
+      devError('Failed to save signup settings:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to save signup settings: ${error.message}`);
+      } else {
+        showError('Failed to save signup settings.');
+      }
+    } finally {
+      setIsSavingSignupSettings(false);
+    }
+  };
+
+  const handleResetSessions = async () => {
+    setIsResettingSessions(true);
+    try {
+      await resetSessions();
+      showSuccess('All sessions have been reset. Users must log in again.');
+    } catch (error) {
+      devError('Failed to reset sessions:', error);
+      if (error instanceof ApiError) {
+        showError(`Failed to reset sessions: ${error.message}`);
+      } else {
+        showError('Failed to reset sessions.');
+      }
+    } finally {
+      setIsResettingSessions(false);
+    }
+  };
+
   const handleRefreshTags = async () => {
     await loadAdminTags();
   };
@@ -1451,6 +1663,18 @@ export const Admin: React.FC = () => {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('messages')}
+            className={`px-3 py-2 text-sm rounded ${
+              activeTab === 'messages'
+                ? 'bg-sage-light text-forest-green'
+                : 'text-pine-mid hover:text-forest-green'
+            }`}
+            data-testid="admin-tab-messages"
+          >
+            Messages
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('system')}
             className={`px-3 py-2 text-sm rounded ${
               activeTab === 'system'
@@ -1465,6 +1689,8 @@ export const Admin: React.FC = () => {
 
         {activeTab === 'users' ? (
           <UserManagement isAdmin={isAdmin} />
+        ) : activeTab === 'messages' ? (
+          <MessagesPanel feedbackStoreEnabled={feedbackStoreEnabled} timeZone={messagesTimeZone} />
         ) : activeTab === 'system' ? (
       <section className="bg-white border border-sage-mid rounded-lg p-6 order-3" data-testid="system-section">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1553,6 +1779,330 @@ export const Admin: React.FC = () => {
               className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition"
             >
               Save Time Zones
+            </button>
+          </div>
+        </div>
+        <div className="border border-sage-mid rounded-lg p-4 mb-4" data-testid="session-timeout-card">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-md font-semibold text-pine-deep">Session Timeout</h3>
+            <span className="text-xs text-pine-mid">Idle logout window</span>
+          </div>
+          <p className="text-xs text-pine-mid mb-3">
+            Users are signed out after inactivity. Restarting the server also invalidates all tokens.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4 items-end">
+            <div className="space-y-2">
+              <label htmlFor="session-timeout-minutes" className="text-sm font-medium text-pine-deep">
+                Idle timeout (minutes)
+              </label>
+              <input
+                id="session-timeout-minutes"
+                type="number"
+                min={5}
+                max={1440}
+                value={sessionTimeoutMinutes}
+                onChange={(e) => {
+                  const nextValue = Number(e.target.value);
+                  setSessionTimeoutMinutes(Number.isFinite(nextValue) ? nextValue : 30);
+                }}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+              <p className="text-xs text-pine-mid">Allowed range: 5-1440 minutes. Default is 30.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveSessionSettings}
+                  className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+                  disabled={isSavingSessionSettings}
+                  data-testid="session-timeout-save"
+                >
+                  {isSavingSessionSettings ? 'Saving...' : 'Save session timeout'}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">Reset all sessions</label>
+              <p className="text-xs text-pine-mid">
+                Forces every user to log in again. Running jobs are unaffected.
+              </p>
+              <button
+                onClick={handleResetSessions}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
+                disabled={isResettingSessions}
+                data-testid="session-reset"
+              >
+                {isResettingSessions ? 'Resetting...' : 'Reset all sessions now'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="border border-sage-mid rounded-lg p-4 mb-4" data-testid="signup-policy-card">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-md font-semibold text-pine-deep">Signup & Password Policy</h3>
+            <span className="text-xs text-pine-mid">Control self-service onboarding</span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={allowSelfSignup}
+                  onChange={(e) => setAllowSelfSignup(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>
+                  Allow public signup
+                  <span className="block text-xs text-pine-mid">When disabled, only admins can create users.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={requireSignupVerification}
+                  onChange={(e) => setRequireSignupVerification(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>
+                  Require email verification
+                  <span className="block text-xs text-pine-mid">Enforced in a later phase; stored for rollout.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={requireSignupCaptcha}
+                  onChange={(e) => setRequireSignupCaptcha(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>
+                  Require CAPTCHA
+                  <span className="block text-xs text-pine-mid">Uses Cloudflare Turnstile.</span>
+                </span>
+              </label>
+              <label className="block text-sm font-medium text-pine-deep" htmlFor="signup-captcha-provider">
+                CAPTCHA provider
+              </label>
+              <select
+                id="signup-captcha-provider"
+                value={signupCaptchaProvider}
+                onChange={(e) => setSignupCaptchaProvider(e.target.value)}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              >
+                <option value="turnstile">Cloudflare Turnstile</option>
+              </select>
+              <label className="block text-sm font-medium text-pine-deep" htmlFor="signup-captcha-sitekey">
+                Turnstile site key
+              </label>
+              <input
+                id="signup-captcha-sitekey"
+                type="text"
+                value={signupCaptchaSiteKey}
+                onChange={(e) => setSignupCaptchaSiteKey(e.target.value)}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+                placeholder="pk_..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-pine-deep" htmlFor="password-min-length">
+                Minimum password length
+              </label>
+              <input
+                id="password-min-length"
+                type="number"
+                min={8}
+                max={256}
+                value={passwordMinLength}
+                onChange={(e) => setPasswordMinLength(Number(e.target.value) || 12)}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={passwordRequireUppercase}
+                  onChange={(e) => setPasswordRequireUppercase(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>Require uppercase letter</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={passwordRequireLowercase}
+                  onChange={(e) => setPasswordRequireLowercase(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>Require lowercase letter</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={passwordRequireNumber}
+                  onChange={(e) => setPasswordRequireNumber(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>Require number</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={passwordRequireSpecial}
+                  onChange={(e) => setPasswordRequireSpecial(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                <span>Require special character</span>
+              </label>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={handleSaveSignupSettings}
+              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+              disabled={isSavingSignupSettings}
+            >
+              {isSavingSignupSettings ? 'Saving...' : 'Save signup settings'}
+            </button>
+          </div>
+        </div>
+        <div className="border border-sage-mid rounded-lg p-4 mb-4" data-testid="feedback-settings-card">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-md font-semibold text-pine-deep">Feedback & Notifications</h3>
+            <span className="text-xs text-pine-mid">Routing and delivery</span>
+          </div>
+          <p className="text-xs text-pine-mid mb-3">
+            Collect anonymous feedback, store it in the admin inbox, and optionally send email or webhook alerts.
+          </p>
+          <div className="grid md:grid-cols-3 gap-3 mb-4">
+            <label className="flex items-start gap-2 text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                checked={feedbackStoreEnabled}
+                onChange={(e) => setFeedbackStoreEnabled(e.target.checked)}
+                className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+              />
+              <span>
+                Store in admin inbox
+                <span className="block text-xs text-pine-mid">Retains submissions for review.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                checked={feedbackEmailEnabled}
+                onChange={(e) => setFeedbackEmailEnabled(e.target.checked)}
+                className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+              />
+              <span>
+                Email alerts
+                <span className="block text-xs text-pine-mid">Send submissions to a mailbox.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-pine-deep">
+              <input
+                type="checkbox"
+                checked={feedbackWebhookEnabled}
+                onChange={(e) => setFeedbackWebhookEnabled(e.target.checked)}
+                className="mt-1 w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+              />
+              <span>
+                Webhook delivery
+                <span className="block text-xs text-pine-mid">POST JSON to your endpoint.</span>
+              </span>
+            </label>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-pine-deep">Destination email</label>
+              <input
+                value={feedbackDestinationEmail}
+                onChange={(e) => setFeedbackDestinationEmail(e.target.value)}
+                placeholder="feedback@example.com"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-pine-deep">Webhook URL</label>
+              <input
+                value={feedbackWebhookUrl}
+                onChange={(e) => setFeedbackWebhookUrl(e.target.value)}
+                placeholder="https://hooks.example.com/selenite"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+          </div>
+          <div className="mt-4 grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">SMTP Host</label>
+              <input
+                value={smtpHost}
+                onChange={(e) => setSmtpHost(e.target.value)}
+                placeholder="smtp.mailserver.com"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">SMTP Port</label>
+              <input
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                placeholder="587"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">SMTP Username</label>
+              <input
+                value={smtpUsername}
+                onChange={(e) => setSmtpUsername(e.target.value)}
+                placeholder="smtp-user"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">SMTP From</label>
+              <input
+                value={smtpFromEmail}
+                onChange={(e) => setSmtpFromEmail(e.target.value)}
+                placeholder="no-reply@selenite.local"
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-pine-deep">SMTP Password</label>
+              <input
+                type="password"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+                placeholder={smtpPasswordSet ? 'Stored (enter to replace)' : 'Set password'}
+                className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+              />
+              <label className="flex items-center gap-2 text-xs text-pine-mid">
+                <input
+                  type="checkbox"
+                  checked={smtpClearPassword}
+                  onChange={(e) => setSmtpClearPassword(e.target.checked)}
+                />
+                Clear stored password
+              </label>
+            </div>
+            <div className="space-y-2 flex items-end">
+              <label className="flex items-center gap-2 text-sm text-pine-deep">
+                <input
+                  type="checkbox"
+                  checked={smtpUseTls}
+                  onChange={(e) => setSmtpUseTls(e.target.checked)}
+                  className="w-4 h-4 text-forest-green border-sage-mid rounded focus:ring-forest-green"
+                />
+                Use STARTTLS
+              </label>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={handleSaveFeedbackSettings}
+              className="px-4 py-2 bg-forest-green text-white rounded-lg hover:bg-pine-deep transition disabled:opacity-50"
+              disabled={isSavingFeedbackSettings}
+              data-testid="feedback-settings-save"
+            >
+              {isSavingFeedbackSettings ? 'Saving...' : 'Save feedback settings'}
             </button>
           </div>
         </div>

@@ -129,7 +129,7 @@ foreach ($file in $routeFiles) {
 $sensitivePatterns = @(
     'admin/changeme',
     '192\.168\.\d+\.\d+',
-    '0\.0\.0\.0:5173',
+    '0\.0\.0\.0:5174',
     '100\.85\.28\.75',
     'whisperx.*password',
     'Bearer\s+[A-Za-z0-9_-]{10,}'
@@ -178,6 +178,5 @@ if ($failures.Count -gt 0) {
 
 Write-Host "Pre-flight check passed." -ForegroundColor Green
 exit 0
-
 
 

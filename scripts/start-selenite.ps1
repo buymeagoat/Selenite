@@ -45,11 +45,16 @@ if (Test-Path $envFile) {
     if ($frontendMatch) { $envFrontendPort = $frontendMatch.Matches[0].Groups[1].Value }
 }
 
-$env:SELENITE_BACKEND_PORT = if ($env:SELENITE_BACKEND_PORT) { $env:SELENITE_BACKEND_PORT } elseif ($envPort) { $envPort } else { '8201' }
-$env:SELENITE_FRONTEND_PORT = if ($env:SELENITE_FRONTEND_PORT) { $env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } else { '5174' }
-
-if ($isProd -and (-not $envPort -or -not $envFrontendPort)) {
-    throw "Prod start blocked: .env must define PORT and FRONTEND_URL with prod ports before starting."
+if ($isProd) {
+    if (-not $envPort -or -not $envFrontendPort) {
+        throw "Prod start blocked: .env must define PORT and FRONTEND_URL with prod ports before starting."
+    }
+    # Prod always uses .env ports, ignoring any shell overrides.
+    $env:SELENITE_BACKEND_PORT = $envPort
+    $env:SELENITE_FRONTEND_PORT = $envFrontendPort
+} else {
+    $env:SELENITE_BACKEND_PORT = if ($env:SELENITE_BACKEND_PORT) { $env:SELENITE_BACKEND_PORT } elseif ($envPort) { $envPort } else { '8201' }
+    $env:SELENITE_FRONTEND_PORT = if ($env:SELENITE_FRONTEND_PORT) { $env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } else { '5174' }
 }
 
 $bind = $BindIPOverride
@@ -82,8 +87,8 @@ if ($isProd) {
 
 # Example usage for Task Scheduler Action:
 # Program/script: pwsh
-# Arguments: -NoLogo -NoProfile -Command "& 'D:\Dev\projects\Selenite-dev\scripts\start-selenite.ps1'"
-# Start in: D:\Dev\projects\Selenite-dev
+# Arguments: -NoLogo -NoProfile -Command "& '<REPO_ROOT>\scripts\start-selenite.ps1'"
+# Start in: <REPO_ROOT>
 
 
 

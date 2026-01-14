@@ -1,16 +1,28 @@
 param(
     [string]$Username = "admin",
     [string]$Password,
-    [string]$ApiBaseUrl = "http://127.0.0.1:8201",
+    [string]$ApiBaseUrl = "",
     [switch]$ShowExample
 )
 
 $guardScript = Join-Path $PSScriptRoot 'workspace-guard.ps1'
 if (Test-Path $guardScript) { . $guardScript }
+if (-not $ApiBaseUrl -or $ApiBaseUrl.Trim() -eq "") {
+    $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+    $roleFile = Join-Path $repoRoot '.workspace-role'
+    $wsRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+    $isProd = $wsRole -eq 'prod'
 
+    $envBackendPort = $null
+    $envFile = Join-Path $repoRoot '.env'
+    if (Test-Path $envFile) {
+        $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+    }
 
-
-
+    $backendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } elseif ($envBackendPort) { $envBackendPort } elseif ($isProd) { 8100 } else { 8201 }
+    $ApiBaseUrl = "http://127.0.0.1:$backendPort"
+}
 
 
 if (-not $Password) {

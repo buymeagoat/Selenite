@@ -17,7 +17,7 @@ def patched_models_root(tmp_path):
 
 
 def test_rebases_paths_from_other_clone(patched_models_root):
-    foreign_path = Path(r"D:\Dev\projects\Selenite-dev\backend\models\whisper\base")
+    foreign_path = Path(r"C:\example\OtherClone\backend\models\whisper\base")
     rebased = ModelRegistryService._resolve_path(str(foreign_path))
     expected = (ModelRegistryService._MODELS_ROOT / "whisper" / "base").resolve()
     assert rebased == expected

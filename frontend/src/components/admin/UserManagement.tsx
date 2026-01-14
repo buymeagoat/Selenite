@@ -4,13 +4,17 @@ import { ApiError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import {
   createUser,
+  deleteUser,
   listUsers,
+  listActiveUsers,
   updateUser,
+  type ActiveUserItem,
   type UserListItem,
 } from '../../services/users';
 
 interface UserManagementProps {
   isAdmin: boolean;
+  timeZone?: string | null;
 }
 
 type UserFormState = {
@@ -29,18 +33,33 @@ const emptyForm: UserFormState = {
   force_password_reset: false,
 };
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return 'Never';
-  const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) return value;
-  return date.toLocaleString();
+const parseAsUTC = (value: string): Date => {
+  if (!value) return new Date();
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+  return new Date(hasZone ? value : `${value}Z`);
 };
 
-export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
+const formatDateTime = (value: string | null | undefined, timeZone?: string | null) => {
+  if (!value) return 'Never';
+  const date = parseAsUTC(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: timeZone || undefined,
+  });
+};
+
+export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin, timeZone = null }) => {
   const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<UserListItem[]>([]);
+  const [activeUsers, setActiveUsers] = useState<ActiveUserItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isActiveLoading, setIsActiveLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [activeUser, setActiveUser] = useState<UserListItem | null>(null);
@@ -68,14 +87,35 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
     }
   };
 
+  const loadActiveUsers = async (options?: { silent?: boolean }) => {
+    if (!isAdmin) return;
+    if (!options?.silent) {
+      setIsActiveLoading(true);
+    }
+    try {
+      const response = await listActiveUsers();
+      setActiveUsers(response.items);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showError(`Failed to load active users: ${error.message}`);
+      } else {
+        showError('Failed to load active users. Please refresh the page.');
+      }
+    } finally {
+      setIsActiveLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadUsers();
+    loadActiveUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await loadUsers({ silent: true });
+    await loadActiveUsers({ silent: true });
     setIsRefreshing(false);
   };
 
@@ -136,6 +176,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
   const handleUpdate = async () => {
     if (!activeUser) return;
     setIsSubmitting(true);
+    const hasPassword = Boolean(form.password.trim());
     try {
       const payload: Record<string, unknown> = {
         email: form.email.trim() || undefined,
@@ -143,11 +184,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
         is_disabled: form.is_disabled,
         force_password_reset: form.force_password_reset,
       };
-      if (form.password.trim()) {
+      if (hasPassword) {
         payload.password = form.password;
       }
       await updateUser(activeUser.id, payload);
-      showSuccess('User updated');
+      showSuccess(hasPassword ? 'Password updated' : 'User updated');
       await loadUsers({ silent: true });
       closeEdit();
     } catch (error) {
@@ -158,6 +199,29 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (user: UserListItem) => {
+    if (user.username === 'admin') {
+      showError('Root admin cannot be deleted');
+      return;
+    }
+    const label = user.email || user.username;
+    if (!confirm(`Delete ${label}? This permanently removes the user and all of their data.`)) {
+      return;
+    }
+    try {
+      await deleteUser(user.id);
+      showSuccess('User deleted');
+      await loadUsers({ silent: true });
+      await loadActiveUsers({ silent: true });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showError(error.message);
+      } else {
+        showError('Failed to delete user');
+      }
     }
   };
 
@@ -197,6 +261,28 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
       <p className="text-xs text-pine-mid mb-4">
         Create and manage users. Admins can view all jobs or their own.
       </p>
+      <div className="border border-sage-mid rounded-lg p-4 bg-sage-light/40 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-pine-deep">Active Users</h3>
+          <span className="text-xs text-pine-mid">
+            {isActiveLoading ? 'Loading…' : `${activeUsers.length} active`}
+          </span>
+        </div>
+        {isActiveLoading ? (
+          <p className="text-sm text-pine-mid">Loading active users…</p>
+        ) : activeUsers.length ? (
+          <ul className="space-y-1 text-sm text-pine-mid">
+            {activeUsers.map((user) => (
+              <li key={user.id} className="flex justify-between gap-4">
+                <span className="text-pine-deep">{user.email || user.username}</span>
+                <span>{formatDateTime(user.last_seen_at, timeZone)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-pine-mid">No active users in the current window.</p>
+        )}
+      </div>
       {isLoading ? (
         <p className="text-sm text-pine-mid">Loading users...</p>
       ) : (
@@ -222,8 +308,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
                   <td className="px-3 py-2 text-pine-mid">
                     {user.is_disabled ? 'Disabled' : 'Active'}
                   </td>
-                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.last_login_at)}</td>
-                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.created_at)}</td>
+                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.last_login_at, timeZone)}</td>
+                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.created_at, timeZone)}</td>
                   <td className="px-3 py-2">
                     <button
                       type="button"
@@ -231,6 +317,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin }) => {
                       className="text-xs text-forest-green underline"
                     >
                       Edit
+                    </button>
+                    <span className="mx-2 text-pine-mid">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(user)}
+                      className="text-xs text-red-600 underline disabled:text-pine-mid"
+                      disabled={user.username === 'admin'}
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>

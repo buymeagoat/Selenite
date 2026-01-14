@@ -145,6 +145,51 @@ class TestGetSettings:
             if "storage_used_bytes" in data:
                 assert isinstance(data["storage_used_bytes"], int)
 
+    async def test_get_settings_uses_latest_admin_defaults(self, test_db):
+        """Admin defaults should apply to non-admin users."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.username == "testuser"))
+            admin_user = result.scalar_one()
+            regular_user = User(
+                username="regular",
+                email="regular@example.com",
+                hashed_password=hash_password("testpass123"),
+                is_admin=False,
+            )
+            session.add(regular_user)
+            await session.commit()
+            await session.refresh(regular_user)
+
+        admin_token = create_access_token(
+            {"user_id": admin_user.id, "username": admin_user.username}
+        )
+        user_token = create_access_token(
+            {"user_id": regular_user.id, "username": regular_user.username}
+        )
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        user_headers = {"Authorization": f"Bearer {user_token}"}
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.put(
+                "/settings",
+                json={
+                    "default_diarizer_provider": "test-diar",
+                    "default_diarizer": "diar-entry",
+                    "diarization_enabled": True,
+                    "allow_diarizer_overrides": True,
+                },
+                headers=admin_headers,
+            )
+            assert response.status_code == 200
+
+            response = await client.get("/settings", headers=user_headers)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["default_diarizer_provider"] == "test-diar"
+            assert data["default_diarizer"] == "diar-entry"
+            assert data["diarization_enabled"] is True
+            assert data["allow_diarizer_overrides"] is True
+
     async def test_get_settings_creates_defaults(self, test_db, auth_headers):
         """Test that default settings are created if they don't exist."""
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -170,6 +215,55 @@ class TestGetSettings:
 
 class TestUpdateSettings:
     """Test PUT /settings endpoint."""
+
+    async def test_non_admin_asr_override_marks_use_admin_false(self, test_db):
+        """Non-admin overrides should stop using admin defaults."""
+        async with AsyncSessionLocal() as session:
+            admin_user = await session.get(User, 1)
+            regular_user = User(
+                username="regular",
+                email="regular@example.com",
+                hashed_password=hash_password("testpass123"),
+                is_admin=False,
+            )
+            session.add(regular_user)
+            await session.commit()
+            await session.refresh(regular_user)
+
+        admin_token = create_access_token(
+            {"user_id": admin_user.id, "username": admin_user.username}
+        )
+        user_token = create_access_token(
+            {"user_id": regular_user.id, "username": regular_user.username}
+        )
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        user_headers = {"Authorization": f"Bearer {user_token}"}
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.put(
+                "/settings",
+                json={
+                    "default_asr_provider": "test-asr",
+                    "default_model": "asr-model-1",
+                    "allow_asr_overrides": True,
+                },
+                headers=admin_headers,
+            )
+            assert response.status_code == 200
+
+            response = await client.put(
+                "/settings",
+                json={"default_asr_provider": "test-asr", "default_model": "asr-model-2"},
+                headers=user_headers,
+            )
+            assert response.status_code == 200
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserSettings).where(UserSettings.user_id == regular_user.id)
+            )
+            settings = result.scalar_one()
+            assert settings.use_admin_asr_defaults is False
 
     async def test_update_all_settings(self, test_db, auth_headers, default_settings):
         """Test updating all settings fields."""

@@ -15,8 +15,24 @@ if (Test-Path $guardScript) { . $guardScript }
 
 $ErrorActionPreference = "Stop"
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$roleFile = Join-Path $repoRoot '.workspace-role'
+$workspaceRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $workspaceRole -eq 'prod'
+
+$envFile = Join-Path $repoRoot '.env'
+$envBackendPort = $null
+$envFrontendPort = $null
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+
+    $frontendMatch = Select-String -Path $envFile -Pattern '^\s*FRONTEND_URL\s*=\s*.+:(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($frontendMatch) { $envFrontendPort = [int]$frontendMatch.Matches[0].Groups[1].Value }
+}
+
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } elseif ($envBackendPort) { $envBackendPort } elseif ($isProd) { 8100 } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } elseif ($isProd) { 5173 } else { 5174 }
 
 Write-Host "=== Selenite Backend Network Test ===" -ForegroundColor Cyan
 

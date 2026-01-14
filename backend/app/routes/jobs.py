@@ -20,7 +20,6 @@ from app.config import settings
 from app.database import get_db, AsyncSessionLocal
 from app.models.job import Job
 from app.models.tag import job_tags
-from app.models.user_settings import UserSettings
 from app.models.user import User
 from app.routes.auth import get_current_user
 from app.schemas.job import (
@@ -42,6 +41,11 @@ from app.utils.file_handling import (
 from app.utils.file_validation import validate_media_file
 from app.services.job_queue import queue
 from app.services.capabilities import ModelResolutionError, resolve_job_preferences
+from app.services.settings_resolver import (
+    build_effective_user_settings,
+    get_admin_settings,
+    get_or_create_settings,
+)
 from app.utils.access import should_include_all_jobs
 
 logger = logging.getLogger(__name__)
@@ -127,10 +131,11 @@ async def create_job(
     # Resolve defaults from user settings if omitted
     # Lazy-load settings; if none exist fallback to global defaults
     # Explicitly load user settings to avoid async lazy-load MissingGreenlet errors
-    settings_result = await db.execute(
-        select(UserSettings).where(UserSettings.user_id == current_user.id)
-    )
-    user_settings = settings_result.scalar_one_or_none()
+    user_settings = await get_or_create_settings(current_user, db)
+    admin_settings = None
+    if not current_user.is_admin:
+        admin_settings = await get_admin_settings(db)
+    effective_settings = build_effective_user_settings(user_settings, admin_settings)
 
     try:
         preference = resolve_job_preferences(
@@ -138,7 +143,7 @@ async def create_job(
             requested_provider=provider,
             requested_diarizer=diarizer,
             requested_diarization=enable_speaker_detection,
-            user_settings=user_settings,
+            user_settings=effective_settings,
         )
     except ModelResolutionError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

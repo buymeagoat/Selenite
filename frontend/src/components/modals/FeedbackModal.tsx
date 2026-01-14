@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { submitFeedback } from '../../services/feedback';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 const CATEGORY_OPTIONS = [
@@ -19,6 +20,7 @@ interface FeedbackModalProps {
 
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const { showError, showSuccess } = useToast();
+  const { user } = useAuth();
   const [category, setCategory] = useState('comment');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -31,7 +33,14 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
     if (!isOpen) return;
     setMessage('');
     setSubject('');
-  }, [isOpen]);
+    if (user) {
+      setSubmitterName(user.username || '');
+      setSubmitterEmail(user.email || '');
+    } else {
+      setSubmitterName('');
+      setSubmitterEmail('');
+    }
+  }, [isOpen, user]);
 
   const attachmentInfo = useMemo(
     () =>

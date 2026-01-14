@@ -8,16 +8,51 @@ from __future__ import annotations
 
 from pathlib import Path
 
-def _ensure_dev_workspace() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
+
+def _read_workspace_role(repo_root: Path) -> str:
     role_file = repo_root / '.workspace-role'
     if role_file.exists():
-        role = role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
-        if role != 'dev':
-            raise RuntimeError('This script must be run from a dev workspace.')
-_ensure_dev_workspace()
+        return role_file.read_text(encoding='utf-8').splitlines()[0].strip().lower()
+    return ''
+
+
+def _read_env_ports(repo_root: Path) -> tuple[int | None, int | None]:
+    env_file = repo_root / '.env'
+    if not env_file.exists():
+        return None, None
+    env_text = env_file.read_text(encoding='utf-8', errors='ignore').splitlines()
+    backend_port = None
+    frontend_port = None
+    for line in env_text:
+        if line.strip().startswith('PORT='):
+            value = line.split('=', 1)[1].strip()
+            if value.isdigit():
+                backend_port = int(value)
+        if line.strip().startswith('FRONTEND_URL=') and ':' in line:
+            value = line.rsplit(':', 1)[1].strip()
+            if value.isdigit():
+                frontend_port = int(value)
+    return backend_port, frontend_port
+
+
+def _default_base_url() -> str:
+    repo_root = Path(__file__).resolve().parents[1]
+    role = _read_workspace_role(repo_root)
+    is_prod = role == 'prod'
+    env_backend_port, _ = _read_env_ports(repo_root)
+    backend_port = (
+        int(os.environ["SELENITE_BACKEND_PORT"])
+        if os.environ.get("SELENITE_BACKEND_PORT")
+        else env_backend_port
+        if env_backend_port
+        else 8100
+        if is_prod
+        else 8201
+    )
+    return f"http://127.0.0.1:{backend_port}"
 
 import argparse
+import os
 import sys
 import time
 from typing import Optional
@@ -81,8 +116,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Selenite backend smoke test")
     parser.add_argument(
         "--base-url",
-        default="http://127.0.0.1:8201",
-        help="Backend base URL (default: http://127.0.0.1:8201)",
+        default=_default_base_url(),
+        help="Backend base URL (default: derived from .env/role)",
     )
     parser.add_argument(
         "--email",

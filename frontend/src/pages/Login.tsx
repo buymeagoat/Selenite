@@ -5,7 +5,6 @@ import { apiPost, ApiError } from '../lib/api';
 import { devInfo, devError } from '../lib/debug';
 import type { AuthTokenResponse, SignupConfigResponse } from '../services/auth';
 import { fetchSignupConfig } from '../services/auth';
-import { FeedbackModal } from '../components/modals/FeedbackModal';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -16,7 +15,6 @@ export const Login: React.FC = () => {
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [httpsRequiredUrl, setHttpsRequiredUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [signupConfig, setSignupConfig] = useState<SignupConfigResponse | null>(null);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
 
@@ -168,15 +166,7 @@ export const Login: React.FC = () => {
             Create an account
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setIsFeedbackOpen(true)}
-          className="w-full text-sm text-pine-mid underline"
-        >
-          Send feedback without signing in
-        </button>
       </form>
-      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </div>
   );
 };

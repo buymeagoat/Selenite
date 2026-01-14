@@ -9,6 +9,12 @@ vi.mock('../services/feedback', () => ({
   submitFeedback: (...args: any[]) => submitFeedbackMock(...args),
 }));
 
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+  }),
+}));
+
 vi.mock('../context/ToastContext', () => ({
   useToast: () => ({
     showError: vi.fn(),

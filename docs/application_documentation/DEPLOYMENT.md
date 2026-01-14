@@ -1,5 +1,7 @@
 # Deployment Guide
 
+Note: Ports are environment-defined. Defaults are prod `8100/5173` and dev `8201/5174`. If you see hardcoded examples below, replace them with your `.env` values.
+
 This guide provides step-by-step instructions for deploying Selenite to a production environment.
 
 ## Quick Production Setup
@@ -247,7 +249,7 @@ npm run preview
 Use the bootstrap script to mimic the deployment configuration on a workstation:
 
 ```powershell
-cd D:\Dev\projects\Selenite-dev
+cd <DEV_REPO_ROOT>
 .\scripts\bootstrap.ps1
 ```
 
@@ -459,7 +461,7 @@ docker run -d \
   -p 8201:8201 \
   -v $(pwd)/storage:/app/storage \
   -v $(pwd)/backend/models:/app/models \
-  --env-file backend/.env \
+  --env-file .env \
   selenite-backend
 
 # Run frontend

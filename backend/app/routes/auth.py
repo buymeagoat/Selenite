@@ -173,7 +173,13 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
         )
-    user.last_login_at = datetime.utcnow()
+    now = datetime.utcnow()
+    user.last_login_at = now
+    user.last_seen_at = now
+    prefs = await _get_system_preferences(db)
+    policy_errors = validate_password_policy(credentials.password, prefs)
+    if policy_errors:
+        user.force_password_reset = True
     await db.commit()
     await log_audit_event(
         db,
@@ -185,7 +191,6 @@ async def login(
         request=request,
     )
 
-    prefs = await _get_system_preferences(db)
     expires_minutes = prefs.session_timeout_minutes or 30
     return create_token_response(user, expires_minutes=expires_minutes)
 
@@ -342,6 +347,8 @@ async def get_current_user(
     timeout_minutes = prefs.session_timeout_minutes or 30
     timeout_window = timedelta(minutes=timeout_minutes)
     last_seen = user.last_seen_at or user.last_login_at
+    if user.last_login_at and (not last_seen or user.last_login_at > last_seen):
+        last_seen = user.last_login_at
     now = datetime.utcnow()
     if last_seen and now - last_seen > timeout_window:
         raise HTTPException(

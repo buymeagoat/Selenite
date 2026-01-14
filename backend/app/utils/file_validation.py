@@ -1,12 +1,18 @@
 """File validation utilities for secure upload handling."""
 
-try:
-    import magic
+import os
 
-    MAGIC_AVAILABLE = True
-except (ImportError, OSError):
-    # python-magic or libmagic not available
+if os.environ.get("MSYSTEM"):
+    # Git Bash can crash while loading libmagic; skip in that shell.
     MAGIC_AVAILABLE = False
+else:
+    try:
+        import magic
+
+        MAGIC_AVAILABLE = True
+    except (ImportError, OSError):
+        # python-magic or libmagic not available
+        MAGIC_AVAILABLE = False
 
 from pathlib import Path
 from typing import Tuple

@@ -25,6 +25,7 @@ from app.models.transcript import Transcript
 from app.models.system_preferences import SystemPreferences
 from app.services.capabilities import enforce_runtime_diarizer, get_asr_candidate_order
 from app.services.provider_manager import ProviderManager
+from app.services.settings_resolver import build_effective_user_settings, get_admin_settings
 
 logger = logging.getLogger(__name__)
 
@@ -880,6 +881,8 @@ class WhisperService:
             select(UserSettings).where(UserSettings.user_id == job.user_id)
         )
         user_settings = settings_result.scalar_one_or_none()
+        admin_settings = await get_admin_settings(db) if user_settings else None
+        effective_settings = build_effective_user_settings(user_settings, admin_settings)
         system_preferences = await self._get_system_preferences(db)
 
         fast_path = settings.is_testing or settings.e2e_fast_transcription
@@ -904,7 +907,7 @@ class WhisperService:
             runtime_diarizer = enforce_runtime_diarizer(
                 requested_diarizer=job.diarizer_used,
                 diarization_requested=bool(job.has_speaker_labels),
-                user_settings=user_settings,
+                user_settings=effective_settings,
             )
             if runtime_diarizer["notes"]:
                 for note in runtime_diarizer["notes"]:
@@ -954,10 +957,12 @@ class WhisperService:
                 return
 
             # Resolve model candidates from registry (provider + entry)
-            preferred_provider = user_settings.default_asr_provider if user_settings else None
+            preferred_provider = (
+                effective_settings.default_asr_provider if effective_settings else None
+            )
             snapshot = ProviderManager.get_snapshot()
             enabled_asr = snapshot["asr"]
-            candidate_models = get_asr_candidate_order(job.model_used, user_settings)
+            candidate_models = get_asr_candidate_order(job.model_used, effective_settings)
 
             def pick_records(names: list[str], preferred: Optional[str]):
                 records = []

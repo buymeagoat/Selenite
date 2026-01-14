@@ -13,10 +13,26 @@ if (Test-Path $guardScript) { . $guardScript }
 
 
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $backendDir = Join-Path $repoRoot 'backend'
+
+$roleFile = Join-Path $repoRoot '.workspace-role'
+$wsRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $wsRole -eq 'prod'
+
+$envBackendPort = $null
+$envFrontendPort = $null
+$envFile = Join-Path $repoRoot '.env'
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+
+    $frontendMatch = Select-String -Path $envFile -Pattern '^\s*FRONTEND_URL\s*=\s*.+:(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($frontendMatch) { $envFrontendPort = [int]$frontendMatch.Matches[0].Groups[1].Value }
+}
+
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } elseif ($envBackendPort) { $envBackendPort } elseif ($isProd) { 8100 } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } elseif ($isProd) { 5173 } else { 5174 }
 
 function Get-DefaultHostIp {
     $candidates = Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual,Dhcp |
@@ -62,16 +78,14 @@ catch {
     Write-Host "[WARN] Request failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-Write-Host "`n=== backend/.env CORS snippet ===" -ForegroundColor Cyan
-Push-Location $backendDir
-if (Test-Path .env) {
-    Get-Content .env | Select-String -Pattern "CORS"
+Write-Host "`n=== .env CORS snippet ===" -ForegroundColor Cyan
+if (Test-Path $envFile) {
+    Get-Content $envFile | Select-String -Pattern "CORS"
 } else {
-    Write-Host "No backend/.env found." -ForegroundColor Yellow
+    Write-Host "No .env found at repo root." -ForegroundColor Yellow
 }
-Pop-Location
 
-Write-Host "`nTip: after editing backend/.env, run .\scripts\start-selenite.ps1 so uvicorn reloads the new CORS list." -ForegroundColor Yellow
+Write-Host "`nTip: after editing .env, run .\scripts\start-selenite.ps1 so uvicorn reloads the new CORS list." -ForegroundColor Yellow
 
 
 

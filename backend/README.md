@@ -39,10 +39,11 @@ alembic upgrade head
 $Env:DISABLE_FILE_LOGS = '1'
 $Env:ENVIRONMENT = 'production'
 $Env:ALLOW_LOCALHOST_CORS = '1'
-uvicorn app.main:app --host 127.0.0.1 --port 8201 --app-dir app
+if (-not $Env:PORT) { $Env:PORT = '8100' }
+uvicorn app.main:app --host 127.0.0.1 --port $Env:PORT --app-dir app
 ```
 
-API documentation available at: http://localhost:8201/docs
+API documentation available at: http://localhost:$Env:PORT/docs
 
 ### Running Tests
 

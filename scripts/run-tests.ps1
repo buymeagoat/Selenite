@@ -46,8 +46,24 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $RepoRoot
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
-$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } else { 5174 }
+
+$roleFile = Join-Path $RepoRoot '.workspace-role'
+$wsRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $wsRole -eq 'prod'
+
+$envBackendPort = $null
+$envFrontendPort = $null
+$envFile = Join-Path $RepoRoot '.env'
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+
+    $frontendMatch = Select-String -Path $envFile -Pattern '^\s*FRONTEND_URL\s*=\s*.+:(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($frontendMatch) { $envFrontendPort = [int]$frontendMatch.Matches[0].Groups[1].Value }
+}
+
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } elseif ($envBackendPort) { $envBackendPort } elseif ($isProd) { 8100 } else { 8201 }
+$FrontendPort = if ($env:SELENITE_FRONTEND_PORT) { [int]$env:SELENITE_FRONTEND_PORT } elseif ($envFrontendPort) { $envFrontendPort } elseif ($isProd) { 5173 } else { 5174 }
 
 function Get-BackendPythonPath {
     if ($IsWindows) {

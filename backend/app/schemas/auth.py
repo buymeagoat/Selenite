@@ -10,7 +10,7 @@ class LoginRequest(BaseModel):
     """Request schema for user login."""
 
     email: str = Field(..., min_length=3, max_length=255)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=1, max_length=128)
 
 
 class TokenResponse(BaseModel):
@@ -54,9 +54,9 @@ class UserResponse(BaseModel):
 class PasswordChangeRequest(BaseModel):
     """Request schema for password change."""
 
-    current_password: str = Field(..., min_length=8, max_length=128)
-    new_password: str = Field(..., min_length=8, max_length=128)
-    confirm_password: str = Field(..., min_length=8, max_length=128)
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=1, max_length=128)
+    confirm_password: str = Field(..., min_length=1, max_length=128)
 
     def validate_match(self) -> None:
         if self.new_password != self.confirm_password:

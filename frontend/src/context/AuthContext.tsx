@@ -100,6 +100,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [persistUser, refreshUserProfile]);
 
+  useEffect(() => {
+    if (!token || typeof window === 'undefined') {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      void refreshUserProfile();
+    }, 60_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [token, refreshUserProfile]);
+
   return (
     <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshUser: refreshUserProfile }}>
       {children}

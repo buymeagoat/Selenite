@@ -29,6 +29,8 @@ class UserSettings(Base):
     diarization_enabled = Column(Boolean, nullable=False, default=False)
     allow_asr_overrides = Column(Boolean, nullable=False, default=False)
     allow_diarizer_overrides = Column(Boolean, nullable=False, default=False)
+    use_admin_asr_defaults = Column(Boolean, nullable=False, default=True)
+    use_admin_diarizer_defaults = Column(Boolean, nullable=False, default=True)
     enable_timestamps = Column(Boolean, nullable=False, default=True)
     max_concurrent_jobs = Column(Integer, nullable=False, default=3)
     show_all_jobs = Column(Boolean, nullable=False, default=False)

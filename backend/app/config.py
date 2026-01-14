@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(str(PROJECT_ROOT / ".env"), str(PROJECT_ROOT / ".env.test")),
         case_sensitive=False,
+        extra="ignore",
     )
 
     @property
@@ -230,3 +231,5 @@ if settings.is_testing:
     settings.environment = "testing"
     if not settings.database_url.startswith("sqlite+aiosqlite"):
         settings.database_url = "sqlite+aiosqlite:///./backend/selenite.db"
+    settings.require_https = False
+    settings.allow_http_dev = True

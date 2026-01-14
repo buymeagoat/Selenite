@@ -20,7 +20,19 @@ if (Test-Path $guardScript) { . $guardScript }
 
 $ErrorActionPreference = "Stop"
 
-$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } else { 8201 }
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$roleFile = Join-Path $repoRoot '.workspace-role'
+$wsRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $wsRole -eq 'prod'
+
+$envBackendPort = $null
+$envFile = Join-Path $repoRoot '.env'
+if (Test-Path $envFile) {
+    $portMatch = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($portMatch) { $envBackendPort = [int]$portMatch.Matches[0].Groups[1].Value }
+}
+
+$BackendPort = if ($env:SELENITE_BACKEND_PORT) { [int]$env:SELENITE_BACKEND_PORT } elseif ($envBackendPort) { $envBackendPort } elseif ($isProd) { 8100 } else { 8201 }
 
 # Check if running as admin
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

@@ -1338,6 +1338,26 @@ export const Admin: React.FC = () => {
     return `${value.toFixed(1)} GB`;
   };
 
+  const parseAsUTC = (value?: string | null) => {
+    if (!value) return new Date();
+    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+    return new Date(hasZone ? value : `${value}Z`);
+  };
+
+  const formatDateTime = (value?: string | null, timeZone?: string | null) => {
+    if (!value) return 'Unknown';
+    const date = parseAsUTC(value);
+    if (Number.isNaN(date.valueOf())) return value;
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timeZone || undefined,
+    });
+  };
+
   const renderDiskUsage = (label: string, usage?: DiskUsage | null) => {
     if (!usage) {
       return (
@@ -1688,7 +1708,7 @@ export const Admin: React.FC = () => {
         </div>
 
         {activeTab === 'users' ? (
-          <UserManagement isAdmin={isAdmin} />
+          <UserManagement isAdmin={isAdmin} timeZone={userTimeZone || serverTimeZone || null} />
         ) : activeTab === 'messages' ? (
           <MessagesPanel feedbackStoreEnabled={feedbackStoreEnabled} timeZone={messagesTimeZone} />
         ) : activeTab === 'system' ? (
@@ -2193,7 +2213,7 @@ export const Admin: React.FC = () => {
               <div className="p-3 border border-sage-mid rounded-lg">
                 <p className="text-xs uppercase text-pine-mid tracking-wide">Last detected</p>
                 <p className="text-sm text-pine-deep">
-                  {new Date(systemInfo.detected_at).toLocaleString()}
+                  {formatDateTime(systemInfo.detected_at, serverTimeZone)}
                 </p>
               </div>
             </div>

@@ -25,6 +25,13 @@ from app.schemas.settings import (
 )
 from app.services.job_queue import queue
 from app.services.provider_manager import ProviderManager
+from app.services.settings_resolver import (
+    build_effective_defaults,
+    compute_use_admin_asr_defaults,
+    compute_use_admin_diarizer_defaults,
+    get_admin_settings,
+    get_or_create_settings,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -52,39 +59,11 @@ def _schedule_queue_concurrency(new_value: int) -> None:
 
 
 async def _get_or_create_settings(current_user: User, db: AsyncSession) -> UserSettings:
-    result = await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))
-    settings = result.scalar_one_or_none()
-    if not settings:
-        settings = UserSettings(user_id=current_user.id)
-        if current_user.is_admin:
-            settings.show_all_jobs = True
-        if not current_user.is_admin:
-            admin_settings = await _get_admin_settings(db)
-            if admin_settings:
-                settings.default_asr_provider = admin_settings.default_asr_provider
-                settings.default_model = admin_settings.default_model
-                settings.default_language = admin_settings.default_language
-                settings.default_diarizer_provider = admin_settings.default_diarizer_provider
-                settings.default_diarizer = admin_settings.default_diarizer
-                settings.diarization_enabled = admin_settings.diarization_enabled
-                settings.enable_timestamps = admin_settings.enable_timestamps
-                settings.max_concurrent_jobs = admin_settings.max_concurrent_jobs
-        db.add(settings)
-        await db.commit()
-        await db.refresh(settings)
-    if current_user.is_admin and not settings.show_all_jobs_set and not settings.show_all_jobs:
-        settings.show_all_jobs = True
-        await db.commit()
-        await db.refresh(settings)
-    return settings
+    return await get_or_create_settings(current_user, db)
 
 
 async def _get_admin_settings(db: AsyncSession) -> UserSettings | None:
-    result = await db.execute(select(User).where(User.username == "admin"))
-    admin_user = result.scalar_one_or_none()
-    if not admin_user:
-        return None
-    return await _get_or_create_settings(admin_user, db)
+    return await get_admin_settings(db)
 
 
 async def _get_system_preferences(db: AsyncSession) -> SystemPreferences:
@@ -194,46 +173,16 @@ async def get_settings(
         admin_settings = await _get_admin_settings(db)
     prefs = await _get_system_preferences(db)
     effective_settings = admin_settings or user_settings
-    effective_allow_asr_overrides = (
-        admin_settings.allow_asr_overrides
-        if admin_settings is not None
-        else user_settings.allow_asr_overrides
-    )
-    effective_allow_diarizer_overrides = (
-        admin_settings.allow_diarizer_overrides
-        if admin_settings is not None
-        else user_settings.allow_diarizer_overrides
-    )
-    if admin_settings and effective_allow_asr_overrides:
-        effective_default_asr_provider = (
-            user_settings.default_asr_provider or admin_settings.default_asr_provider
-        )
-        effective_default_model = user_settings.default_model or admin_settings.default_model
-        effective_default_language = (
-            user_settings.default_language or admin_settings.default_language
-        )
-        effective_enable_timestamps = user_settings.enable_timestamps
-    else:
-        effective_default_asr_provider = effective_settings.default_asr_provider
-        effective_default_model = effective_settings.default_model
-        effective_default_language = effective_settings.default_language
-        effective_enable_timestamps = effective_settings.enable_timestamps
-
-    if admin_settings and effective_allow_diarizer_overrides:
-        effective_default_diarizer_provider = (
-            user_settings.default_diarizer_provider or admin_settings.default_diarizer_provider
-        )
-        effective_default_diarizer = (
-            user_settings.default_diarizer or admin_settings.default_diarizer
-        )
-    else:
-        effective_default_diarizer_provider = effective_settings.default_diarizer_provider
-        effective_default_diarizer = effective_settings.default_diarizer
-    effective_diarization_enabled = (
-        admin_settings.diarization_enabled
-        if admin_settings is not None
-        else user_settings.diarization_enabled
-    )
+    effective_defaults = build_effective_defaults(user_settings, admin_settings)
+    effective_allow_asr_overrides = effective_defaults["allow_asr_overrides"]
+    effective_allow_diarizer_overrides = effective_defaults["allow_diarizer_overrides"]
+    effective_default_asr_provider = effective_defaults["default_asr_provider"]
+    effective_default_model = effective_defaults["default_model"]
+    effective_default_language = effective_defaults["default_language"]
+    effective_enable_timestamps = effective_defaults["enable_timestamps"]
+    effective_default_diarizer_provider = effective_defaults["default_diarizer_provider"]
+    effective_default_diarizer = effective_defaults["default_diarizer"]
+    effective_diarization_enabled = effective_defaults["diarization_enabled"]
     if not effective_default_asr_provider:
         effective_default_asr_provider = await _resolve_provider_for_entry(
             effective_default_model, "asr", db
@@ -497,6 +446,19 @@ async def _apply_settings(
                 detail="Last selected diarizer set must reference an existing provider.",
             )
         user_settings.last_selected_diarizer_set = payload.last_selected_diarizer_set
+    if admin_settings:
+        if admin_settings.allow_asr_overrides:
+            user_settings.use_admin_asr_defaults = compute_use_admin_asr_defaults(
+                user_settings, admin_settings
+            )
+        else:
+            user_settings.use_admin_asr_defaults = True
+        if admin_settings.allow_diarizer_overrides:
+            user_settings.use_admin_diarizer_defaults = compute_use_admin_diarizer_defaults(
+                user_settings, admin_settings
+            )
+        else:
+            user_settings.use_admin_diarizer_defaults = True
     logger.info(
         "Settings updated for user %s: last_selected_asr_set=%s last_selected_diarizer_set=%s",
         current_user.id,

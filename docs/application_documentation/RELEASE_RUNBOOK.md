@@ -29,7 +29,10 @@ Breaking changes require a staged rollout or a migration that preserves old data
 1. **Backup verification**:
    - Run `./scripts/backup-verify.ps1`.
    - Record the backup path in the release notes (`docs/application_documentation/CHANGELOG.md`).
-2. **Staging rehearsal** (recommended for schema changes):
+2. **Alignment audit (prod)**:
+   - Run `rg -n "Selenite-dev|5174|8201|devselenite|dev\\.selenite|DEV_" scripts docs backend frontend`.
+   - Confirm `.env` ports/hosts are prod (`PORT=8100`, `FRONTEND_URL=...:5173`) and frontend allowed hosts are prod-only unless explicitly required.
+3. **Staging rehearsal** (recommended for schema changes):
    - Restore the backup into `scratch/restore-<timestamp>`.
    - Run migrations against the restored DB.
    - Run smoke tests against the restored data.

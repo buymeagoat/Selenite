@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Matches running processes by command line contents scoped to this repo
-    and known ports (default 8201 for backend, 5174 for frontend).
+    and ports derived from .env (prod defaults to 8100/5173, dev defaults to 8201/5174).
 #>
 
 
@@ -12,6 +12,10 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $repoRootPattern = '(?i)(^|\\s|\"|\'')' + [regex]::Escape($repoRoot) + '(\\|/|\"|\\s|$)'
+
+$roleFile = Join-Path $repoRoot '.workspace-role'
+$workspaceRole = if (Test-Path $roleFile) { (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } else { '' }
+$isProd = $workspaceRole -eq 'prod'
 
 $envFile = Join-Path $repoRoot '.env'
 $envBackendPort = $null
@@ -24,8 +28,16 @@ if (Test-Path $envFile) {
     if ($frontendMatch) { $envFrontendPort = [int]$frontendMatch.Matches[0].Groups[1].Value }
 }
 
-$backendPorts = @($env:SELENITE_BACKEND_PORT, $envBackendPort, 8201, 8100) | Where-Object { $_ } | Sort-Object -Unique
-$frontendPorts = @($env:SELENITE_FRONTEND_PORT, $envFrontendPort, 5174, 5173) | Where-Object { $_ } | Sort-Object -Unique
+if ($isProd) {
+    if (-not $envBackendPort) { $envBackendPort = 8100 }
+    if (-not $envFrontendPort) { $envFrontendPort = 5173 }
+    # Prod only stops ports defined for prod to avoid touching dev.
+    $backendPorts = @($envBackendPort) | Where-Object { $_ } | Sort-Object -Unique
+    $frontendPorts = @($envFrontendPort) | Where-Object { $_ } | Sort-Object -Unique
+} else {
+    $backendPorts = @($env:SELENITE_BACKEND_PORT, $envBackendPort, 8201, 8100) | Where-Object { $_ } | Sort-Object -Unique
+    $frontendPorts = @($env:SELENITE_FRONTEND_PORT, $envFrontendPort, 5174, 5173) | Where-Object { $_ } | Sort-Object -Unique
+}
 $allPorts = ($backendPorts + $frontendPorts) | Sort-Object -Unique
 
 Write-Host "Stopping Selenite processes..." -ForegroundColor Cyan

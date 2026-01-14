@@ -16,6 +16,7 @@ class UserListItem(BaseModel):
     is_disabled: bool
     force_password_reset: bool
     last_login_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
     created_at: datetime
 
 
@@ -35,3 +36,15 @@ class UserUpdateRequest(BaseModel):
 
 class UserListResponse(BaseModel):
     items: list[UserListItem]
+
+
+class ActiveUserItem(BaseModel):
+    id: int
+    username: str
+    email: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+
+
+class ActiveUsersResponse(BaseModel):
+    total: int
+    items: list[ActiveUserItem]

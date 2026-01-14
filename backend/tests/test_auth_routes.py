@@ -67,6 +67,35 @@ async def test_login_success(test_db):
 
 
 @pytest.mark.asyncio
+async def test_login_sets_force_password_reset_for_policy_mismatch(test_db):
+    async with AsyncSessionLocal() as session:
+        prefs = await session.get(SystemPreferences, 1)
+        prefs.password_min_length = 12
+        prefs.password_require_uppercase = False
+        prefs.password_require_lowercase = False
+        prefs.password_require_number = False
+        prefs.password_require_special = False
+        session.add(
+            User(
+                username="legacyuser",
+                email="legacy@example.com",
+                hashed_password=hash_password("short1"),
+            )
+        )
+        await session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/auth/login",
+            json={"email": "legacy@example.com", "password": "short1"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user"]["force_password_reset"] is True
+
+
+@pytest.mark.asyncio
 async def test_login_invalid_username(test_db):
     """Test login with non-existent identifier."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -201,7 +230,9 @@ async def test_session_timeout_enforced(test_db):
         async with AsyncSessionLocal() as session:
             result = await session.execute(select(User).where(User.email == "test@example.com"))
             user = result.scalar_one()
-            user.last_seen_at = datetime.utcnow() - timedelta(minutes=2)
+            stale = datetime.utcnow() - timedelta(minutes=2)
+            user.last_seen_at = stale
+            user.last_login_at = stale
             await session.commit()
 
         response = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})

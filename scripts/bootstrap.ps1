@@ -520,6 +520,7 @@ Invoke-Step "Verify backend via smoke test" {
     & $pythonExe $smokeScript --base-url $ApiBaseResolved --health-timeout 90
 }
 
+Set-Location $Root
 Write-Section "All done"
 Write-Host "Backend and frontend processes have been launched in separate PowerShell windows."
 Write-Host "If either window reports an error, resolve it before proceeding." -ForegroundColor Yellow

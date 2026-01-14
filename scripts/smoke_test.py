@@ -7,6 +7,7 @@ from __future__ import annotations
 
 
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 
 def _read_workspace_role(repo_root: Path) -> str:
@@ -50,6 +51,60 @@ def _default_base_url() -> str:
         else 8201
     )
     return f"http://127.0.0.1:{backend_port}"
+
+
+def _read_env_value(repo_root: Path, key: str) -> str | None:
+    env_file = repo_root / ".env"
+    if not env_file.exists():
+        return None
+    for line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if line.strip().startswith(f"{key}="):
+            return line.split("=", 1)[1].strip()
+    return None
+
+
+def _env_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _select_https_origin(cors_origins: str | None) -> str | None:
+    if not cors_origins:
+        return None
+    for origin in cors_origins.split(","):
+        origin = origin.strip()
+        if origin.startswith("https://"):
+            return origin.rstrip("/")
+    return None
+
+
+def _normalize_base_url(base_url: str, repo_root: Path) -> str:
+    require_https = _env_bool(_read_env_value(repo_root, "REQUIRE_HTTPS"))
+    allow_http_dev = _env_bool(_read_env_value(repo_root, "ALLOW_HTTP_DEV"))
+    cors_origins = _read_env_value(repo_root, "CORS_ORIGINS")
+    vite_api_url = _read_env_value(repo_root, "VITE_API_URL") or "/api"
+
+    if vite_api_url.startswith("http"):
+        return vite_api_url.rstrip("/")
+
+    path_prefix = vite_api_url.strip()
+    if not path_prefix.startswith("/"):
+        path_prefix = f"/{path_prefix}"
+
+    base = base_url.rstrip("/")
+    if require_https and not allow_http_dev:
+        https_origin = _select_https_origin(cors_origins)
+        if https_origin:
+            base = https_origin
+        else:
+            parsed = urlparse(base)
+            if parsed.netloc:
+                base = urlunparse(("https", parsed.netloc, "", "", "", ""))
+
+    if not base.endswith(path_prefix):
+        base = f"{base}{path_prefix}"
+    return base
 
 import argparse
 import os
@@ -140,6 +195,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    repo_root = Path(__file__).resolve().parents[1]
+    args.base_url = _normalize_base_url(args.base_url, repo_root)
     wait_for_health(args.base_url, args.health_timeout)
     verify_login(args.base_url, args.email, args.password)
     print("[smoke] Backend smoke test completed successfully")

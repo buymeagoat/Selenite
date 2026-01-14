@@ -24,7 +24,7 @@ _logger = get_logger(__name__)
 
 
 class TranscriptionJobQueue:
-    def __init__(self, concurrency: int = 3, *, enable_watchdog: bool = True):
+    def __init__(self, concurrency: int = 3, *, enable_watchdog: bool = False):
         # Defer queue creation until start() to bind to the current event loop
         self._queue: "asyncio.Queue[tuple[str, bool]] | None" = None
         self._workers: list[asyncio.Task] = []
@@ -211,8 +211,8 @@ class TranscriptionJobQueue:
             return
 
 
-# Global singleton for app lifetime
-queue = TranscriptionJobQueue(concurrency=3)
+# Global singleton for app lifetime (watchdog disabled; stalls require explicit detection)
+queue = TranscriptionJobQueue(concurrency=3, enable_watchdog=False)
 
 
 async def resume_queued_jobs(queue_obj: TranscriptionJobQueue) -> int:

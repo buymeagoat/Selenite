@@ -24,6 +24,7 @@ $protectedRelative = @(
     "logs",
     "backend/logs",
     "storage",
+    "backend/selenite.db",
     "scratch"
 )
 $protectedFull = $protectedRelative | ForEach-Object {

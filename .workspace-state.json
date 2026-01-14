@@ -1,7 +1,7 @@
 {
   "role": "prod",
-  "state": "writeable",
+  "state": "canonical",
   "canonical_owner": "prod",
-  "note": "Temporary writeable for prod+dev bug fix",
-  "updated_at": "2026-01-11T18:13:51Z"
+  "note": "Prod canonical; dev writeable",
+  "updated_at": "2026-01-14T02:43:08Z"
 }

@@ -26,7 +26,7 @@ if ($role -notin @("prod", "dev")) {
     throw "[guard] Invalid .workspace-role value '$role'. Use 'prod' or 'dev'."
 }
 
-$aiSession = $env:SELENITE_AI_SESSION -eq "1"
+$aiSession = $env:SELENITE_AI_SESSION -eq "1" -and $env:SELENITE_AI_ENFORCE -eq "1"
 $prefLight = $env:SELENITE_PREFLIGHT_RUNNING -eq "1"
 if ($aiSession -and -not $prefLight -and $env:SELENITE_GUARD_PASSED -ne "1") {
     throw "[guard] AI edits blocked. Run scripts/ai-preflight.ps1 and ensure SELENITE_GUARD_PASSED=1."

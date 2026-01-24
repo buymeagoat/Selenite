@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 if ($env:SELENITE_AI_SESSION -ne '1') {
   throw "[ai-preflight] SELENITE_AI_SESSION=1 is required for AI sessions."
 }
+$env:SELENITE_AI_ENFORCE = '1'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir

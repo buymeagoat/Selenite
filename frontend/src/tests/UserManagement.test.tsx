@@ -50,9 +50,16 @@ describe('UserManagement', () => {
       { type: 'month', value: '12' },
       { type: 'day', value: '31' },
     ]);
-    const dateTimeSpy = vi
-      .spyOn(Intl, 'DateTimeFormat')
-      .mockImplementation(() => ({ format: formatMock, formatToParts: formatToPartsMock }) as Intl.DateTimeFormat);
+    const dateTimeSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+      () =>
+        ({
+          format: formatMock,
+          formatToParts: formatToPartsMock,
+          resolvedOptions: vi.fn().mockReturnValue({}),
+          formatRange: vi.fn().mockReturnValue(''),
+          formatRangeToParts: vi.fn().mockReturnValue([]),
+        }) as Intl.DateTimeFormat
+    );
 
     await act(async () => {
       render(<UserManagement isAdmin timeZone="UTC" />);

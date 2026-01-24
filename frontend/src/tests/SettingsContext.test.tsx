@@ -44,6 +44,9 @@ const mockSettings: UserSettings = {
   password_require_lowercase: true,
   password_require_number: true,
   password_require_special: false,
+  date_format: 'locale',
+  time_format: 'locale',
+  locale: null,
 };
 
 const TestConsumer: React.FC = () => {

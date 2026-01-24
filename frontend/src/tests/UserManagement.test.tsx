@@ -44,20 +44,28 @@ describe('UserManagement', () => {
   it('formats user timestamps with the configured time zone', async () => {
     vi.mocked(listUsers).mockResolvedValue({ items: mockUsers });
     vi.mocked(listActiveUsers).mockResolvedValue({ total: 0, items: [] });
-    const localeSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue('formatted');
+    const formatMock = vi.fn().mockReturnValue('formatted');
+    const formatToPartsMock = vi.fn().mockReturnValue([
+      { type: 'year', value: '2025' },
+      { type: 'month', value: '12' },
+      { type: 'day', value: '31' },
+    ]);
+    const dateTimeSpy = vi
+      .spyOn(Intl, 'DateTimeFormat')
+      .mockImplementation(() => ({ format: formatMock, formatToParts: formatToPartsMock }) as Intl.DateTimeFormat);
 
     await act(async () => {
       render(<UserManagement isAdmin timeZone="UTC" />);
     });
 
-    await screen.findAllByText('formatted');
+    await screen.findAllByText('formatted, formatted');
 
-    const hasTimezone = localeSpy.mock.calls.some((call) => {
+    const hasTimezone = dateTimeSpy.mock.calls.some((call) => {
       const options = call[1] as Intl.DateTimeFormatOptions | undefined;
       return options?.timeZone === 'UTC';
     });
 
     expect(hasTimezone).toBe(true);
-    localeSpy.mockRestore();
+    dateTimeSpy.mockRestore();
   });
 });

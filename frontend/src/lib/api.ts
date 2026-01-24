@@ -340,7 +340,7 @@ export async function apiFetchBlob(endpoint: string): Promise<Blob> {
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-  const response = await fetch(url, { method: 'GET', headers });
+  const response = await fetch(url, { method: 'GET', headers, credentials: 'include' });
   if (!response.ok) {
     let errorData: any;
     try {
@@ -349,6 +349,9 @@ export async function apiFetchBlob(endpoint: string): Promise<Blob> {
       errorData = { detail: response.statusText };
     }
     const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`;
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
     throw new ApiError(errorMessage, response.status, errorData);
   }
   return response.blob();

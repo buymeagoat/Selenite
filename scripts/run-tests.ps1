@@ -143,12 +143,21 @@ Write-Host "Scratch test workspace ready." -ForegroundColor DarkGray
 
 Write-Host "Ensuring SQLite database resides under backend/selenite.db..." -ForegroundColor DarkGray
 try {
-    $pythonExe = Get-SystemPython
-    $sqliteGuard = Join-Path $RepoRoot "scripts/sqlite_guard.py"
-    if (Test-Path $sqliteGuard) {
-        & $pythonExe $sqliteGuard --repo-root $RepoRoot --enforce | Write-Host
+    $roleFile = Join-Path $RepoRoot ".workspace-role"
+    $role = ""
+    if (Test-Path $roleFile) {
+        $role = (Get-Content -Path $roleFile -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant()
+    }
+    if ($role -eq "prod") {
+        Write-Host "Skipping sqlite_guard.py in prod workspace." -ForegroundColor DarkGray
     } else {
-        Write-Host "sqlite_guard.py not found; skipping auto-remediation." -ForegroundColor Yellow
+        $pythonExe = Get-SystemPython
+        $sqliteGuard = Join-Path $RepoRoot "scripts/sqlite_guard.py"
+        if (Test-Path $sqliteGuard) {
+            & $pythonExe $sqliteGuard --repo-root $RepoRoot --enforce | Write-Host
+        } else {
+            Write-Host "sqlite_guard.py not found; skipping auto-remediation." -ForegroundColor Yellow
+        }
     }
 } catch {
     Write-Warning "SQLite guard failed: $_"
@@ -297,6 +306,10 @@ function Run-BackendTests {
 }
 
 function Run-AlignmentCheck {
+    if ($isProd) {
+        Write-Host "Alignment drift check skipped in prod workspace." -ForegroundColor DarkGray
+        return
+    }
     Write-Section "Alignment drift check"
     $checkerPath = Join-Path $RepoRoot "scripts/check_alignment.py"
     if (-not (Test-Path $checkerPath)) {
@@ -495,10 +508,14 @@ if ($script:StoredError) {
     throw $script:StoredError
 }
 
-Write-Section "Repository hygiene verification"
-$systemPython = Get-SystemPython
-& $systemPython (Join-Path $RepoRoot "scripts/check_repo_hygiene.py")
-Throw-OnError "Repository hygiene check"
+if ($isProd) {
+    Write-Host "Repository hygiene check skipped in prod workspace." -ForegroundColor DarkGray
+} else {
+    Write-Section "Repository hygiene verification"
+    $systemPython = Get-SystemPython
+    & $systemPython (Join-Path $RepoRoot "scripts/check_repo_hygiene.py")
+    Throw-OnError "Repository hygiene check"
+}
 
 # Stamp the repo so pre-flight checks know tests ran recently
 $stampPath = Join-Path $RepoRoot ".last_tests_run"

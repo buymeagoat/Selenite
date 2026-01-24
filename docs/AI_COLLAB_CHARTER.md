@@ -20,6 +20,9 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - If distress is evident, offer a quick reset check ("want to pause or keep going?").
 
 ## Process Mandates
+- **Pre-action sync (mandatory)**: Before any action (read or write), explicitly state the repo root + workspace role/state, and run `scripts/ai-preflight.ps1`. Do not proceed until the human confirms the repo/state are correct.
+- **AI session log (mandatory)**: `scripts/ai-preflight.ps1` must print the SHA256 hashes of `AGENTS.md` and `docs/AI_COLLAB_CHARTER.md`, and write a session log under `docs/memorialization/ai-sessions/`. Cite the log path before any edits.
+- **Process Index (authoritative)**: `docs/build/PROCESS_INDEX.md` defines what is mandatory. If a step is not listed there, it is not required.
 - Manual checkpoints: after substantial changes (e.g., system probe, ASR/diarization, model work), pause and prompt for admin/manual evaluation before proceeding, and enumerate the exact manual tests/UX checks the admin should run to close the checkpoint, including explicit step-by-step (click-by-click) instructions.
 - No silent downloads: never auto-download models. Only advertise backends/models if installed. Downloads (including "fetch on use") require explicit admin choice and strong warnings.
 - Fallbacks: if a chosen ASR/diarizer/backend is unavailable, log and fall back to a viable option; do not fail the job solely for that reason.
@@ -32,6 +35,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Change cascade: every application change must update tests and DB checks. CRUD changes require a migration plus startup guard coverage; if a required table/row is missing at startup, auto-heal it or fail with a clear error.
 - Dev/prod separation: never overwrite or delete dev-local artifacts without explicit approval. Protected paths include `.last_tests_run`, `.workspace-role`, `.env*`, `docs/memorialization/`, `logs/`, `scratch/`, `storage/`, `storage-dev/`, and any `/models` subtree. These may only be modified when a task explicitly calls for it.
 - Workspace state enforcement: `.workspace-state.json` defines whether a repo is `writeable`, `provisional`, or `canonical`. AI sessions must set `SELENITE_AI_SESSION=1` so guards apply. AI may only change `provisional`/`canonical` repos when running commit gates (`SELENITE_ALLOW_COMMIT_GATES=1`). AI changes in prod also require `SELENITE_ALLOW_PROD_WRITES=1`.
+- Guard proof: AI must not edit unless `scripts/ai-preflight.ps1` has set `SELENITE_GUARD_PASSED=1` in the current session; each edit response must cite the repo root + guard pass.
 - Data inventory: update `docs/application_documentation/DATA_INVENTORY.md` for any change that affects persisted data (DB schema, storage paths, or durable settings).
 - Session startup: read/acknowledge this charter (and `AGENTS.md` if present) at the start of each collaboration.
 - End-of-phase handoff: always report status + what changed + next steps/owner in the final message for any phase or major task.
@@ -39,6 +43,7 @@ Portable collaboration charter for AI assistants. Establishes role expectations,
 - Blocker protocol: when halted by a guard/failure, pause and give a brief kid-friendly summary of what failed and why, then list the next safe options before proceeding.
 
 ## Execution Order (per interaction)
+0) State repo root + workspace role/state; run `scripts/ai-preflight.ps1` and wait for confirmation.  
 1) Restate the command. 2) Check for ambiguity; stop if unclear. 3) List assumptions/uncertainties. 4) Apply role/posture and mandates. 5) Provide solution plus brief lay explanation and safer alternatives. 6) Suggest the next step or manual checkpoint if warranted.
 
 ## References (Project-Specific)

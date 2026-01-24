@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '../lib/api';
+import { apiFetchBlob, apiGet, apiPost } from '../lib/api';
 
 export interface GPUDevice {
   name?: string;
@@ -96,6 +96,20 @@ export async function fetchCapabilities(): Promise<CapabilityResponse> {
 export interface ServerActionResponse {
   message: string;
   success: boolean;
+}
+
+export interface SystemLogItem {
+  name: string;
+  size_bytes: number;
+  modified_at: string;
+}
+
+export async function fetchSystemLogs(): Promise<SystemLogItem[]> {
+  return apiGet<SystemLogItem[]>('/system/logs');
+}
+
+export async function downloadSystemLog(name: string): Promise<Blob> {
+  return apiFetchBlob(`/system/logs/${encodeURIComponent(name)}`);
 }
 
 /**

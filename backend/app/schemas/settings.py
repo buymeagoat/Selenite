@@ -16,6 +16,9 @@ class SettingsResponse(BaseModel):
     max_concurrent_jobs: int
     show_all_jobs: bool
     time_zone: str | None = None
+    date_format: str | None = None
+    time_format: str | None = None
+    locale: str | None = None
     server_time_zone: str
     transcode_to_wav: bool
     enable_empty_weights: bool
@@ -58,6 +61,9 @@ class SettingsUpdateRequest(BaseModel):
     max_concurrent_jobs: int | None = Field(default=None, ge=1, le=10)
     show_all_jobs: bool | None = Field(default=None)
     time_zone: str | None = Field(default=None, max_length=100)
+    date_format: str | None = Field(default=None, max_length=20)
+    time_format: str | None = Field(default=None, max_length=20)
+    locale: str | None = Field(default=None, max_length=64)
     server_time_zone: str | None = Field(default=None, max_length=100)
     transcode_to_wav: bool | None = Field(default=None)
     enable_empty_weights: bool | None = Field(default=None)

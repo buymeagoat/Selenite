@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Matches running processes by command line contents scoped to this repo
-    and ports derived from .env (prod defaults to 8100/5173, dev defaults to 8201/5174).
+    and known ports (default 8201 for backend, 5174 for frontend).
 #>
 
 

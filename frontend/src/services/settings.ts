@@ -19,6 +19,9 @@ export interface UserSettings {
   max_concurrent_jobs: number;
   show_all_jobs: boolean;
   time_zone: string | null;
+  date_format: 'locale' | 'mdy' | 'dmy' | 'ymd' | null;
+  time_format: 'locale' | '12h' | '24h' | null;
+  locale: string | null;
   server_time_zone: string;
   transcode_to_wav: boolean;
   enable_empty_weights: boolean;
@@ -61,6 +64,9 @@ export interface UpdateSettingsParams {
   max_concurrent_jobs?: number;
   show_all_jobs?: boolean;
   time_zone?: string | null;
+  date_format?: 'locale' | 'mdy' | 'dmy' | 'ymd' | null;
+  time_format?: 'locale' | '12h' | '24h' | null;
+  locale?: string | null;
   server_time_zone?: string | null;
   transcode_to_wav?: boolean;
   enable_empty_weights?: boolean;

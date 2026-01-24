@@ -25,6 +25,7 @@ from app.routes import file_browser as file_browser_module
 from app.routes import users as users_module
 from app.routes import feedback as feedback_module
 from app.routes import messages as messages_module
+from app.routes import audit_logs as audit_logs_module
 from app.services.job_queue import (
     queue,
     resolve_queue_concurrency,
@@ -51,6 +52,7 @@ file_browser_router = file_browser_module.router
 users_router = users_module.router
 feedback_router = feedback_module.router
 messages_router = messages_module.router
+audit_logs_router = audit_logs_module.router
 
 
 @asynccontextmanager
@@ -237,6 +239,7 @@ app.include_router(file_browser_router)
 app.include_router(users_router)
 app.include_router(feedback_router)
 app.include_router(messages_router)
+app.include_router(audit_logs_router)
 
 
 @app.get("/health")

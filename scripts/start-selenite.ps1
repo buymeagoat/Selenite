@@ -2,6 +2,7 @@
 # Adjust flags below as needed:
 # -Dev: runs uvicorn with reload (development)
 # -ResetAuth: clears frontend cached auth state
+# -ResetAdminCreds: resets admin password to default (dev only; opt-in)
 # -BindIP: set to 127.0.0.1 for local only, or 0.0.0.0 / your Tailscale IP for remote
 # -AdvertiseHosts: comma-separated list of hosts/IPs to expose (e.g., 127.0.0.1,<LAN-IP>,<TAILSCALE-IP>)
 # -Seed: add if you want to reseed the DB each start
@@ -9,7 +10,8 @@
 
 param(
     [string]$BindIPOverride = "",
-    [string[]]$AdvertiseHosts = @()
+    [string[]]$AdvertiseHosts = @(),
+    [switch]$ResetAdminCreds
 
 )
 
@@ -82,13 +84,17 @@ try {
 if ($isProd) {
     & (Join-Path $repo 'scripts\bootstrap.ps1') -BindPort ([int]$env:SELENITE_BACKEND_PORT) -FrontendPort ([int]$env:SELENITE_FRONTEND_PORT) -BindIP $bind -AdvertiseHosts $AdvertiseHosts
 } else {
-    & (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth -BindPort ([int]$env:SELENITE_BACKEND_PORT) -FrontendPort ([int]$env:SELENITE_FRONTEND_PORT) -BindIP $bind -AdvertiseHosts $AdvertiseHosts
+    $adminResetArg = @()
+    if ($ResetAdminCreds) {
+        $adminResetArg += '-ResetAdminCreds'
+    }
+    & (Join-Path $repo 'scripts\bootstrap.ps1') -Dev -ResetAuth @adminResetArg -BindPort ([int]$env:SELENITE_BACKEND_PORT) -FrontendPort ([int]$env:SELENITE_FRONTEND_PORT) -BindIP $bind -AdvertiseHosts $AdvertiseHosts
 }
 
 # Example usage for Task Scheduler Action:
 # Program/script: pwsh
-# Arguments: -NoLogo -NoProfile -Command "& '<REPO_ROOT>\scripts\start-selenite.ps1'"
-# Start in: <REPO_ROOT>
+# Arguments: -NoLogo -NoProfile -Command "& 'D:\Dev\projects\Selenite-dev\scripts\start-selenite.ps1'"
+# Start in: D:\Dev\projects\Selenite-dev
 
 
 

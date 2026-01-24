@@ -49,7 +49,8 @@ Human runs are not blocked by these guards.
 - If a human must modify a canonical/provisional repo, record the reason and scope in the promotion log.
 
 ## Human Visibility
-- Before starting work, run `scripts/show-workspace-state.ps1` and confirm the expected role/state.
+- Before starting work, run `scripts/ai-preflight.ps1` (AI) or `scripts/show-workspace-state.ps1` (human) and confirm the expected role/state.
+- AI must state repo root + workspace state before any action and wait for human confirmation.
 - Treat canonical/provisional as read-only unless the process explicitly requires a change.
 
 Dev reset is a status-only change. Do not clear data unless explicitly mandated by the process.

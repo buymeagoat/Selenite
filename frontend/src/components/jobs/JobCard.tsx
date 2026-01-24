@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Eye, Gauge, Pause, Play, Square } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { getTagColor, getTagTextColor } from '../tags/tagColors';
+import { formatDateTime, type DateTimePreferences } from '../../utils/dateTime';
 
 interface Job {
   id: string;
@@ -54,6 +55,9 @@ interface JobCardProps {
   selected?: boolean;
   onSelectToggle?: (jobId: string, checked: boolean) => void;
   timeZone?: string | null;
+  dateFormat?: DateTimePreferences['dateFormat'];
+  timeFormat?: DateTimePreferences['timeFormat'];
+  locale?: string | null;
   showOwnerLabel?: boolean;
 }
 
@@ -74,6 +78,9 @@ export const JobCard: React.FC<JobCardProps> = ({
   selected = false,
   onSelectToggle,
   timeZone = null,
+  dateFormat = 'locale',
+  timeFormat = 'locale',
+  locale = null,
   showOwnerLabel = false,
 }) => {
   const [now, setNow] = useState(() => Date.now());
@@ -131,24 +138,13 @@ export const JobCard: React.FC<JobCardProps> = ({
     return `Detected ${detected}`;
   })();
 
-  const parseAsUTC = (isoString: string): Date => {
-    if (!isoString) return new Date();
-    // If the string lacks a timezone, treat it as UTC to avoid double-shifting local times.
-    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(isoString);
-    return new Date(hasZone ? isoString : `${isoString}Z`);
-  };
-
-  const formatDate = (isoString: string): string => {
-    const date = parseAsUTC(isoString);
-    return date.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: timeZone || undefined,
+  const formatDate = (isoString: string): string =>
+    formatDateTime(isoString, {
+      timeZone,
+      dateFormat,
+      timeFormat,
+      locale,
     });
-  };
 
   const showDuration = job.status === 'completed' && durationSeconds > 0;
   const showCompletedMetadata = job.status === 'completed';

@@ -4,8 +4,11 @@ import asyncio
 import logging
 import shutil
 import subprocess
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import PROJECT_ROOT
@@ -44,6 +47,12 @@ class ServerActionResponse(BaseModel):
 
     message: str
     success: bool
+
+
+class SystemLogItem(BaseModel):
+    name: str
+    size_bytes: int
+    modified_at: datetime
 
 
 def _schedule_script(action: str, script_name: str) -> None:
@@ -121,3 +130,51 @@ async def shutdown_server(current_user: User = Depends(get_current_user)):
     return ServerActionResponse(
         message="Server shutdown initiated. The server will stop in a moment.", success=True
     )
+
+
+def _require_admin(user: User) -> None:
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can access system logs",
+        )
+
+
+def _logs_root() -> Path:
+    return PROJECT_ROOT / "logs"
+
+
+@router.get("/logs", response_model=list[SystemLogItem])
+async def list_system_logs(current_user: User = Depends(get_current_user)):
+    _require_admin(current_user)
+    logs_dir = _logs_root()
+    if not logs_dir.exists():
+        return []
+    items: list[SystemLogItem] = []
+    for entry in logs_dir.iterdir():
+        if not entry.is_file():
+            continue
+        if not entry.name.endswith(".log"):
+            continue
+        stat = entry.stat()
+        items.append(
+            SystemLogItem(
+                name=entry.name,
+                size_bytes=stat.st_size,
+                modified_at=datetime.utcfromtimestamp(stat.st_mtime),
+            )
+        )
+    items.sort(key=lambda item: item.modified_at, reverse=True)
+    return items
+
+
+@router.get("/logs/{log_name}")
+async def download_system_log(log_name: str, current_user: User = Depends(get_current_user)):
+    _require_admin(current_user)
+    if "/" in log_name or "\\" in log_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid log name")
+    logs_dir = _logs_root()
+    log_path = logs_dir / log_name
+    if not log_path.exists() or not log_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found")
+    return FileResponse(log_path, media_type="text/plain", filename=log_name)

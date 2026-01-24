@@ -18,6 +18,7 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/api';
 import { fetchSettings, updateSettings } from '../services/settings';
+import { formatDateTime, type DateTimePreferences } from '../utils/dateTime';
 import {
   fetchSystemInfo,
   refreshSystemInfo,
@@ -49,6 +50,7 @@ import { devError, devInfo } from '../lib/debug';
 import { getSupportedTimeZones, getBrowserTimeZone } from '../utils/timezones';
 import { UserManagement } from '../components/admin/UserManagement';
 import { MessagesPanel } from '../components/admin/MessagesPanel';
+import { LoggingPanel } from '../components/admin/LoggingPanel';
 
 type RegistryTab = ProviderType;
 
@@ -95,17 +97,17 @@ function pathStartsWith(base: string, candidate: string): boolean {
   return normCandidate.startsWith(normBase);
 }
 
-function resolveInitialAdminTab(): 'audio' | 'system' | 'users' | 'messages' {
-  const allowedTabs = new Set(['audio', 'system', 'users', 'messages']);
+function resolveInitialAdminTab(): 'audio' | 'system' | 'users' | 'messages' | 'logging' {
+  const allowedTabs = new Set(['audio', 'system', 'users', 'messages', 'logging']);
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     if (tabParam && allowedTabs.has(tabParam)) {
-      return tabParam as 'audio' | 'system' | 'users' | 'messages';
+      return tabParam as 'audio' | 'system' | 'users' | 'messages' | 'logging';
     }
     const stored = localStorage.getItem(ADMIN_TAB_STORAGE_KEY);
     if (stored && allowedTabs.has(stored)) {
-      return stored as 'audio' | 'system' | 'users' | 'messages';
+      return stored as 'audio' | 'system' | 'users' | 'messages' | 'logging';
     }
   }
   return 'audio';
@@ -133,6 +135,9 @@ export const Admin: React.FC = () => {
   const [enableEmptyWeights, setEnableEmptyWeights] = useState(false);
   const [userTimeZone, setUserTimeZone] = useState<string>(browserTimeZone);
   const [serverTimeZone, setServerTimeZone] = useState<string>('UTC');
+  const [userDateFormat, setUserDateFormat] = useState<DateTimePreferences['dateFormat']>('locale');
+  const [userTimeFormat, setUserTimeFormat] = useState<DateTimePreferences['timeFormat']>('locale');
+  const [userLocale, setUserLocale] = useState<string>('');
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [systemInfo, setSystemInfo] = useState<SystemProbe | null>(null);
   const [isSystemLoading, setIsSystemLoading] = useState(true);
@@ -185,10 +190,28 @@ export const Admin: React.FC = () => {
   const [isSavingTagEdit, setIsSavingTagEdit] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [isRefreshingTags, setIsRefreshingTags] = useState(false);
-  const [activeTab, setActiveTab] = useState<'audio' | 'system' | 'users' | 'messages'>(
+  const [activeTab, setActiveTab] = useState<'audio' | 'system' | 'users' | 'messages' | 'logging'>(
     resolveInitialAdminTab()
   );
   const messagesTimeZone = userTimeZone || serverTimeZone || null;
+  const userDisplayPrefs = useMemo(
+    () => ({
+      timeZone: userTimeZone || serverTimeZone || null,
+      dateFormat: userDateFormat,
+      timeFormat: userTimeFormat,
+      locale: userLocale || null,
+    }),
+    [userTimeZone, serverTimeZone, userDateFormat, userTimeFormat, userLocale]
+  );
+  const messagePrefs = useMemo(
+    () => ({
+      timeZone: messagesTimeZone,
+      dateFormat: userDateFormat,
+      timeFormat: userTimeFormat,
+      locale: userLocale || null,
+    }),
+    [messagesTimeZone, userDateFormat, userTimeFormat, userLocale]
+  );
   const [feedbackStoreEnabled, setFeedbackStoreEnabled] = useState(true);
   const [feedbackEmailEnabled, setFeedbackEmailEnabled] = useState(false);
   const [feedbackWebhookEnabled, setFeedbackWebhookEnabled] = useState(false);
@@ -431,6 +454,9 @@ export const Admin: React.FC = () => {
         setEnableTimestamps(settingsData.enable_timestamps);
         setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
         setUserTimeZone(settingsData.time_zone || browserTimeZone);
+        setUserDateFormat((settingsData.date_format as DateTimePreferences['dateFormat']) || 'locale');
+        setUserTimeFormat((settingsData.time_format as DateTimePreferences['timeFormat']) || 'locale');
+        setUserLocale(settingsData.locale || '');
         setServerTimeZone(settingsData.server_time_zone || 'UTC');
         setTranscodeToWav(settingsData.transcode_to_wav ?? true);
         setFeedbackStoreEnabled(settingsData.feedback_store_enabled ?? true);
@@ -1338,25 +1364,13 @@ export const Admin: React.FC = () => {
     return `${value.toFixed(1)} GB`;
   };
 
-  const parseAsUTC = (value?: string | null) => {
-    if (!value) return new Date();
-    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-    return new Date(hasZone ? value : `${value}Z`);
-  };
-
-  const formatDateTime = (value?: string | null, timeZone?: string | null) => {
-    if (!value) return 'Unknown';
-    const date = parseAsUTC(value);
-    if (Number.isNaN(date.valueOf())) return value;
-    return date.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: timeZone || undefined,
+  const formatSystemDateTime = (value?: string | null) =>
+    formatDateTime(value ?? null, {
+      timeZone: serverTimeZone,
+      dateFormat: userDateFormat,
+      timeFormat: userTimeFormat,
+      locale: userLocale || null,
     });
-  };
 
   const renderDiskUsage = (label: string, usage?: DiskUsage | null) => {
     if (!usage) {
@@ -1695,6 +1709,18 @@ export const Admin: React.FC = () => {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('logging')}
+            className={`px-3 py-2 text-sm rounded ${
+              activeTab === 'logging'
+                ? 'bg-sage-light text-forest-green'
+                : 'text-pine-mid hover:text-forest-green'
+            }`}
+            data-testid="admin-tab-logging"
+          >
+            Logging
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('system')}
             className={`px-3 py-2 text-sm rounded ${
               activeTab === 'system'
@@ -1708,9 +1734,28 @@ export const Admin: React.FC = () => {
         </div>
 
         {activeTab === 'users' ? (
-          <UserManagement isAdmin={isAdmin} timeZone={userTimeZone || serverTimeZone || null} />
+          <UserManagement
+            isAdmin={isAdmin}
+            timeZone={userTimeZone || serverTimeZone || null}
+            dateFormat={userDateFormat}
+            timeFormat={userTimeFormat}
+            locale={userLocale || null}
+          />
         ) : activeTab === 'messages' ? (
-          <MessagesPanel feedbackStoreEnabled={feedbackStoreEnabled} timeZone={messagesTimeZone} />
+          <MessagesPanel
+            feedbackStoreEnabled={feedbackStoreEnabled}
+            timeZone={messagesTimeZone}
+            dateFormat={userDateFormat}
+            timeFormat={userTimeFormat}
+            locale={userLocale || null}
+          />
+        ) : activeTab === 'logging' ? (
+          <LoggingPanel
+            timeZone={userTimeZone || serverTimeZone || null}
+            dateFormat={userDateFormat}
+            timeFormat={userTimeFormat}
+            locale={userLocale || null}
+          />
         ) : activeTab === 'system' ? (
       <section className="bg-white border border-sage-mid rounded-lg p-6 order-3" data-testid="system-section">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1750,16 +1795,14 @@ export const Admin: React.FC = () => {
                 ))}
               </select>
               <p className="text-xs text-pine-mid mt-1">
-                {new Intl.DateTimeFormat(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  timeZone: serverTimeZone || undefined,
-                  timeZoneName: 'short',
-                }).format(new Date())}
+                {formatDateTime(new Date(), {
+                  timeZone: serverTimeZone || null,
+                  dateFormat: userDateFormat,
+                  timeFormat: userTimeFormat,
+                  locale: userLocale || null,
+                  includeSeconds: true,
+                  includeTimeZoneName: true,
+                })}
               </p>
             </div>
             <div>
@@ -1780,16 +1823,14 @@ export const Admin: React.FC = () => {
                 ))}
               </select>
               <p className="text-xs text-pine-mid mt-1">
-                {new Intl.DateTimeFormat(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  timeZone: userTimeZone || undefined,
-                  timeZoneName: 'short',
-                }).format(new Date())}
+                {formatDateTime(new Date(), {
+                  timeZone: userTimeZone || null,
+                  dateFormat: userDateFormat,
+                  timeFormat: userTimeFormat,
+                  locale: userLocale || null,
+                  includeSeconds: true,
+                  includeTimeZoneName: true,
+                })}
               </p>
             </div>
           </div>
@@ -2213,7 +2254,7 @@ export const Admin: React.FC = () => {
               <div className="p-3 border border-sage-mid rounded-lg">
                 <p className="text-xs uppercase text-pine-mid tracking-wide">Last detected</p>
                 <p className="text-sm text-pine-deep">
-                  {formatDateTime(systemInfo.detected_at, serverTimeZone)}
+                  {formatSystemDateTime(systemInfo.detected_at)}
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 {
   "role": "prod",
-  "state": "canonical",
+  "state": "writeable",
   "canonical_owner": "prod",
-  "note": "Prod canonical; dev writeable",
-  "updated_at": "2026-01-14T02:43:08Z"
+  "note": "Prod writeable for dev/prod lockstep reconciliation",
+  "updated_at": "2026-01-24T00:40:49Z"
 }

@@ -1,4 +1,4 @@
-"""Tests for system restart/shutdown routes."""
+"""Tests for system restart/shutdown and log routes."""
 
 import pytest
 from fastapi import status
@@ -83,3 +83,43 @@ async def test_shutdown_triggers_script(monkeypatch, test_db):
 
     assert resp.status_code == status.HTTP_200_OK
     assert invoked == [("shutdown", "stop-selenite.ps1")]
+
+
+@pytest.mark.asyncio
+async def test_system_logs_requires_admin(test_db):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/system/logs", headers=_auth_headers(2, "member"))
+        assert resp.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_system_logs_list_and_download(monkeypatch, tmp_path, test_db):
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    good_log = logs_dir / "selenite-20260101.log"
+    bad_log = logs_dir / "notes.txt"
+    good_log.write_text("hello\n", encoding="utf-8")
+    bad_log.write_text("ignore\n", encoding="utf-8")
+
+    monkeypatch.setattr(system_module, "_logs_root", lambda: logs_dir)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/system/logs", headers=_auth_headers(1, "admin"))
+        assert resp.status_code == status.HTTP_200_OK
+        payload = resp.json()
+        assert payload == [
+            {
+                "name": "selenite-20260101.log",
+                "size_bytes": good_log.stat().st_size,
+                "modified_at": payload[0]["modified_at"],
+            }
+        ]
+
+        resp = await client.get(
+            "/system/logs/selenite-20260101.log", headers=_auth_headers(1, "admin")
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.text.replace("\r\n", "\n") == "hello\n"
+
+        resp = await client.get("/system/logs/../secrets", headers=_auth_headers(1, "admin"))
+        assert resp.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND)

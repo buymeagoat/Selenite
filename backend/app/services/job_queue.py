@@ -24,7 +24,7 @@ _logger = get_logger(__name__)
 
 
 class TranscriptionJobQueue:
-    def __init__(self, concurrency: int = 3, *, enable_watchdog: bool = False):
+    def __init__(self, concurrency: int = 3):
         # Defer queue creation until start() to bind to the current event loop
         self._queue: "asyncio.Queue[tuple[str, bool]] | None" = None
         self._workers: list[asyncio.Task] = []
@@ -32,8 +32,6 @@ class TranscriptionJobQueue:
         self._concurrency = concurrency
         self._started = False
         self._slot_lock: asyncio.Semaphore | None = None
-        self._watchdog_task: Optional[asyncio.Task] = None
-        self._enable_watchdog = enable_watchdog
         self._logger = get_logger(__name__)
 
     async def start(self):
@@ -47,8 +45,6 @@ class TranscriptionJobQueue:
             task = asyncio.create_task(self._worker())
             self._workers.append(task)
         self._logger.info("Job queue started with %s workers", self._concurrency)
-        if self._enable_watchdog:
-            self._watchdog_task = asyncio.create_task(self._watchdog())
 
     async def stop(self):
         # Graceful stop: put sentinel values
@@ -62,13 +58,6 @@ class TranscriptionJobQueue:
                     raise
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers.clear()
-        if self._watchdog_task:
-            self._watchdog_task.cancel()
-            try:
-                await self._watchdog_task
-            except Exception:
-                pass
-            self._watchdog_task = None
         self._started = False
         # Drop the queue so a new one will be created on next start()
         self._queue = None
@@ -166,53 +155,9 @@ class TranscriptionJobQueue:
         if new_value <= 0:
             raise ValueError("Concurrency must be >= 1")
 
-    async def _watchdog(self) -> None:
-        """Fail processing jobs that run far beyond their estimated time."""
-        interval = max(1.0, float(settings.stall_check_interval_seconds))
-        try:
-            while self._started:
-                await asyncio.sleep(interval)
-                try:
-                    now = datetime.utcnow()
-                    async with AsyncSessionLocal() as session:
-                        result = await session.execute(
-                            select(Job).where(
-                                Job.status == "processing", Job.started_at.isnot(None)
-                            )
-                        )
-                        jobs = result.scalars().all()
-                        changed = False
-                        for job in jobs:
-                            est_total = (
-                                job.estimated_total_seconds
-                                or settings.default_estimated_duration_seconds
-                            )
-                            max_allowed = max(
-                                int(est_total * settings.stall_timeout_multiplier),
-                                int(settings.stall_timeout_min_seconds),
-                            )
-                            elapsed = (now - job.started_at).total_seconds()
-                            if elapsed > max_allowed:
-                                job.status = "failed"
-                                job.progress_stage = "stalled"
-                                job.progress_percent = min(int(job.progress_percent or 0), 95)
-                                job.estimated_time_left = None
-                                job.error_message = (
-                                    "Transcription stalled (exceeded expected duration)"
-                                )
-                                job.stalled_at = now
-                                changed = True
-                        if changed:
-                            await session.commit()
-                except Exception as exc:
-                    self._logger.warning("Watchdog encountered an error: %s", exc)
-                    continue
-        except asyncio.CancelledError:
-            return
 
-
-# Global singleton for app lifetime (watchdog disabled; stalls require explicit detection)
-queue = TranscriptionJobQueue(concurrency=3, enable_watchdog=False)
+# Global singleton for app lifetime (no timeout-based stall watchdog).
+queue = TranscriptionJobQueue(concurrency=3)
 
 
 async def resume_queued_jobs(queue_obj: TranscriptionJobQueue) -> int:

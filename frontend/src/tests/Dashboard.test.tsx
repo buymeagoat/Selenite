@@ -24,6 +24,7 @@ const mockAuthContext = vi.hoisted(() => ({
 }));
 
 const fetchJobsMock = vi.fn();
+const fetchJobMock = vi.fn();
 const createJobMock = vi.fn();
 const restartJobMock = vi.fn();
 const cancelJobMock = vi.fn();
@@ -40,6 +41,7 @@ const jsZipMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../services/jobs', () => ({
   fetchJobs: (...args: any[]) => fetchJobsMock(...args),
+  fetchJob: (...args: any[]) => fetchJobMock(...args),
   createJob: (...args: any[]) => createJobMock(...args),
   restartJob: (...args: any[]) => restartJobMock(...args),
   cancelJob: (...args: any[]) => cancelJobMock(...args),
@@ -193,6 +195,7 @@ const renderDashboard = () =>
 describe('Dashboard', () => {
   beforeEach(() => {
     fetchJobsMock.mockReset();
+    fetchJobMock.mockReset();
     fetchTagsMock.mockReset();
     fetchSettingsMock.mockReset();
     createJobMock.mockReset();
@@ -209,6 +212,9 @@ describe('Dashboard', () => {
     jsZipFileMock.mockReset();
     jsZipGenerateMock.mockReset();
     jsZipMock.mockReset();
+    fetchJobMock.mockImplementation((jobId: string) =>
+      Promise.resolve(buildJob({ id: jobId }))
+    );
   });
 
   it('loads jobs and filters with the search bar', async () => {
@@ -242,6 +248,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -291,6 +300,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -352,6 +364,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -431,6 +446,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -481,6 +499,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -548,6 +569,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -613,6 +637,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -657,6 +684,9 @@ describe('Dashboard', () => {
       max_concurrent_jobs: 1,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,

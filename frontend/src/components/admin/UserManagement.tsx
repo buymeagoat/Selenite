@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { ApiError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
+import { formatDateTime, type DateTimePreferences } from '../../utils/dateTime';
 import {
   createUser,
   deleteUser,
@@ -15,6 +16,9 @@ import {
 interface UserManagementProps {
   isAdmin: boolean;
   timeZone?: string | null;
+  dateFormat?: DateTimePreferences['dateFormat'];
+  timeFormat?: DateTimePreferences['timeFormat'];
+  locale?: string | null;
 }
 
 type UserFormState = {
@@ -33,27 +37,13 @@ const emptyForm: UserFormState = {
   force_password_reset: false,
 };
 
-const parseAsUTC = (value: string): Date => {
-  if (!value) return new Date();
-  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-  return new Date(hasZone ? value : `${value}Z`);
-};
-
-const formatDateTime = (value: string | null | undefined, timeZone?: string | null) => {
-  if (!value) return 'Never';
-  const date = parseAsUTC(value);
-  if (Number.isNaN(date.valueOf())) return value;
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: timeZone || undefined,
-  });
-};
-
-export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin, timeZone = null }) => {
+export const UserManagement: React.FC<UserManagementProps> = ({
+  isAdmin,
+  timeZone = null,
+  dateFormat = 'locale',
+  timeFormat = 'locale',
+  locale = null,
+}) => {
   const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [activeUsers, setActiveUsers] = useState<ActiveUserItem[]>([]);
@@ -275,7 +265,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin, timeZon
             {activeUsers.map((user) => (
               <li key={user.id} className="flex justify-between gap-4">
                 <span className="text-pine-deep">{user.email || user.username}</span>
-                <span>{formatDateTime(user.last_seen_at, timeZone)}</span>
+                <span>
+                  {formatDateTime(user.last_seen_at, {
+                    timeZone,
+                    dateFormat,
+                    timeFormat,
+                    locale,
+                  })}
+                </span>
               </li>
             ))}
           </ul>
@@ -308,8 +305,22 @@ export const UserManagement: React.FC<UserManagementProps> = ({ isAdmin, timeZon
                   <td className="px-3 py-2 text-pine-mid">
                     {user.is_disabled ? 'Disabled' : 'Active'}
                   </td>
-                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.last_login_at, timeZone)}</td>
-                  <td className="px-3 py-2 text-pine-mid">{formatDateTime(user.created_at, timeZone)}</td>
+                  <td className="px-3 py-2 text-pine-mid">
+                    {formatDateTime(user.last_login_at, {
+                      timeZone,
+                      dateFormat,
+                      timeFormat,
+                      locale,
+                    })}
+                  </td>
+                  <td className="px-3 py-2 text-pine-mid">
+                    {formatDateTime(user.created_at, {
+                      timeZone,
+                      dateFormat,
+                      timeFormat,
+                      locale,
+                    })}
+                  </td>
                   <td className="px-3 py-2">
                     <button
                       type="button"

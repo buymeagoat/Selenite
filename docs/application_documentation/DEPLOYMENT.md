@@ -427,6 +427,10 @@ sudo systemctl status selenite-backend
 ### HTTPS and app settings
 - Backend enforces HTTPS in production: set `REQUIRE_HTTPS=true`, `ALLOW_HTTP_DEV=false`, and ensure `X-Forwarded-Proto` is forwarded by Cloudflare/tunnel (Cloudflare sets it by default).
 - Set `CORS_ORIGINS` to the Cloudflare hostnames you expose (e.g., `https://selenite.tonykapinos.com,https://devselenite.tonykapinos.com`). Frontend `VITE_API_URL` should point at the tunneled API hostname.
+- If system log downloads fail with `ERR_QUIC_PROTOCOL_ERROR`, disable HTTP/3 (QUIC) for the zone. This avoids Cloudflare serving the log downloads over QUIC in a way some clients reject.
+  - Cloudflare UI (if available): **Network** -> **HTTP/3 (with QUIC)** -> toggle **Off**.
+  - If the UI toggle is not visible on your plan: use the API to set `http3` to `off` for the zone (see Cloudflare API docs for `zones/:zone_id/settings/http3`).
+  - After disabling HTTP/3, close/reopen the browser (or clear site data) so it drops cached Alt-Svc entries.
 - Turnstile (signup CAPTCHA) envs: `TURNSTILE_SITE_KEY` (frontend/admin) and `TURNSTILE_SECRET_KEY` (backend verification). If the provider is set to `turnstile` without keys, signup shows a misconfiguration warning and submit is disabled.
 - Turnstile setup (Cloudflare dashboard): open the global search, go to **Turnstile → Add Widget**, choose **Managed** mode, add hostnames `selenite.tonykapinos.com` (prod) and `devselenite.tonykapinos.com` (dev) plus `localhost` if you need local testing; then copy the **Site Key** and **Secret Key** into `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`.
 - Email (Resend): verify sending domain (e.g., `tonykapinos.com`) in Resend by adding the provided DNS records in Cloudflare (DNS-only). After verification, create an API key with Permission **Sending Access** scoped to that domain, place it in `RESEND_API_KEY`, and send from an address on the verified domain (e.g., `no-reply@tonykapinos.com`).

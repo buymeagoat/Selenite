@@ -4,17 +4,16 @@ import logging
 import logging.config
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from app.config import settings
+from app.config import PROJECT_ROOT, settings
 
 
 def setup_logging() -> None:
     """Configure structured logging with rotation and appropriate levels."""
 
     # Create logs directory if it doesn't exist
-    log_dir = Path("./logs")
+    log_dir = PROJECT_ROOT / "logs"
     log_dir.mkdir(exist_ok=True)
 
     # Determine handler sets based on environment

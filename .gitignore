@@ -93,6 +93,7 @@ scratch/
 
 # Test run artifacts and reports
 docs/memorialization/test-runs/
+docs/memorialization/
 frontend/playwright-report/
 frontend/test-results/
 

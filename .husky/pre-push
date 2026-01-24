@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+# Selenite QA Gateway - Pre-Push Guard
+# Blocks prod pushes unless explicitly acknowledged.
+
+set -e
+
+ROLE_FILE=".workspace-role"
+ROLE=""
+if [ -f "$ROLE_FILE" ]; then
+  ROLE=$(cat "$ROLE_FILE" | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')
+fi
+
+if [ "$ROLE" = "prod" ]; then
+  if [ "$SELENITE_ALLOW_PROD_WRITES" != "1" ] && [ "$SELENITE_ALLOW_COMMIT_GATES" != "1" ]; then
+    echo "? BLOCKED: Prod pushes require SELENITE_ALLOW_PROD_WRITES=1 (or SELENITE_ALLOW_COMMIT_GATES=1)."
+    echo "   This is a safety tripwire to prevent accidental prod pushes."
+    exit 1
+  fi
+fi
+
+exit 0

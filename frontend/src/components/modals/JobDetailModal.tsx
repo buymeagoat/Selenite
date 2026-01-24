@@ -11,6 +11,7 @@ import {
   type SpeakerLabelUpdate,
 } from '../../services/transcripts';
 import { devError } from '../../lib/debug';
+import { formatDateTime, type DateTimePreferences } from '../../utils/dateTime';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -28,6 +29,9 @@ interface JobDetailModalProps {
   onUpdateTags: (jobId: string, tagIds: number[]) => void;
   availableTags?: Tag[];
   timeZone?: string | null;
+  dateFormat?: DateTimePreferences['dateFormat'];
+  timeFormat?: DateTimePreferences['timeFormat'];
+  locale?: string | null;
   asrProviderHint?: string | null;
   defaultDiarizerHint?: string | null;
 }
@@ -60,6 +64,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   onUpdateTags,
   availableTags,
   timeZone = null,
+  dateFormat = 'locale',
+  timeFormat = 'locale',
+  locale = null,
   asrProviderHint = null,
   defaultDiarizerHint = null,
 }) => {
@@ -183,24 +190,20 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
       .padStart(2, '0')}`;
   }
 
-function parseAsUTC(value: string): Date {
-  if (!value) return new Date();
-  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-  return new Date(hasZone ? value : `${value}Z`);
-}
-
-  function formatDate(isoString: string): string {
-    const date = parseAsUTC(isoString);
-    return date.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: timeZone || undefined,
-    timeZoneName: 'short',
-  });
+  function parseAsUTC(value: string): Date {
+    if (!value) return new Date();
+    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+    return new Date(hasZone ? value : `${value}Z`);
   }
+
+  const formatDate = (isoString: string): string =>
+    formatDateTime(isoString, {
+      timeZone,
+      dateFormat,
+      timeFormat,
+      locale,
+      includeTimeZoneName: true,
+    });
 
   function languageName(code: string | null | undefined): string {
     if (!code) return 'Unknown';

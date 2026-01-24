@@ -10,6 +10,7 @@ param(
     [switch]$Seed,           # Run app.seed
     [switch]$ForceInstall,   # Force npm install even if node_modules exists
     [switch]$ResetAuth,      # Clear cached auth state (frontend .auth folder)
+    [switch]$ResetAdminCreds, # Reset admin credentials (dev only; opt-in)
 
     [switch]$BackupDb,       # Create a DB backup before migrations/seed
     [int]$BindPort = 8201,   # Backend port
@@ -440,6 +441,10 @@ Invoke-Step "Database migrations (and seed if requested)" {
 Invoke-Step "Reset admin credentials (sanity)" {
     if ($IsProdWorkspace) {
         Write-Host "Skipping admin credential reset in prod workspace." -ForegroundColor Yellow
+        return
+    }
+    if (-not $ResetAdminCreds) {
+        Write-Host "Skipping admin credential reset (opt-in via -ResetAdminCreds)." -ForegroundColor Yellow
         return
     }
     # Run in backend directory so SQLite path resolves to backend/selenite.db

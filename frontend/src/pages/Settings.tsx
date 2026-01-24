@@ -29,6 +29,9 @@ export const Settings: React.FC = () => {
   const [allowDiarizerOverrides, setAllowDiarizerOverrides] = useState(false);
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3);
   const [timeZone, setTimeZone] = useState<string>(getBrowserTimeZone());
+  const [dateFormat, setDateFormat] = useState<'locale' | 'mdy' | 'dmy' | 'ymd'>('locale');
+  const [timeFormat, setTimeFormat] = useState<'locale' | '12h' | '24h'>('locale');
+  const [locale, setLocale] = useState('');
   const [allowEmptyWeights, setAllowEmptyWeights] = useState(false);
   const [registrySets, setRegistrySets] = useState<ModelSetWithWeights[]>([]);
   const [registryError, setRegistryError] = useState<string | null>(null);
@@ -84,6 +87,9 @@ export const Settings: React.FC = () => {
         setEnableTimestamps(settingsData.enable_timestamps);
         setMaxConcurrentJobs(settingsData.max_concurrent_jobs);
         setTimeZone(settingsData.time_zone || getBrowserTimeZone());
+        setDateFormat((settingsData.date_format as 'locale' | 'mdy' | 'dmy' | 'ymd') || 'locale');
+        setTimeFormat((settingsData.time_format as 'locale' | '12h' | '24h') || 'locale');
+        setLocale(settingsData.locale || '');
         setAllowEmptyWeights(settingsData.enable_empty_weights);
         allowRegistryFetch =
           isAdmin || settingsData.allow_asr_overrides || settingsData.allow_diarizer_overrides;
@@ -197,6 +203,9 @@ export const Settings: React.FC = () => {
   const buildSettingsPayload = () => {
     const payload: Record<string, unknown> = {
       time_zone: timeZone || null,
+      date_format: dateFormat,
+      time_format: timeFormat,
+      locale: locale.trim() || null,
     };
     if (isAdmin) {
       payload.allow_asr_overrides = allowAsrOverrides;
@@ -806,6 +815,53 @@ export const Settings: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label htmlFor="date-format" className="block text-sm font-medium text-pine-deep mb-1">
+              Date format
+            </label>
+            <select
+              id="date-format"
+              value={dateFormat}
+              onChange={(e) => setDateFormat(e.target.value as 'locale' | 'mdy' | 'dmy' | 'ymd')}
+              className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+            >
+              <option value="locale">Use locale default</option>
+              <option value="mdy">MM/DD/YYYY</option>
+              <option value="dmy">DD/MM/YYYY</option>
+              <option value="ymd">YYYY-MM-DD</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="time-format" className="block text-sm font-medium text-pine-deep mb-1">
+              Time format
+            </label>
+            <select
+              id="time-format"
+              value={timeFormat}
+              onChange={(e) => setTimeFormat(e.target.value as 'locale' | '12h' | '24h')}
+              className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+            >
+              <option value="locale">Use locale default</option>
+              <option value="12h">12-hour</option>
+              <option value="24h">24-hour</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="locale-override" className="block text-sm font-medium text-pine-deep mb-1">
+              Locale override (optional)
+            </label>
+            <input
+              id="locale-override"
+              type="text"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value)}
+              placeholder="en-US"
+              className="w-full px-3 py-2 border border-sage-mid rounded-lg focus:border-forest-green focus:ring-1 focus:ring-forest-green outline-none"
+            />
+            <p className="text-xs text-pine-mid mt-1">
+              Leave blank to use your browser locale. Examples: en-US, en-GB, fr-FR.
+            </p>
           </div>
           <div className="flex flex-col gap-2">
             <label className="flex items-center text-sm text-pine-deep">

@@ -44,6 +44,9 @@ vi.mock('../services/settings', () => ({
     max_concurrent_jobs: 3,
     show_all_jobs: false,
     time_zone: 'UTC',
+    date_format: 'locale',
+    time_format: 'locale',
+    locale: null,
     server_time_zone: 'UTC',
     transcode_to_wav: true,
     enable_empty_weights: false,
@@ -202,6 +205,9 @@ describe('Settings', () => {
       max_concurrent_jobs: 3,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -277,6 +283,9 @@ describe('Settings', () => {
       max_concurrent_jobs: 3,
       show_all_jobs: false,
       time_zone: 'UTC',
+      date_format: 'locale',
+      time_format: 'locale',
+      locale: null,
       server_time_zone: 'UTC',
       transcode_to_wav: true,
       enable_empty_weights: false,
@@ -342,4 +351,3 @@ describe('Settings', () => {
     await clickButton(saveBtn);
   });
 });
-

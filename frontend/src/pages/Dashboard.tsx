@@ -9,6 +9,7 @@ import { SkeletonGrid } from '../components/common/Skeleton';
 import { usePolling } from '../hooks/usePolling';
 import {
   fetchJobs,
+  fetchJob,
   createJob,
   cancelJob,
   pauseJob,
@@ -63,6 +64,7 @@ export const Dashboard: React.FC = () => {
   const [customTagColor, setCustomTagColor] = useState<string>(TAG_COLOR_PALETTE[0]);
   const [bulkTagError, setBulkTagError] = useState('');
   const [isBulkTagSubmitting, setIsBulkTagSubmitting] = useState(false);
+  const [isJobDetailLoading, setIsJobDetailLoading] = useState(false);
   const [isCustomRangeOpen, setIsCustomRangeOpen] = useState(false);
   const [customRangeStartDate, setCustomRangeStartDate] = useState('');
   const [customRangeStartTime, setCustomRangeStartTime] = useState('');
@@ -96,6 +98,9 @@ export const Dashboard: React.FC = () => {
   } = useAdminSettings();
   const effectiveTimeZone = adminSettings?.time_zone || adminSettings?.server_time_zone || null;
   const downloadTimeZone = adminSettings?.time_zone || null;
+  const userDateFormat = adminSettings?.date_format ?? 'locale';
+  const userTimeFormat = adminSettings?.time_format ?? 'locale';
+  const userLocale = adminSettings?.locale ?? null;
   const [showAllJobs, setShowAllJobs] = useState(false);
   const settingsErrorNotified = useRef(false);
 
@@ -289,19 +294,25 @@ export const Dashboard: React.FC = () => {
     interval: pollingIntervalMs
   });
 
-  const handleJobClick = (jobId: string) => {
-    // TODO: Fetch full job details from API
-    const job = jobs.find(j => j.id === jobId);
-    if (job) {
-      setSelectedJob({
-        ...job,
-        file_size: job.file_size || 15728640,
-        duration: job.duration || 1834,
-        model_used: job.model_used || 'medium',
-        language_detected: job.language_detected || 'English',
-        speaker_count: job.speaker_count || 1,
-        completed_at: job.completed_at || job.created_at
-      });
+  const handleJobClick = async (jobId: string) => {
+    if (isJobDetailLoading) {
+      return;
+    }
+    const fallbackJob = jobs.find((job) => job.id === jobId);
+    if (!fallbackJob) {
+      showError('Job not found.');
+      return;
+    }
+    setSelectedJob(fallbackJob);
+    setIsJobDetailLoading(true);
+    try {
+      const fullJob = await fetchJob(jobId);
+      setSelectedJob((prev) => (prev && prev.id !== jobId ? prev : fullJob));
+    } catch (error) {
+      devError('Failed to load job details:', error);
+      showError('Failed to load job details. Please try again.');
+    } finally {
+      setIsJobDetailLoading(false);
     }
   };
 
@@ -1422,6 +1433,9 @@ export const Dashboard: React.FC = () => {
                   onDownload={handleDownloadDefault}
                   onView={handleViewTranscript}
                   timeZone={effectiveTimeZone}
+                  dateFormat={userDateFormat}
+                  timeFormat={userTimeFormat}
+                  locale={userLocale}
                   showOwnerLabel={isAdmin && showAllJobs}
                 />
             ))}
@@ -1445,6 +1459,9 @@ export const Dashboard: React.FC = () => {
         onUpdateTags={handleUpdateTags}
         availableTags={availableTags}
         timeZone={effectiveTimeZone}
+        dateFormat={userDateFormat}
+        timeFormat={userTimeFormat}
+        locale={userLocale}
         asrProviderHint={adminSettings?.default_asr_provider || null}
         defaultDiarizerHint={adminSettings?.default_diarizer || null}
       />

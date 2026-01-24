@@ -139,6 +139,30 @@ def _validate_timezone(value: str | None) -> str | None:
     return value
 
 
+def _validate_date_format(value: str | None) -> str | None:
+    if value is None:
+        return None
+    allowed = {"locale", "mdy", "dmy", "ymd"}
+    if value not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Date format must be one of: locale, mdy, dmy, ymd.",
+        )
+    return value
+
+
+def _validate_time_format(value: str | None) -> str | None:
+    if value is None:
+        return None
+    allowed = {"locale", "12h", "24h"}
+    if value not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Time format must be one of: locale, 12h, 24h.",
+        )
+    return value
+
+
 def _normalize_optional(value: str | None) -> str | None:
     if value is None:
         return None
@@ -204,6 +228,9 @@ async def get_settings(
         max_concurrent_jobs=effective_settings.max_concurrent_jobs,
         show_all_jobs=user_settings.show_all_jobs if current_user.is_admin else False,
         time_zone=user_settings.time_zone,
+        date_format=user_settings.date_format,
+        time_format=user_settings.time_format,
+        locale=user_settings.locale,
         server_time_zone=prefs.server_time_zone,
         transcode_to_wav=prefs.transcode_to_wav,
         enable_empty_weights=prefs.enable_empty_weights,
@@ -428,6 +455,12 @@ async def _apply_settings(
         user_settings.show_all_jobs_set = True
     if payload.time_zone is not None:
         user_settings.time_zone = _validate_timezone(payload.time_zone)
+    if payload.date_format is not None:
+        user_settings.date_format = _validate_date_format(payload.date_format) or "locale"
+    if payload.time_format is not None:
+        user_settings.time_format = _validate_time_format(payload.time_format) or "locale"
+    if payload.locale is not None:
+        user_settings.locale = _normalize_optional(payload.locale)
     if payload.last_selected_asr_set is not None:
         if payload.last_selected_asr_set and not await _set_exists(
             payload.last_selected_asr_set, "asr"
@@ -704,6 +737,9 @@ async def _apply_settings(
         max_concurrent_jobs=user_settings.max_concurrent_jobs,
         show_all_jobs=user_settings.show_all_jobs,
         time_zone=user_settings.time_zone,
+        date_format=user_settings.date_format,
+        time_format=user_settings.time_format,
+        locale=user_settings.locale,
         server_time_zone=system_prefs.server_time_zone,
         transcode_to_wav=system_prefs.transcode_to_wav,
         enable_empty_weights=system_prefs.enable_empty_weights,

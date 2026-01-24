@@ -21,6 +21,7 @@ import {
 } from '../../services/feedback';
 import { useToast } from '../../context/ToastContext';
 import { ApiError } from '../../lib/api';
+import { formatDateTime, type DateTimePreferences } from '../../utils/dateTime';
 
 const FOLDERS = [
   { key: 'inbox', label: 'Inbox', icon: Inbox },
@@ -40,9 +41,18 @@ type ComposeMode = 'new' | 'reply' | 'edit-draft';
 interface MessagesPanelProps {
   feedbackStoreEnabled: boolean;
   timeZone?: string | null;
+  dateFormat?: DateTimePreferences['dateFormat'];
+  timeFormat?: DateTimePreferences['timeFormat'];
+  locale?: string | null;
 }
 
-export const MessagesPanel: React.FC<MessagesPanelProps> = ({ feedbackStoreEnabled, timeZone = null }) => {
+export const MessagesPanel: React.FC<MessagesPanelProps> = ({
+  feedbackStoreEnabled,
+  timeZone = null,
+  dateFormat = 'locale',
+  timeFormat = 'locale',
+  locale = null,
+}) => {
   const { showError, showSuccess } = useToast();
   const resolveInitialFolder = (): FolderKey => {
     const allowedFolders = new Set<FolderKey>(['inbox', 'archived', 'sent', 'deleted', 'drafts']);
@@ -86,21 +96,12 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ feedbackStoreEnabl
     ? messages.find((item) => item.id === selectedSingle) ?? null
     : null;
 
-  const parseAsUTC = (value: string): Date => {
-    if (!value) return new Date();
-    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-    return new Date(hasZone ? value : `${value}Z`);
-  };
-
   const formatMessageDate = (value: string): string => {
-    const date = parseAsUTC(value);
-    return date.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: timeZone || undefined,
+    return formatDateTime(value, {
+      timeZone,
+      dateFormat,
+      timeFormat,
+      locale,
     });
   };
 

@@ -52,9 +52,6 @@ class Settings(BaseSettings):
     default_diarizer_provider: str | None = None
     default_diarizer_model: str | None = None
     default_estimated_duration_seconds: int = 600
-    stall_timeout_multiplier: float = 2.0
-    stall_timeout_min_seconds: int = 300
-    stall_check_interval_seconds: int = 20
     huggingface_token: str | None = None
 
     # E2E/automation helpers

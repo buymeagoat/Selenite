@@ -9,6 +9,8 @@ import { apiGet, apiUpload, apiPost, apiDelete, apiPatch } from '../lib/api';
 export interface Job {
   id: string;
   original_filename: string;
+  saved_filename?: string | null;
+  file_path?: string | null;
   file_size: number;
   mime_type: string;
   duration: number;
@@ -34,6 +36,8 @@ export interface Job {
   speaker_count: number | null;
   has_timestamps: boolean;
   has_speaker_labels: boolean;
+  transcript_path?: string | null;
+  error_message?: string | null;
   tags: Array<{
     id: number;
     name: string;
@@ -42,6 +46,7 @@ export interface Job {
   owner_user_id?: number | null;
   owner_username?: string | null;
   owner_email?: string | null;
+  available_exports?: string[];
   created_at: string;
   updated_at?: string;
   started_at: string | null;

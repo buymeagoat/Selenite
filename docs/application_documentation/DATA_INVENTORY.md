@@ -8,6 +8,7 @@ data structures, storage paths, or persistent configuration.
 - Production data must never be overwritten by dev data.
 - Migrations must be additive/idempotent unless a documented, approved data plan exists.
 - Backup + rehearsal + rollback are mandatory before prod updates.
+- Schema snapshots (pre/post) and config capture evidence are mandatory for promotions.
 
 ## Database (SQLite)
 **Primary DB**: `backend/selenite.db`
@@ -52,6 +53,8 @@ If you change anything in the categories above:
 1) Update this document (add/modify entries).
 2) Note any migration requirements (idempotent + additive by default).
 3) Note any new backup/restore considerations.
+4) Capture schema snapshots (pre/post) and record paths in `DEV_TO_PROD_PROMOTION.md`.
+5) Capture config (`scripts/capture-config.ps1`) if `.env*` is not included in the backup; record the path.
 
 ## Rollback Expectations
 - A verified backup path must be recorded before promotion.
